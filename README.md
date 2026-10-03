@@ -1,4 +1,6 @@
-# Earth Agent — 3366 Alligators · HacKU 2026
+# Constellation — 3366 Alligators · HacKU 2026
+
+*Connecting satellites to you.*
 
 Ask questions about any place on Earth and get answers from satellite data.
 

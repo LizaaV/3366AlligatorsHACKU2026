@@ -1,6 +1,6 @@
 # Domain data handoff — frontend → backend
 
-This folder is the **preserved domain data** from the Earth Agent frontend prototype.
+This folder is the **preserved domain data** from the Constellation frontend prototype.
 
 Until now the frontend carried a complete simulated backend: a skills registry, saved places,
 watches with history series, scripted agent answers, and a feasibility rule engine. That
