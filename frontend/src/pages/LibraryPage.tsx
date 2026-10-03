@@ -143,25 +143,33 @@ function Seg<T extends string>({ value, onChange, options, label }: { value: T; 
 function Hotbar({ cat, setCat }: { cat: number | null; setCat: React.Dispatch<React.SetStateAction<number | null>> }) {
   const { categories } = useStore();
   const ref = useRef<HTMLDivElement>(null);
-  const lastWheel = useRef(0);
+  const lastSwitch = useRef(0);
+  const swipe = useRef(0);
 
-  // Wheel over the hotbar switches category (non-passive so the page does not scroll at the same time).
+  // Sideways scrolling over the bar switches category — a trackpad swipe, or Shift + wheel on a
+  // mouse. Up/down is left alone so the page scrolls normally (design review: "side to side, not
+  // up and down"). Non-passive so the sideways gesture does not also scroll the bar or go back.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const n = categories.length;
     const onWheel = (e: WheelEvent) => {
-      // Let trackpads scroll the bar sideways on narrow screens.
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      const dx = e.deltaX !== 0 ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+      // Mostly-vertical scrolling is the page's, not ours.
+      if (!dx || (!e.shiftKey && Math.abs(e.deltaY) > Math.abs(dx))) return;
       e.preventDefault();
+      // A trackpad swipe arrives as many small events: add them up so one swipe moves one step.
+      swipe.current += dx;
       const now = Date.now();
-      if (now - lastWheel.current < 120) return;
-      lastWheel.current = now;
-      const dir = e.deltaY > 0 ? 1 : -1;
-      setCat((c) => (c === null ? (dir > 0 ? 0 : 8) : (c + dir + 9) % 9));
+      if (Math.abs(swipe.current) < 40 || now - lastSwitch.current < 250) return;
+      const dir = swipe.current > 0 ? 1 : -1;
+      swipe.current = 0;
+      lastSwitch.current = now;
+      setCat((c) => (c === null ? (dir > 0 ? 0 : n - 1) : (c + dir + n) % n));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [setCat]);
+  }, [setCat, categories.length]);
 
   // Keep the selected block visible when the bar scrolls (phones).
   useEffect(() => {
@@ -205,7 +213,7 @@ function Hotbar({ cat, setCat }: { cat: number | null; setCat: React.Dispatch<Re
         <div className="body-sm">{c ? c.uses : 'Farms, water, forests, disasters, cities, oceans, air, finance and public good.'}</div>
         <div className="caption">
           {c ? <>Main free satellites: {c.sats}</> : 'Main free satellites: Sentinel-1/2/3/5P, Landsat, VIIRS, MODIS'}
-          <span className="hide-mobile"> · Keys 0–9, arrows or scroll to switch</span>
+          <span className="hide-mobile"> · Click, swipe sideways or use ← → and 0–9 to switch</span>
         </div>
       </div>
     </div>
