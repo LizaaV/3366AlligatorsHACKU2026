@@ -55,7 +55,9 @@ function AccountMenu() {
           </div>
           <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'connectors' }); }}>
             <Ms n="hub" />Connectors
-            <span className="tiny" style={{ marginLeft: 'auto' }}>{Object.values(connectors).filter((c) => c.connected).length} on</span>
+            {Object.values(connectors).some((c) => c.connected) && (
+              <span className="tiny" style={{ marginLeft: 'auto' }}>{Object.values(connectors).filter((c) => c.connected).length} on</span>
+            )}
           </button>
           <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'aboutYou' }); }}>
             <Ms n="person" />About you

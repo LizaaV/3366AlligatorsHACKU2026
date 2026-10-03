@@ -37,37 +37,29 @@ const LAYER_COLOR: Record<string, string> = {
 };
 
 export const catalogApi = {
-  /** TODO(api): GET /api/catalog — see docs/data/README.md */
-  get: (signal?: AbortSignal): Promise<Catalog> =>
-    request<CatalogDto>({
+  /**
+   * GET /api/catalog, once: the reference data and the map layers come from the same response
+   * (in fixture mode the layers still come from the older `/map-layers` list).
+   */
+  load: async (signal?: AbortSignal): Promise<{ catalog: Catalog; mapLayers: MapLayer[] }> => {
+    const d = await request<CatalogDto & { map_layers?: CatalogLayerDto[] }>({
       method: 'GET',
       path: '/catalog',
       signal,
-      fixture: fixtures.catalog,
-    }).then((d) => ({
+      ...(usingFixtures() && { fixture: fixtures.catalog }),
+    });
+    const catalog: Catalog = {
       categories: d.categories.map(toCategory),
       satellites: d.satellites,
       modules: d.modules,
       channels: d.channels,
       languages: d.languages,
-    })),
-
-  /**
-   * Map layers. The backend folds them into `GET /api/catalog` as `map_layers` (ids are measure
-   * names such as `greenness`, matching the `layer_id` on then/now blocks); the fixture keeps the
-   * older `/map-layers` list.
-   */
-  mapLayers: (signal?: AbortSignal): Promise<MapLayer[]> =>
-    usingFixtures()
-      ? request<MapLayerDto[]>({
-          method: 'GET',
-          path: '/map-layers',
-          signal,
-          fixture: fixtures.mapLayers,
-        }).then((ls) => ls.map(toMapLayer))
-      : request<{ map_layers: CatalogLayerDto[] }>({ method: 'GET', path: '/catalog', signal }).then((d) =>
-          (d.map_layers ?? []).map((l) =>
-            toMapLayer({ id: l.id, name: l.name, source: l.source, color: LAYER_COLOR[l.id] ?? '#b2b6bd', isAgentMade: l.is_agent_made }),
-          ),
-        ),
+    };
+    const mapLayers = usingFixtures()
+      ? (await request<MapLayerDto[]>({ method: 'GET', path: '/map-layers', signal, fixture: fixtures.mapLayers })).map(toMapLayer)
+      : (d.map_layers ?? []).map((l) =>
+          toMapLayer({ id: l.id, name: l.name, source: l.source, color: LAYER_COLOR[l.id] ?? '#b2b6bd', isAgentMade: l.is_agent_made }),
+        );
+    return { catalog, mapLayers };
+  },
 };
