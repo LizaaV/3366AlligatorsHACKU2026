@@ -826,6 +826,72 @@
           }
         }
       }
+    },
+    "/api/shares/{slug}/layers/{measure}/{scene}.png": {
+      "get": {
+        "tags": [
+          "shares"
+        ],
+        "summary": "A layer image of a shared run (no login)",
+        "description": "Map images inside a shared snapshot point here, so the run id is never public.",
+        "operationId": "get_shared_layer_api_shares__slug__layers__measure___scene__png_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "measure",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Measure"
+            }
+          },
+          {
+            "name": "scene",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scene"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The layer as a PNG.",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "400": {
+            "description": "Invalid measure or scene id."
+          },
+          "404": {
+            "description": "Unknown link, or no such layer in that run."
+          },
+          "410": {
+            "description": "The link expired or was revoked."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

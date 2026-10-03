@@ -66,7 +66,9 @@ def test_create_and_read_without_login(client: TestClient) -> None:
     assert body["expires_at"] > body["shared_at"]
     # layer images in shared blocks are served without an owner
     then_now = next(b for b in body["blocks"] if b["type"] == "then_now")
-    assert client.get(then_now["after"]["url"]).status_code == 200
+    res = client.get(then_now["after"]["url"])
+    assert res.status_code == 200 and res.headers["content-type"] == "image/png"
+    assert then_now["after"]["url"].startswith(f"/api/shares/{share['slug']}/layers/")
 
 
 def test_owner_only(client: TestClient) -> None:
@@ -173,3 +175,66 @@ def test_nothing_private_in_shared_json(client: TestClient) -> None:
     with sqlite3.connect(run_store.db_path()) as conn:
         stored = " ".join(r[0] for r in conn.execute("SELECT snapshot_json FROM shares"))
     assert SECRET not in stored and "alice" not in stored
+
+
+def _all_urls(node: object) -> list[str]:
+    if isinstance(node, dict):
+        out = [v for k, v in node.items() if k == "url" and isinstance(v, str)]
+        return out + [u for v in node.values() for u in _all_urls(v)]
+    if isinstance(node, list):
+        return [u for v in node for u in _all_urls(v)]
+    return []
+
+
+def test_shared_json_has_no_run_or_thread_id(client: TestClient) -> None:
+    run_id = _make_run(client)
+    run = run_store.get_run(run_id)
+    assert run is not None
+    # plant the ids in free-text spots too: they must be blanked
+    run.steps[0].desc = f"see {run_id} / {run.thread_id}"
+    run.method.code_ref = f"runs/{run_id}/script.py"
+    run_store.save_run(run)
+    slug = _share(client, run_id)["slug"]
+    text = client.get(f"/api/shares/{slug}").text
+    assert run_id not in text and run.thread_id not in text
+    with sqlite3.connect(run_store.db_path()) as conn:
+        stored = " ".join(r[0] for r in conn.execute("SELECT snapshot_json FROM shares"))
+    assert run_id not in stored and run.thread_id not in stored
+    urls = [u for u in _all_urls(client.get(f"/api/shares/{slug}").json()) if "/layers/" in u]
+    assert urls and all(u.startswith(f"/api/shares/{slug}/layers/") for u in urls)
+    for u in urls:
+        assert client.get(u).status_code == 200
+
+
+def test_shared_layer_lifecycle_and_validation(client: TestClient) -> None:
+    run_id = _make_run(client)
+    slug = _share(client, run_id)["slug"]
+    body = client.get(f"/api/shares/{slug}").json()
+    url = next(u for u in _all_urls(body) if "/layers/" in u)
+    measure, scene = url.split("/layers/")[1].removesuffix(".png").split("/", 1)
+    assert client.get(f"/api/shares/{slug}/layers/{measure}/no-such-scene.png").status_code == 404
+    assert client.get(f"/api/shares/{slug}/layers/{measure}/..%2f..%2fx.png").status_code in (
+        400,
+        404,
+    )
+    assert client.get(f"/api/shares/{slug}/layers/{measure}/.hidden.png").status_code in (400, 404)
+    assert client.get(f"/api/shares/{slug}/layers/bogus/{scene}.png").status_code == 400
+    assert client.get(f"/api/shares/nope/layers/{measure}/{scene}.png").status_code == 404
+    # another run's layer is not reachable through this share
+    other = _make_run(client)
+    assert client.get(f"/api/shares/{slug}/layers/{measure}/{other}.png").status_code == 404
+    assert client.delete(f"/api/shares/{slug}", headers=ALICE).status_code == 204
+    assert client.get(url).status_code == 410
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "10000000", "3651", "abc"])
+def test_bad_share_ttl_fails_at_settings_load(value: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+
+    monkeypatch.setenv("SHARE_TTL_DAYS", value)
+    with pytest.raises(ValidationError):
+        Settings()
+    monkeypatch.setenv("SHARE_TTL_DAYS", "3650")
+    assert Settings().share_ttl_days == 3650

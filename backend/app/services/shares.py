@@ -22,6 +22,7 @@ from app.services.runs import _connect, db_path
 __all__ = [
     "ShareGone",
     "create_share",
+    "get_share_run_id",
     "get_shared_run",
     "list_shares",
     "revoke_share",
@@ -85,9 +86,15 @@ def _url(slug: str) -> str:
     return f"{settings.public_base_url.rstrip('/')}/proof/{slug}"
 
 
-def snapshot(run: RunRecord, shared_at: datetime, expires_at: datetime) -> SharedRun:
-    """Copy the public parts of a run (explicit allow-list; see `SharedRun`)."""
-    return SharedRun(
+def snapshot(run: RunRecord, slug: str, shared_at: datetime, expires_at: datetime) -> SharedRun:
+    """Copy the public parts of a run (explicit allow-list; see `SharedRun`).
+
+    Layer URLs (`/api/layers/<run_id>/...`) are rewritten to the share-scoped route
+    (`/api/shares/<slug>/layers/...`) so the public JSON never reveals the run id, which would
+    give anyone access to `GET /api/runs/<run_id>`. As a last guard, any other occurrence of the
+    run id or thread id anywhere in the snapshot is blanked.
+    """
+    shared = SharedRun(
         question=run.question,
         lang=run.lang,
         area=run.area,
@@ -100,14 +107,21 @@ def snapshot(run: RunRecord, shared_at: datetime, expires_at: datetime) -> Share
         shared_at=shared_at,
         expires_at=expires_at,
     )
+    text = shared.model_dump_json().replace(
+        f"/api/layers/{run.run_id}/", f"/api/shares/{slug}/layers/"
+    )
+    for private in (run.run_id, run.thread_id):
+        if private:
+            text = text.replace(private, "redacted")
+    return SharedRun.model_validate_json(text)
 
 
 def create_share(run: RunRecord) -> ShareCreated:
     """Snapshot `run` behind a new unguessable slug that expires after SHARE_TTL_DAYS."""
     now = _now()
     expires = now + timedelta(days=settings.share_ttl_days)
-    shared = snapshot(run, now, expires)
     slug = secrets.token_urlsafe(16)
+    shared = snapshot(run, slug, now, expires)
     with _db() as conn:
         conn.execute(
             "INSERT INTO shares (slug, run_id, user_id, shared_at, expires_at, snapshot_json)"
@@ -128,6 +142,19 @@ def get_shared_run(slug: str) -> SharedRun | None:
     if row[2] is not None or _parse(row[1]) <= _now():
         raise ShareGone(slug)
     return SharedRun.model_validate_json(row[0])
+
+
+def get_share_run_id(slug: str) -> str | None:
+    """The run behind a live link (server-side only). None if unknown; `ShareGone` if dead."""
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT run_id, expires_at, revoked_at FROM shares WHERE slug = ?", (slug,)
+        ).fetchone()
+    if row is None:
+        return None
+    if row[2] is not None or _parse(row[1]) <= _now():
+        raise ShareGone(slug)
+    return str(row[0])
 
 
 def list_shares(run_id: str, user_id: str) -> list[ShareInfo]:
