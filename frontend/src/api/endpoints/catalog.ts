@@ -1,6 +1,10 @@
 /**
- * Reference data: categories, satellites, skill modules, delivery channels, languages, map
- * layers and the agent's clarifying questions.
+ * Reference data: categories, satellites, skill modules, delivery channels, languages and map
+ * layers.
+ *
+ * The agent's clarifying questions used to live here too, behind a proposed
+ * `GET /api/ask/clarifying-questions`. The contract has no such endpoint: the agent decides
+ * what it needs to ask mid-run and emits `clarification_needed` on the stream instead.
  *
  * All of it is backend-owned registry data. Category *colour* is the one exception and is
  * merged in from `data/presentation.ts` by `toCategory()`.
@@ -8,8 +12,8 @@
 
 import { request } from '../http';
 import * as fixtures from '../fixtures';
-import type { CatalogDto, ClarifyingQuestionDto, MapLayerDto } from '../types';
-import { toCategory, toMapLayer, type Catalog, type ClarifyingQuestion, type MapLayer } from '../../model';
+import type { CatalogDto, MapLayerDto } from '../types';
+import { toCategory, toMapLayer, type Catalog, type MapLayer } from '../../model';
 
 export const catalogApi = {
   /** TODO(api): GET /api/catalog — see docs/data/README.md */
@@ -35,13 +39,4 @@ export const catalogApi = {
       signal,
       fixture: fixtures.mapLayers,
     }).then((ls) => ls.map(toMapLayer)),
-
-  /** TODO(api): GET /api/ask/clarifying-questions */
-  clarifyingQuestions: (signal?: AbortSignal): Promise<ClarifyingQuestion[]> =>
-    request<ClarifyingQuestionDto[]>({
-      method: 'GET',
-      path: '/ask/clarifying-questions',
-      signal,
-      fixture: fixtures.clarifyingQuestions,
-    }),
 };

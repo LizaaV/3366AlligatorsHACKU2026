@@ -33,3 +33,12 @@ export const FIXTURE_ERROR_RATE = Math.min(1, Math.max(0, num(import.meta.env.VI
 export const REQUEST_TIMEOUT_MS = 30_000;
 
 export const usingFixtures = () => API_SOURCE === 'fixture';
+
+/**
+ * Force the synthesised fixture run to ask a clarifying question.
+ *
+ * The stub backend never asks one (`docs/API.md` §4), and the real flow arrives with the agent
+ * loop in module A3. Without this the clarification UI could not be exercised at all before
+ * then, so set `VITE_FIXTURE_CLARIFY=1` to make fixture runs pause for the user once.
+ */
+export const FIXTURE_CLARIFY = import.meta.env.VITE_FIXTURE_CLARIFY === '1';
