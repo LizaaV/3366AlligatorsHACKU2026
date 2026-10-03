@@ -1,0 +1,105 @@
+{
+  "pond-filling-check": {
+    "category_key": "water",
+    "sat": "Sentinel-2",
+    "cost": "Free",
+    "tier": "free",
+    "price": null,
+    "publisher": {
+      "name": "Earth Agent",
+      "official": true,
+      "verified": false
+    },
+    "reference": {
+      "lat": 22.534,
+      "lon": 114.0906
+    },
+    "res": "10 m",
+    "revisit": "5 days",
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      },
+      {
+        "key": "context",
+        "type": "answers",
+        "required": false
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {}
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 60,
+          "baseline_years": 4
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 30
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDWI",
+            "NDBI",
+            "NDVI",
+            "NDMI"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {}
+      },
+      {
+        "module": "explain.cause",
+        "params": {
+          "cards": [
+            "pond_filling",
+            "seasonal",
+            "water_loss",
+            "construction",
+            "new_bare_or_built"
+          ]
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ]
+  }
+}
