@@ -22,6 +22,18 @@ export interface CreateSkillRequest {
   steps: { module: string; params: Record<string, string | number | boolean | string[]> }[];
 }
 
+export interface TestSkillRequest {
+  placeId: string;
+  steps: { module: string; params: Record<string, string | number | boolean | string[]> }[];
+}
+
+export interface TestSkillResponse {
+  ok: boolean;
+  /** e.g. "7 of 12 scenes usable". */
+  summary: string;
+  issues: string[];
+}
+
 export const skillsApi = {
   /**
    * TODO(api): GET /api/skills?category=&tier=&q=
@@ -84,4 +96,13 @@ export const skillsApi = {
    */
   create: (body: CreateSkillRequest, signal?: AbortSignal): Promise<Skill> =>
     request<SkillDto>({ method: 'POST', path: '/skills', body, signal }).then(toSkill),
+
+  /**
+   * TODO(api): POST /api/skills/test
+   * Dry-runs a draft skill against one place so the author sees whether it can actually run.
+   * No fixture: inventing "7 of 12 scenes usable" is exactly the kind of fabricated result
+   * this refactor removes, and a wrong green tick is worse than an honest "not connected".
+   */
+  test: (body: TestSkillRequest, signal?: AbortSignal): Promise<TestSkillResponse> =>
+    request<TestSkillResponse>({ method: 'POST', path: '/skills/test', body, signal }),
 };
