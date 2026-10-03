@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { api, toApiError } from '../api';
+import { toApiError } from '../api';
 import type { SkillModule } from '../model';
 import { slug } from '../lib/format';
 import { Btn, IconBtn, Ms, Toggle } from '../components/ui';
@@ -17,7 +17,7 @@ const cloneParams = (p?: SkillModule['params']): Record<string, ParamVal> =>
   Object.fromEntries(Object.entries(p ?? {}).map(([k, v]) => [k, Array.isArray(v) ? [...v] : v] as [string, ParamVal]));
 
 export function SkillBuilder() {
-  const { route, go, skills, places, addSkill, notify, categories, modules, catalog } = useStore();
+  const { route, go, skills, addSkill, notify, categories, modules, catalog } = useStore();
   const satellites = catalog?.satellites ?? [];
   // Module definitions come from the catalog endpoint, so this is a closure rather than a
   // module-level helper (the catalog is not available until it has loaded).
@@ -34,7 +34,6 @@ export function SkillBuilder() {
   const [price, setPrice] = useState('$1 / km²');
   const [steps, setSteps] = useState<Step[]>(() => (from ? from.steps : DEFAULT_STEPS).filter((id) => mod(id)).map(mk));
   const [openUid, setOpenUid] = useState<number | null>(null);
-  const [testing, setTesting] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<ReturnType<typeof toApiError> | null>(null);
 
@@ -108,21 +107,6 @@ export function SkillBuilder() {
     accuracy: { resolution: '10 m', revisit: '5 days', statement: 'Not yet validated', known_limits: [] as string[] },
   };
   const json = JSON.stringify(manifest, null, 2);
-
-  const test = async () => {
-    const placeId = places[0]?.id;
-    if (!placeId || testing) return;
-    setTesting(true);
-    setPublishError(null);
-    try {
-      const res = await api.skills.test({ placeId, steps: steps.map((st) => ({ module: st.module, params: st.params })) });
-      notify(res.ok ? `Test run passed \u00b7 ${res.summary}` : `Test run failed \u00b7 ${res.summary}`, undefined, undefined, res.ok ? 'check_circle' : 'error');
-    } catch (err) {
-      setPublishError(toApiError(err));
-    } finally {
-      setTesting(false);
-    }
-  };
 
   const publish = async () => {
     if (errors || publishing) return;
@@ -318,11 +302,9 @@ export function SkillBuilder() {
       )}
 
       <div className="lib-foot">
-        <Btn icon={testing ? undefined : 'science'} tier="free" onClick={() => void test()} disabled={testing || errors > 0 || !places.length}>
-          {testing && <span className="spinner" />}
-          {testing ? 'Testing on North Pivot…' : 'Test on North Pivot'}
+        <Btn icon="science" disabled title="Test runs are not available yet">
+          Test run · Coming soon
         </Btn>
-        <Btn icon="save" onClick={() => notify(`Draft saved · ${manifest.id}@${version}`, undefined, undefined, 'save')}>Save draft</Btn>
         <Btn variant="primary" icon="publish" tier="free" onClick={publish} disabled={errors > 0 || publishing} title={errors ? 'Fix the checks above first' : undefined}>
           Publish to library
         </Btn>
