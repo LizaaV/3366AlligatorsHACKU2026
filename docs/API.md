@@ -429,3 +429,27 @@ Use a plain link or `fetch` + blob; the owner route needs the `X-User-Id` header
 - Privacy: built from the same allow-list snapshot as a share link. It never contains params, events, script, memory, user id, thread id or run id.
 - A layer image that is missing on disk shows a grey placeholder; the PDF is still returned.
 - Limit: built-in Helvetica font, Latin only. Chinese text (`zh-Hant`, `yue`) appears as `?` and the PDF says so.
+
+## 12. Trigger recurrence, dashboard link and satellites
+
+**Triggers (watches).** `WatchDto`, `CreateWatchRequest` and `PatchWatchRequest` gain two fields,
+both optional on write:
+
+- `recurrence: "recurring" | "once"` (default `"recurring"`). A `once` trigger sets
+  `enabled: false` after its first `alert`-level event; `recurring` keeps going. Not nullable on PATCH.
+- `dashboard_id: string | null` (default `null`). Links the trigger to a dashboard from
+  `/api/dashboards`. Create/PATCH answer **404** when the id is not one of the user's dashboards.
+  On PATCH, an explicit `null` unlinks it.
+
+**`GET /api/satellites?at=<ISO datetime>`** returns `SatelliteDto[]` (`at` defaults to now, UTC):
+
+```json
+{ "id": "sentinel-2a", "name": "Sentinel-2A", "norad_id": 40697, "mission": "Sentinel-2",
+  "lat": 12.3, "lon": 45.6, "alt_km": 786.2, "velocity_kms": 7.45,
+  "at": "2026-10-04T12:00:00Z", "track": [{ "lat": 12.3, "lon": 45.6 }] }
+```
+
+`track` is the sub-satellite point for the next 90 minutes at 2-minute steps (45 points, the first
+equals the current position). Satellites: Sentinel-1A, Sentinel-2A/2B/2C, Landsat 8/9, Terra, Aqua,
+Suomi NPP. TLEs come from CelesTrak (cached 6 h) with a bundled fallback snapshot, so the endpoint
+works offline; positions are approximate (a few km).
