@@ -22,7 +22,7 @@ export function WhatsAppMethod({ onChange }: MethodProps) {
   return (
     <div className="col" style={{ gap: 10 }}>
       <div className="body-sm">
-        Standing in the field? In WhatsApp, tap <span className="ink">📎 → Location → Send your current location</span> to <span className="ink">{WA_NUMBER}</span> (Groundtruth). It shows up here within seconds — no app needed.
+        Standing in the field? In WhatsApp, tap <span className="ink">📎 → Location → Send your current location</span> to <span className="ink">{WA_NUMBER}</span> (Constellation). It shows up here within seconds — no app needed.
       </div>
       {!connectors.whatsapp.connected ? (
         <div className="well row wrap" style={{ padding: '12px 14px', gap: 12 }}>

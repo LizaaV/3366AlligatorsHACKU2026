@@ -9,10 +9,10 @@ import type { Skill } from '../model';
 // Re-exported for existing importers; prefer importing from lib/format directly.
 export { fmtRuns, slug };
 
-/** Official = built by Groundtruth. Community = anyone else; "verified" means the publisher's identity is checked. */
+/** Official = built by Constellation. Community = anyone else; "verified" means the publisher's identity is checked. */
 export const PublisherBadge = ({ s }: { s: Pick<Skill, 'official' | 'verified'> }) =>
   s.official ? (
-    <span className="lib-badge official" title="Built and validated by Groundtruth"><Ms n="verified" />Official</span>
+    <span className="lib-badge official" title="Built and validated by Constellation"><Ms n="verified" />Official</span>
   ) : (
     <span className="lib-badge community" title={s.verified ? 'Community skill from a verified publisher' : 'Community skill'}>
       <Ms n={s.verified ? 'verified_user' : 'groups'} />

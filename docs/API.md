@@ -1,4 +1,4 @@
-# Earth Agent API: guide for the frontend
+# Constellation API: guide for the frontend
 
 **Who this is for:** @LizaaV and @annaclairebb (frontend), plus anyone calling the backend.
 **Source of truth:** `contracts/openapi.json` (generated from the backend's Pydantic schemas). This guide explains what OpenAPI can't: how the live stream works, the order of events, how to read it in the browser, and how fields map onto the existing mocks in `frontend/src/data/`.

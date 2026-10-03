@@ -1,4 +1,4 @@
-# Earth Agent: the agent loop (A3)
+# Constellation: the agent loop (A3)
 
 **Who this is for:** judges who want to know how the answers are made, and the team (backend, frontend) who need the exact rules.
 **Code:** `backend/app/services/agent/` (owner @Alex-bot16). **Status:** live with Claude Opus 5.5, measured on Sun 4 Oct (section 13).

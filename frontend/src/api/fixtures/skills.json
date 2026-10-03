@@ -9,7 +9,7 @@
     "short": "Finds parts of a field that stay drier than the rest on two or more dates.",
     "long": "Compares NDMI (plant water) and land surface temperature across every clear pass in the last six weeks and the same window in past years. Zones that stay much drier than the field median on two or more dates are flagged, sized in hectares, and checked against elevation and soil maps to suggest a cause.",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -134,7 +134,7 @@
     "short": "Daily 3 m stress map for fields too small for Sentinel-2.",
     "long": "Routes to PlanetScope when a field is under 2 ha so the edges are not lost in 10 m pixels. Runs the same NDMI and NDVI anomaly checks as the free version.",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -175,7 +175,7 @@
     "short": "Water surface area and height for any lake or reservoir.",
     "long": "Maps the water edge from Sentinel-2 using the NDWI index and pairs it with SWOT water-height measurements to estimate volume change over time.",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -298,7 +298,7 @@
     "short": "Weekly alerts for new forest clearing, even under clouds.",
     "long": "Radar backscatter change from Sentinel-1 catches clearing through cloud cover; Sentinel-2 confirms it on the next clear pass. Each alert includes area, date and a before/after image.",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -421,7 +421,7 @@
     "short": "Fire hotspots near your sites within hours of a pass.",
     "long": "Pulls NASA FIRMS hotspots from VIIRS and MODIS, groups them into fire fronts, and alerts when one comes within a set distance of a field, plant or town.",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -544,7 +544,7 @@
     "short": "See what was built, cleared or planted between two dates.",
     "long": "Classifies land cover for two dates and lists every change by type and area, for zoning checks and due diligence on a parcel.",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -790,7 +790,7 @@
     "short": "Daily nitrogen dioxide levels over cities and industry.",
     "long": "Maps tropospheric NO₂ from Sentinel-5P TROPOMI and compares each week with the same week in past years, adjusted for weather.",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -954,7 +954,7 @@
     "short": "Verifies crop loss claims with before and after images.",
     "long": "Compares crop condition before and after a reported event, measures the affected area, and attaches high-resolution imagery where the claim needs it.",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },

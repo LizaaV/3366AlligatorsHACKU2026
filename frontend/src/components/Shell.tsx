@@ -10,12 +10,20 @@ const TABS: { page: Page; icon: string; key: string }[] = [
   { page: 'library', icon: 'auto_stories', key: 'nav.library' },
 ];
 
+/** The Big Dipper, star for star: handle Alkaid → Mizar → Alioth, then the bowl Megrez → Dubhe → Merak → Phecda. */
+const DIPPER: [number, number][] = [[1, 3], [5.5, 2], [9, 3.5], [13, 5.5], [21, 3.5], [22, 10.5], [14, 11]];
+
+export const BigDipper = ({ width = 30 }: { width?: number }) => (
+  <svg width={width} height={(width * 14) / 24} viewBox="0 0 24 14" aria-hidden="true" style={{ flex: 'none', overflow: 'visible' }}>
+    <polyline points={[...DIPPER, DIPPER[3]].map((p) => p.join(',')).join(' ')} fill="none" stroke="#fff" strokeOpacity={0.45} strokeWidth={0.8} />
+    {DIPPER.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={i >= 4 ? 1.5 : 1.25} fill="#fff" />)}
+  </svg>
+);
+
 export const Logo = () => (
-  <a href={href('ask')} className="row" style={{ gap: 10, font: '600 15px/1 var(--font)', color: '#fff' }} aria-label="Groundtruth home">
-    <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
-    </span>
-    Groundtruth
+  <a href={href('ask')} className="row" style={{ gap: 10, font: '600 15px/1 var(--font)', color: '#fff' }} aria-label="Constellation home">
+    <BigDipper />
+    Constellation
   </a>
 );
 
