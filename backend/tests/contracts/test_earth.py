@@ -435,3 +435,11 @@ def test_area_upper_size_budget():
         with pytest.raises(earth.BudgetExceeded) as e:
             call()
         assert "smaller outline" in _hint(e)
+
+
+@pytest.mark.parametrize("scene", ["../../evil", "a/b", "..", ""])
+def test_render_rejects_scene_ids_that_are_paths(scene):
+    from earth.render import layer_path
+
+    with pytest.raises(ValueError):
+        layer_path("r_test", "greenness", scene)
