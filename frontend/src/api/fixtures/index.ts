@@ -174,6 +174,8 @@ export const createWatch = (req: CreateWatchRequest): WatchDto => {
     condition: req.condition,
     channels: req.channels,
     cadence: req.cadence,
+    recurrence: req.recurrence ?? 'recurring',
+    dashboardId: req.dashboardId ?? null,
     metric: 'First result',
     value: 0,
     unit: '',

@@ -21,6 +21,14 @@ export const StatusPill = ({ status, on = true }: { status: Watch['status']; on?
     </span>
   );
 
+/** Whether a trigger keeps firing on every pass or fires once and stops. */
+export const RecurrencePill = ({ recurrence }: { recurrence: Watch['recurrence'] }) => (
+  <span className="pill" style={{ background: 'var(--s2)' }} title={recurrence === 'once' ? 'Fires once, then stops' : 'Checks on every new satellite pass'}>
+    <Ms n={recurrence === 'once' ? 'looks_one' : 'autorenew'} size={14} />
+    {recurrence === 'once' ? 'One-time' : 'Recurring'}
+  </span>
+);
+
 /* ---------- chart range helpers ---------- */
 
 type Range = 'season' | 'year' | 'five';
@@ -69,13 +77,15 @@ export function WatchDetail({ id }: { id: string }) {
   const w = watches.find((x) => x.id === id);
   const [range, setRange] = useState<Range>('season');
   const data = useMemo(() => (w ? chartData(w, range) : null), [w, range]);
+  const proof = useResource(useCallback((signal) => api.watches.proof(id, signal), [id]), [id]);
+  const dashboards = useResource(useCallback((signal) => api.dashboards.list(signal), []), []);
 
   if (!w || !data) {
     return (
       <div className="col" style={{ gap: 16 }}>
-        <button className="btn btn-text" style={{ alignSelf: 'flex-start' }} onClick={() => go('triggers')}><Ms n="arrow_back" className="ms-flip" />All watches</button>
-        <Empty icon="visibility_off" title="This watch no longer exists" body="It may have been deleted. Your other watches are still running.">
-          <Btn variant="primary" onClick={() => go('triggers')}>See all watches</Btn>
+        <button className="btn btn-text" style={{ alignSelf: 'flex-start' }} onClick={() => go('triggers')}><Ms n="arrow_back" className="ms-flip" />All triggers</button>
+        <Empty icon="visibility_off" title="This trigger no longer exists" body="It may have been deleted. Your other triggers are still running.">
+          <Btn variant="primary" onClick={() => go('triggers')}>See all triggers</Btn>
         </Empty>
       </div>
     );
@@ -83,7 +93,6 @@ export function WatchDetail({ id }: { id: string }) {
 
   const cat = category(w.categoryKey);
   const place = places.find((p) => p.id === w.placeId);
-  const proof = useResource(useCallback((signal) => api.watches.proof(id, signal), [id]), [id]);
   const scenes = proof.data?.scenes ?? [];
   const skill = skills.find((x) => x.id === w.skillId);
 
@@ -104,7 +113,7 @@ export function WatchDetail({ id }: { id: string }) {
       // TODO(api): a soft-delete + POST /watches/{id}/restore would let Undo work honestly.
       notify(`Deleted \u201c${name}\u201d`, undefined, undefined, 'delete');
     } catch {
-      notify('Could not delete the watch', undefined, undefined, 'error');
+      notify('Could not delete the trigger', undefined, undefined, 'error');
     }
   };
 
@@ -122,7 +131,7 @@ export function WatchDetail({ id }: { id: string }) {
       {/* sub header */}
       <div className="col" style={{ gap: 14, paddingBottom: 20, borderBottom: '1px solid var(--hair-soft)' }}>
         <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start', marginLeft: -12 }} onClick={() => go('triggers')}>
-          <Ms n="arrow_back" className="ms-flip" />All watches
+          <Ms n="arrow_back" className="ms-flip" />All triggers
         </button>
         <div className="h1" style={{ fontSize: 'clamp(28px, 4vw, 48px)' }}>{w.name}</div>
         <div className="row wrap">
@@ -135,6 +144,13 @@ export function WatchDetail({ id }: { id: string }) {
             <span className="pill" style={{ background: 'var(--s2)' }}><Ms n="travel_explore" size={14} />All my places</span>
           )}
           <StatusPill status={w.status} on={w.enabled} />
+          <RecurrencePill recurrence={w.recurrence} />
+          {w.dashboardId && (
+            <button className="pill" style={{ border: 0, background: 'var(--s2)', color: '#fff' }} onClick={() => go('dashboard', w.dashboardId!)}>
+              <Ms n="dashboard" size={14} />
+              {dashboards.data?.find((d) => d.id === w.dashboardId)?.name ?? 'Dashboard'}
+            </button>
+          )}
           <ConfidenceBadge level={w.confidence} />
         </div>
         <div className="row wrap">
@@ -145,8 +161,8 @@ export function WatchDetail({ id }: { id: string }) {
             icon={w.enabled ? 'pause' : 'play_arrow'}
             onClick={() => {
               void updateWatch(w.id, { enabled: !w.enabled })
-                .then(() => notify(w.enabled ? 'Watch paused' : 'Watch resumed'))
-                .catch(() => notify('Could not change the watch', undefined, undefined, 'error'));
+                .then(() => notify(w.enabled ? 'Trigger paused' : 'Trigger resumed'))
+                .catch(() => notify('Could not change the trigger', undefined, undefined, 'error'));
             }}
           >
             {w.enabled ? 'Pause' : 'Resume'}
@@ -304,9 +320,9 @@ export function WatchDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* ask this watch */}
+      {/* ask this trigger */}
       <div className="col" style={{ gap: 12 }}>
-        <div className="eyebrow">Ask this watch</div>
+        <div className="eyebrow">Ask this trigger</div>
         <AskBar
           placeholder={`Ask about ${w.name.split(' · ')[0].toLowerCase()} — what changed and what it means…`}
           suggestions={['What changed since the last pass?', 'Is this normal for the time of year?', 'When will it cross my threshold?']}

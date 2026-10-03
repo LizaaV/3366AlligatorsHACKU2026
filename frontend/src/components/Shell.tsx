@@ -7,6 +7,7 @@ const TABS: { page: Page; icon: string; key: string }[] = [
   { page: 'ask', icon: 'forum', key: 'nav.ask' },
   { page: 'places', icon: 'pentagon', key: 'nav.places' },
   { page: 'triggers', icon: 'notifications_active', key: 'nav.triggers' },
+  { page: 'dashboard', icon: 'dashboard', key: 'nav.dashboard' },
   { page: 'library', icon: 'auto_stories', key: 'nav.library' },
 ];
 

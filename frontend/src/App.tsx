@@ -5,6 +5,7 @@ import { AskPage } from './pages/AskPage';
 import { PlacesPage } from './pages/PlacesPage';
 import { WatchesPage } from './pages/WatchesPage';
 import { LibraryPage } from './pages/LibraryPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { ModalHost } from './modals/ModalHost';
 
 function Routes() {
@@ -24,6 +25,7 @@ function Routes() {
         {route.page === 'places' && <PlacesPage />}
         {route.page === 'triggers' && <WatchesPage />}
         {route.page === 'library' && <LibraryPage />}
+        {route.page === 'dashboard' && <DashboardPage />}
       </ErrorBoundary>
       <MobileTabs />
       <ErrorBoundary label="modal">

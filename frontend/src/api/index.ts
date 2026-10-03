@@ -14,6 +14,7 @@ import { areasApi } from './endpoints/areas';
 import { knowledgeApi } from './endpoints/knowledge';
 import { runsApi } from './endpoints/runs';
 import { catalogApi } from './endpoints/catalog';
+import { dashboardsApi } from './endpoints/dashboards';
 import { exportsApi } from './endpoints/exports';
 import { insightsApi } from './endpoints/insights';
 import { placesApi } from './endpoints/places';
@@ -25,6 +26,7 @@ export const api = {
   skills: skillsApi,
   places: placesApi,
   watches: watchesApi,
+  dashboards: dashboardsApi,
   runs: runsApi,
   areas: areasApi,
   knowledge: knowledgeApi,
@@ -40,3 +42,4 @@ export { DEFAULT_PIN_RADIUS_M } from './endpoints/areas';
 export { isEvent } from './stream';
 export type { StreamEvent, StreamEventName } from './stream';
 export type { SkillQuery } from './endpoints/skills';
+export type { Dashboard, DashboardBlock, DashboardSummary } from './endpoints/dashboards';

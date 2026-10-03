@@ -18,7 +18,7 @@ export function ModalHost() {
     case 'app': return <MobileAppModal />;
     case 'lang': return <LanguageModal />;
     case 'addPlace': return <AddPlaceModal />;
-    case 'watchBuilder': return <WatchBuilderModal prefill={modal.prefill} placeId={modal.placeId} skillId={modal.skillId} fromAnswer={modal.fromAnswer} />;
+    case 'watchBuilder': return <WatchBuilderModal prefill={modal.prefill} placeId={modal.placeId} skillId={modal.skillId} fromAnswer={modal.fromAnswer} dashboardId={modal.dashboardId} />;
     case 'knowledgeCard': return <KnowledgeCardModal cardId={modal.cardId} />;
   }
 }

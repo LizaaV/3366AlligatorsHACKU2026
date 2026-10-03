@@ -213,6 +213,12 @@ export interface ParseBoundaryFileResponse {
 /* ---------------- watches ---------------- */
 
 export type WatchStatus = 'ok' | 'warn' | 'alert';
+/**
+ * TODO: drop once schema.d.ts is regenerated. Backend stream A is adding `recurrence` and
+ * `dashboard_id` to WatchDto / CreateWatchRequest / PatchWatchRequest; until the contract
+ * carries them they are optional here so older payloads still parse.
+ */
+export type WatchRecurrence = 'recurring' | 'once';
 export type WatchEventLevel = 'info' | 'warn' | 'alert';
 
 export interface WatchSeriesDto {
@@ -264,6 +270,10 @@ export interface WatchDto {
   thumbnail?: { zoom: number };
   ring: boolean;
   events: WatchEventDto[];
+  /** TODO: drop once schema.d.ts is regenerated. Absent = `recurring`. */
+  recurrence?: WatchRecurrence;
+  /** TODO: drop once schema.d.ts is regenerated. The dashboard this trigger watches, if any. */
+  dashboardId?: string | null;
 }
 
 export interface CreateWatchRequest {
@@ -275,6 +285,10 @@ export interface CreateWatchRequest {
   condition: string;
   channels: ChannelId[];
   cadence: string;
+  /** TODO: drop once schema.d.ts is regenerated. */
+  recurrence?: WatchRecurrence;
+  /** TODO: drop once schema.d.ts is regenerated. */
+  dashboardId?: string | null;
 }
 
 /** Scenes behind a watch's most recent run, plus the hash that makes it re-runnable. */
