@@ -3,7 +3,7 @@
  *
  * Two halves, deliberately kept distinct:
  *
- *   - **UI state** — selected place, language, plan, connectors, open modal, toast. Frontend's
+ *   - **UI state** — selected place, language, connectors, open modal, toast. Frontend's
  *     own. This is what a context is good at.
  *   - **Server data** — catalog, skills, places, watches. Loaded through `api`, held here so
  *     the many components that need `places` do not each refetch it.
@@ -56,7 +56,6 @@ export type Modal =
   | { kind: 'app' }
   | { kind: 'addPlace' }
   | { kind: 'watchBuilder'; prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean }
-  | { kind: 'upgrade'; feature: string; price?: string }
   | { kind: 'lang' }
   | { kind: 'knowledgeCard'; cardId: string };
 
@@ -125,8 +124,6 @@ interface Store {
   toggleInstall: (id: string) => void;
   askPlaceId: string | null;
   setAskPlace: (id: string | null) => void;
-  plan: 'free' | 'pro';
-  setPlan: (p: 'free' | 'pro') => void;
   lang: string;
   setLang: (c: string) => void;
   t: (key: string) => string;
@@ -216,7 +213,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     'algae-red-tide-alert',
   ]);
   const [askPlaceId, setAskPlaceId] = useState<string | null>(null);
-  const [plan, setPlan] = useState<'free' | 'pro'>('free');
   const [lang, setLangState] = useState<string>(() => {
     try {
       return localStorage.getItem('gt.lang') || 'en';
@@ -353,8 +349,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toggleInstall: (id) => setInstalled((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])),
       askPlaceId,
       setAskPlace: setAskPlaceId,
-      plan,
-      setPlan,
       lang,
       setLang: setLangState,
       t: (key) => translate(LANGS.find((x) => x.code === lang)?.ui ? lang : 'en', key),
@@ -388,7 +382,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeWatch,
       installed,
       askPlaceId,
-      plan,
       lang,
       connectors,
       modal,

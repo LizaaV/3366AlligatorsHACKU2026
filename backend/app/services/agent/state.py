@@ -122,6 +122,13 @@ class AgentState(BaseModel):
     )
     guard: GuardVerdict | None = None
     step_index: int = Field(0, description="Last step index streamed (monotonic per run).")
+    carried_from: str | None = Field(
+        None, description="Follow-up (A4): the earlier run in the thread whose work was carried."
+    )
+    carried_results: list[str] = Field(
+        default_factory=list,
+        description="Follow-up (A4): the earlier run's data-tool results (number sources).",
+    )
     started_at: datetime = Field(default_factory=_utcnow, description="UTC.")
 
     @classmethod

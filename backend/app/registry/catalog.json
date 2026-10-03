@@ -1,0 +1,500 @@
+{
+ "categories": [
+  {
+   "key": "agriculture",
+   "name": "Agriculture",
+   "icon": "agriculture",
+   "uses": "Crop health, dry patches, yield, pasture for herders",
+   "sats": "Sentinel-2, Landsat, Sentinel-1"
+  },
+  {
+   "key": "water",
+   "name": "Water Bodies",
+   "icon": "water_drop",
+   "uses": "Reservoir levels, algae/red tide, water use",
+   "sats": "Sentinel-2, Sentinel-3, SWOT"
+  },
+  {
+   "key": "forests",
+   "name": "Forests & Nature",
+   "icon": "forest",
+   "uses": "Deforestation alerts, EUDR proof, mangroves, carbon credits",
+   "sats": "Sentinel-2, Sentinel-1, Landsat"
+  },
+  {
+   "key": "disasters",
+   "name": "Disasters & Risk",
+   "icon": "local_fire_department",
+   "uses": "Fire, flood, storm damage, landslides / ground sinking",
+   "sats": "VIIRS/FIRMS, Sentinel-1, Sentinel-2"
+  },
+  {
+   "key": "urban",
+   "name": "Urban & Real Estate",
+   "icon": "location_city",
+   "uses": "Land-use change, construction, heat maps, roof solar",
+   "sats": "Sentinel-2, Landsat thermal (+ paid high-res)"
+  },
+  {
+   "key": "oceans",
+   "name": "Oceans & Coasts",
+   "icon": "sailing",
+   "uses": "Fishing zones, dark ships, coral reefs",
+   "sats": "Sentinel-3, MODIS/VIIRS, Sentinel-1"
+  },
+  {
+   "key": "air",
+   "name": "Air & Climate",
+   "icon": "air",
+   "uses": "Air pollution, methane leaks",
+   "sats": "Sentinel-5P, EMIT"
+  },
+  {
+   "key": "finance",
+   "name": "Finance & Insurance",
+   "icon": "account_balance",
+   "uses": "Port activity, crop forecasts, crop insurance, lender checks",
+   "sats": "Sentinel-1/2, MODIS (+ paid high-res)"
+  },
+  {
+   "key": "society",
+   "name": "Society & Public Good",
+   "icon": "diversity_3",
+   "uses": "Poverty mapping, mosquito areas, fact-checking, education, heritage",
+   "sats": "VIIRS night lights, Sentinel-2, Landsat"
+  }
+ ],
+ "satellites": [
+  {
+   "id": "s2",
+   "name": "Sentinel-2 L2A",
+   "res": "10 m",
+   "revisit": "5 days",
+   "tier": "free",
+   "kind": "optical",
+   "note": "Multispectral, good for NDVI/NDMI"
+  },
+  {
+   "id": "l9",
+   "name": "Landsat 9 TIRS",
+   "res": "30 m (100 m thermal)",
+   "revisit": "8 days",
+   "tier": "free",
+   "kind": "thermal",
+   "note": "Surface temperature"
+  },
+  {
+   "id": "s1",
+   "name": "Sentinel-1 SAR",
+   "res": "10 m",
+   "revisit": "6 days",
+   "tier": "free",
+   "kind": "radar",
+   "note": "Sees through clouds, day and night"
+  },
+  {
+   "id": "ps",
+   "name": "PlanetScope",
+   "res": "3 m",
+   "revisit": "Daily",
+   "tier": "paid",
+   "price": "$1.80 / km²",
+   "kind": "optical",
+   "note": "For very small fields"
+  },
+  {
+   "id": "hr",
+   "name": "Pléiades Neo",
+   "res": "30 cm",
+   "revisit": "On order",
+   "tier": "paid",
+   "price": "$12 / km²",
+   "kind": "optical",
+   "note": "Very high resolution, tasked"
+  },
+  {
+   "id": "s3",
+   "name": "Sentinel-3 OLCI",
+   "res": "300 m",
+   "revisit": "Daily",
+   "tier": "free",
+   "kind": "optical",
+   "note": "Ocean and lake colour"
+  },
+  {
+   "id": "viirs",
+   "name": "VIIRS / FIRMS",
+   "res": "375 m",
+   "revisit": "~12 hours",
+   "tier": "free",
+   "kind": "thermal",
+   "note": "Active fire hotspots"
+  },
+  {
+   "id": "s5p",
+   "name": "Sentinel-5P",
+   "res": "5.5 km",
+   "revisit": "Daily",
+   "tier": "free",
+   "kind": "atmos",
+   "note": "Air quality gases"
+  }
+ ],
+ "modules": [
+  {
+   "id": "ask.clarify",
+   "name": "Ask",
+   "icon": "help",
+   "group": "Input",
+   "desc": "Ask the user a few short questions before running.",
+   "params": {
+    "questions": [
+     "What crop?",
+     "How is it watered?"
+    ]
+   }
+  },
+  {
+   "id": "area.mark",
+   "name": "Mark the area",
+   "icon": "pentagon",
+   "group": "Input",
+   "desc": "Use a saved place or ask the user to draw or upload one.",
+   "params": {
+    "min_ha": 1
+   }
+  },
+  {
+   "id": "time.window",
+   "name": "Pick dates",
+   "icon": "date_range",
+   "group": "Data",
+   "desc": "Recent window plus the same window in past years.",
+   "params": {
+    "recent_days": 45,
+    "baseline_years": 3
+   }
+  },
+  {
+   "id": "sat.route",
+   "name": "Pick the satellite",
+   "icon": "satellite_alt",
+   "group": "Data",
+   "desc": "Route to free sources first; paid only if the area is too small.",
+   "params": {
+    "prefer": "free",
+    "candidates": [
+     "s2",
+     "l9",
+     "ps"
+    ]
+   }
+  },
+  {
+   "id": "scenes.filter",
+   "name": "Find clear images",
+   "icon": "filter_drama",
+   "group": "Data",
+   "desc": "Skip cloudy scenes and scenes right after rain.",
+   "params": {
+    "max_cloud_pct": 20,
+    "skip_after_rain_h": 48
+   }
+  },
+  {
+   "id": "scenes.clean",
+   "name": "Clean the images",
+   "icon": "content_cut",
+   "group": "Data",
+   "desc": "Clip to the area and mask clouds and shadows.",
+   "params": {
+    "mask": "SCL"
+   }
+  },
+  {
+   "id": "index.compute",
+   "name": "Calculate indices",
+   "icon": "calculate",
+   "group": "Analysis",
+   "desc": "Spectral indices such as NDVI, NDMI, NDWI or LST.",
+   "params": {
+    "indices": [
+     "NDMI",
+     "NDVI",
+     "LST"
+    ]
+   }
+  },
+  {
+   "id": "detect.anomaly",
+   "name": "Find anomalies",
+   "icon": "troubleshoot",
+   "group": "Analysis",
+   "desc": "Zones far from the area median on N or more dates.",
+   "params": {
+    "min_dates": 2,
+    "z_score": -1.5
+   }
+  },
+  {
+   "id": "detect.change",
+   "name": "Find changes",
+   "icon": "compare",
+   "group": "Analysis",
+   "desc": "Compare each date with a baseline and list changes.",
+   "params": {
+    "min_area_ha": 0.5
+   }
+  },
+  {
+   "id": "explain.cause",
+   "name": "Find the cause",
+   "icon": "psychology",
+   "group": "Analysis",
+   "desc": "Check elevation, soil and weather to suggest a cause.",
+   "params": {
+    "layers": [
+     "elevation",
+     "soil",
+     "rain"
+    ]
+   }
+  },
+  {
+   "id": "output.map",
+   "name": "Show the answer",
+   "icon": "map",
+   "group": "Output",
+   "desc": "Map layers, key numbers with confidence ranges, next steps.",
+   "params": {
+    "confidence": true
+   }
+  },
+  {
+   "id": "output.watch",
+   "name": "Keep watching",
+   "icon": "visibility",
+   "group": "Output",
+   "desc": "Re-run on each new pass and alert on a condition.",
+   "params": {
+    "every": "new pass"
+   }
+  }
+ ],
+ "channels": [
+  {
+   "id": "email",
+   "name": "Email",
+   "icon": "mail",
+   "tier": "free",
+   "note": "Any address"
+  },
+  {
+   "id": "push",
+   "name": "Mobile app",
+   "icon": "smartphone",
+   "tier": "free",
+   "note": "iOS & Android push"
+  },
+  {
+   "id": "whatsapp",
+   "name": "WhatsApp",
+   "icon": "chat",
+   "tier": "free",
+   "note": "Messages + map image"
+  },
+  {
+   "id": "sms",
+   "name": "SMS",
+   "icon": "sms",
+   "tier": "paid",
+   "note": "$0.02 / message"
+  },
+  {
+   "id": "slack",
+   "name": "Slack",
+   "icon": "tag",
+   "tier": "paid",
+   "note": "Pro plan"
+  }
+ ],
+ "languages": [
+  {
+   "code": "en",
+   "name": "English",
+   "english": "English",
+   "region": "Global",
+   "ui": true
+  },
+  {
+   "code": "de",
+   "name": "Deutsch",
+   "english": "German",
+   "region": "Europe",
+   "ui": true
+  },
+  {
+   "code": "es",
+   "name": "Español",
+   "english": "Spanish",
+   "region": "Americas · Europe",
+   "ui": true
+  },
+  {
+   "code": "fr",
+   "name": "Français",
+   "english": "French",
+   "region": "Europe · Africa",
+   "ui": true
+  },
+  {
+   "code": "pt",
+   "name": "Português",
+   "english": "Portuguese",
+   "region": "Americas · Africa",
+   "ui": true
+  },
+  {
+   "code": "hi",
+   "name": "हिन्दी",
+   "english": "Hindi",
+   "region": "South Asia",
+   "ui": true
+  },
+  {
+   "code": "sw",
+   "name": "Kiswahili",
+   "english": "Swahili",
+   "region": "East Africa",
+   "ui": true
+  },
+  {
+   "code": "ar",
+   "name": "العربية",
+   "english": "Arabic",
+   "region": "Middle East · North Africa",
+   "ui": true,
+   "rtl": true
+  },
+  {
+   "code": "gu",
+   "name": "ગુજરાતી",
+   "english": "Gujarati",
+   "region": "South Asia",
+   "ui": false
+  },
+  {
+   "code": "mr",
+   "name": "मराठी",
+   "english": "Marathi",
+   "region": "South Asia",
+   "ui": false
+  },
+  {
+   "code": "bn",
+   "name": "বাংলা",
+   "english": "Bengali",
+   "region": "South Asia",
+   "ui": false
+  },
+  {
+   "code": "ta",
+   "name": "தமிழ்",
+   "english": "Tamil",
+   "region": "South Asia",
+   "ui": false
+  },
+  {
+   "code": "te",
+   "name": "తెలుగు",
+   "english": "Telugu",
+   "region": "South Asia",
+   "ui": false
+  },
+  {
+   "code": "pa",
+   "name": "ਪੰਜਾਬੀ",
+   "english": "Punjabi",
+   "region": "South Asia",
+   "ui": false
+  },
+  {
+   "code": "ur",
+   "name": "اردو",
+   "english": "Urdu",
+   "region": "South Asia",
+   "ui": false,
+   "rtl": true
+  },
+  {
+   "code": "ha",
+   "name": "Hausa",
+   "english": "Hausa",
+   "region": "West Africa",
+   "ui": false
+  },
+  {
+   "code": "yo",
+   "name": "Yorùbá",
+   "english": "Yoruba",
+   "region": "West Africa",
+   "ui": false
+  },
+  {
+   "code": "am",
+   "name": "አማርኛ",
+   "english": "Amharic",
+   "region": "East Africa",
+   "ui": false
+  },
+  {
+   "code": "tr",
+   "name": "Türkçe",
+   "english": "Turkish",
+   "region": "Europe · Asia",
+   "ui": false
+  },
+  {
+   "code": "id",
+   "name": "Bahasa Indonesia",
+   "english": "Indonesian",
+   "region": "Southeast Asia",
+   "ui": false
+  },
+  {
+   "code": "vi",
+   "name": "Tiếng Việt",
+   "english": "Vietnamese",
+   "region": "Southeast Asia",
+   "ui": false
+  },
+  {
+   "code": "th",
+   "name": "ไทย",
+   "english": "Thai",
+   "region": "Southeast Asia",
+   "ui": false
+  },
+  {
+   "code": "fil",
+   "name": "Filipino",
+   "english": "Filipino",
+   "region": "Southeast Asia",
+   "ui": false
+  },
+  {
+   "code": "zh",
+   "name": "中文",
+   "english": "Chinese",
+   "region": "East Asia",
+   "ui": false
+  },
+  {
+   "code": "ja",
+   "name": "日本語",
+   "english": "Japanese",
+   "region": "East Asia",
+   "ui": false
+  }
+ ]
+}

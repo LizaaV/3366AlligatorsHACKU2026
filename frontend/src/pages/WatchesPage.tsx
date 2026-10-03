@@ -180,8 +180,8 @@ function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; plac
       className="card wp-card fade-up col"
       role="link"
       tabIndex={0}
-      onClick={() => go('watches', w.id)}
-      onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && go('watches', w.id)}
+      onClick={() => go('triggers', w.id)}
+      onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && go('triggers', w.id)}
       style={{ overflow: 'hidden', position: 'relative', opacity: w.enabled ? 1 : 0.78, boxShadow: accent ? `inset 3px 0 0 ${accent}` : undefined }}
     >
       <div style={{ position: 'relative', height: 150, background: `#000 url(${thumbFor(w, place)}) center/cover`, filter: w.enabled ? undefined : 'grayscale(.6)' }}>

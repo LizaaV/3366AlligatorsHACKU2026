@@ -106,7 +106,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
       notify(
         lowFree ? 'Watch created with free imagery at low confidence' : 'Watch created',
         'Open',
-        () => go('watches', created.id),
+        () => go('triggers', created.id),
         'visibility',
       );
     } catch (err) {
