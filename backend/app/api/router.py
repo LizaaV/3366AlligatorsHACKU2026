@@ -11,6 +11,7 @@ from app.api.routes import (
     reports,
     runs,
     shares,
+    watches,
 )
 
 # One line per feature module. Add yours at the end of the list to avoid merge conflicts.
@@ -25,3 +26,4 @@ api_router.include_router(memory.router)
 api_router.include_router(shares.router)
 api_router.include_router(dashboards.router)
 api_router.include_router(reports.router)
+api_router.include_router(watches.router)
