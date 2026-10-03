@@ -103,11 +103,15 @@ def _check_id(value: str, what: str) -> str:
     return value
 
 
+_MARKER_RE = re.compile(r"^(#+|-|\*)\s+")
+
+
 def _clean(s: str, limit: int) -> str:
     """Single line, no separator, no leading markdown markers, length-capped."""
     s = " ".join(str(s).split())
     s = s.replace("·", "-")
-    s = s.lstrip("#- ").strip()
+    while (stripped := _MARKER_RE.sub("", s)) != s:  # "- ", "## ", "* ", repeatedly
+        s = stripped
     return s[:limit].strip()
 
 
