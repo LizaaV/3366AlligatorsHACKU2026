@@ -118,7 +118,9 @@
         "text": "First dry zone detected on 2 consecutive dates.",
         "level": "alert"
       }
-    ]
+    ],
+    "recurrence": "recurring",
+    "dashboardId": "db-np"
   },
   {
     "id": "w-ndvi",
@@ -228,7 +230,9 @@
         "text": "Pass skipped — cloudy.",
         "level": "info"
       }
-    ]
+    ],
+    "recurrence": "recurring",
+    "dashboardId": "db-np"
   },
   {
     "id": "w-heat",
@@ -333,7 +337,9 @@
         "text": "North Pivot 2.8 °C hotter than field average in dry zone.",
         "level": "warn"
       }
-    ]
+    ],
+    "recurrence": "once",
+    "dashboardId": null
   },
   {
     "id": "w-mead",
@@ -438,7 +444,9 @@
         "text": "Area −3.2% vs August.",
         "level": "info"
       }
-    ]
+    ],
+    "recurrence": "recurring",
+    "dashboardId": null
   },
   {
     "id": "w-algae",
@@ -549,7 +557,9 @@
         "text": "Peak bloom — 22 km² near Maumee Bay.",
         "level": "alert"
       }
-    ]
+    ],
+    "recurrence": "once",
+    "dashboardId": "db-lake"
   },
   {
     "id": "w-defor",
@@ -654,7 +664,9 @@
         "text": "No clearing. Radar and optical agree.",
         "level": "info"
       }
-    ]
+    ],
+    "recurrence": "recurring",
+    "dashboardId": null
   },
   {
     "id": "w-fire",
@@ -760,6 +772,8 @@
         "text": "Hotspot 8.2 km SW — grass fire, out after 6 h.",
         "level": "alert"
       }
-    ]
+    ],
+    "recurrence": "once",
+    "dashboardId": null
   }
 ]

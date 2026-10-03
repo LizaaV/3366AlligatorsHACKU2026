@@ -36,6 +36,7 @@ import type {
   SkillModuleDto,
   Tier,
   WatchDto,
+  WatchRecurrence,
   WatchStatus,
 } from './api/types';
 
@@ -248,6 +249,9 @@ export interface Watch {
   thumbnailZoom: number;
   ring: boolean;
   events: WatchEvent[];
+  /** `once` triggers fire a single time, then stop. */
+  recurrence: WatchRecurrence;
+  dashboardId: string | null;
 }
 
 export const toWatch = (d: WatchDto): Watch => ({
@@ -278,6 +282,8 @@ export const toWatch = (d: WatchDto): Watch => ({
   thumbnailZoom: d.thumbnail?.zoom ?? 14,
   ring: d.ring,
   events: d.events.map((e) => ({ at: parseIso(e.at), text: e.text, level: e.level })),
+  recurrence: d.recurrence,
+  dashboardId: d.dashboardId ?? null,
 });
 
 /* ---------------- areas ---------------- */

@@ -15,6 +15,7 @@
  */
 
 import type { Position } from '../lib/geo';
+import type { components } from './schema';
 
 /* ---------------- primitives ---------------- */
 
@@ -213,6 +214,8 @@ export interface ParseBoundaryFileResponse {
 /* ---------------- watches ---------------- */
 
 export type WatchStatus = 'ok' | 'warn' | 'alert';
+/** `once` triggers disable themselves after their first alert-level event. From the contract. */
+export type WatchRecurrence = components['schemas']['CreateWatchRequest']['recurrence'];
 export type WatchEventLevel = 'info' | 'warn' | 'alert';
 
 export interface WatchSeriesDto {
@@ -264,6 +267,9 @@ export interface WatchDto {
   thumbnail?: { zoom: number };
   ring: boolean;
   events: WatchEventDto[];
+  recurrence: WatchRecurrence;
+  /** The dashboard this trigger watches, if any. */
+  dashboardId?: string | null;
 }
 
 export interface CreateWatchRequest {
@@ -275,6 +281,10 @@ export interface CreateWatchRequest {
   condition: string;
   channels: ChannelId[];
   cadence: string;
+  /** Defaults to `recurring` server-side. */
+  recurrence?: WatchRecurrence;
+  /** 404 if it is not the user's dashboard. */
+  dashboardId?: string | null;
 }
 
 /** Scenes behind a watch's most recent run, plus the hash that makes it re-runnable. */

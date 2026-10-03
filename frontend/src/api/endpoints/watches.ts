@@ -21,7 +21,7 @@ export const watchesApi = {
     }).then(toWatch),
 
   /** TODO(api): PATCH /api/watches/{id} — pause/resume, edit condition, change channels */
-  update: (id: string, patch: Partial<Pick<WatchDto, 'enabled' | 'condition' | 'channels' | 'cadence' | 'name'>>, signal?: AbortSignal): Promise<Watch> =>
+  update: (id: string, patch: Partial<Pick<WatchDto, 'enabled' | 'condition' | 'channels' | 'cadence' | 'name' | 'recurrence' | 'dashboardId'>>, signal?: AbortSignal): Promise<Watch> =>
     request<WatchDto>({
       method: 'PATCH',
       path: `/watches/${encodeURIComponent(id)}`,
