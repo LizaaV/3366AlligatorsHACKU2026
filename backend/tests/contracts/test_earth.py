@@ -246,3 +246,192 @@ def test_stub_reproduces_the_hoo_hok_wai_story():
     assert 0.38 <= sum(early) / len(early) <= 0.5
     assert inside.points[-1].value == pytest.approx(-0.013)
     assert all(0.45 <= p.value <= 0.65 for p in ring.points)  # local, not regional
+
+
+# --- Hardening: run ids, bad arguments, area validation ------------------------------------------
+
+SQUARE = {
+    "type": "Polygon",
+    "coordinates": [[[114.0, 22.5], [114.005, 22.5], [114.005, 22.505], [114.0, 22.505]]],
+}
+
+
+@pytest.mark.parametrize("bad", ["../../evil", "A", "-x", "a/b", "", "a" * 65, "r id"])
+def test_set_run_rejects_bad_run_ids(bad):
+    with pytest.raises(ValueError):
+        earth.set_run(bad)
+
+
+def test_layer_path_and_url_refuse_bad_run_ids(tmp_path, monkeypatch):
+    from earth.render import layer_path, layer_url
+
+    for fn in (layer_path, layer_url):
+        with pytest.raises(ValueError):
+            fn("../../evil", "greenness", "S1")
+    monkeypatch.setenv("RUN_ID", "../../evil")
+    earth.set_run(None)
+    scene = earth.scenes(AREA, last="60d").latest_clear()
+    layer = earth.index(earth.load(AREA, scene), "greenness")
+    with pytest.raises(ValueError):
+        earth.render(layer)
+    assert not (tmp_path.parent / "evil").exists()
+    assert not list(tmp_path.rglob("*.png"))
+
+
+def _hint(exc_info) -> str:
+    assert exc_info.value.hint
+    return exc_info.value.hint
+
+
+def test_unknown_measure_is_a_hinted_error():
+    scene = earth.scenes(AREA, last="60d").latest_clear()
+    layer = earth.load(AREA, scene)
+    with pytest.raises(earth.EarthError) as e:
+        earth.index(layer, "ndvi")
+    assert "greenness" in _hint(e)
+    with pytest.raises(earth.EarthError) as e:
+        earth.series(AREA, "ndvi")
+    assert "greenness" in _hint(e)
+    with pytest.raises(earth.EarthError) as e:
+        earth.compare(AREA, "ndvi", "2026-03-01", "2026-09-30")
+    assert "roughness" in _hint(e)
+
+
+def test_bad_last_and_kind_are_hinted_errors():
+    with pytest.raises(earth.EarthError) as e:
+        earth.scenes(AREA, last="2 months")
+    assert '"60d", "8w", "6m", "1y"' in _hint(e)
+    with pytest.raises(earth.EarthError) as e:
+        earth.scenes(AREA, kind="lidar")
+    assert "radar" in _hint(e)
+
+
+def test_bad_every_is_earth_error_not_budget():
+    with pytest.raises(earth.EarthError) as e:
+        earth.series(AREA, "greenness", years=1, every="week")
+    assert not isinstance(e.value, earth.BudgetExceeded)
+    assert '"month" | "quarter" | "year"' in _hint(e)
+
+
+def test_bad_compare_dates_are_hinted_errors():
+    with pytest.raises(earth.EarthError) as e:
+        earth.compare(AREA, "bare", "March", "2026-09-30")
+    assert "2026-03-01" in _hint(e)
+    with pytest.raises(earth.EarthError) as e:
+        earth.compare(AREA, "bare", "2026-09-30", "2026-03-01")
+    assert _hint(e)
+    with pytest.raises(earth.EarthError):
+        earth.compare(AREA, "bare", "2026-03-01", "2026-03-01")
+
+
+def test_index_kind_mismatch_is_wrong_scene_kind():
+    optical = earth.load(AREA, earth.scenes(AREA, last="60d").latest_clear())
+    with pytest.raises(earth.WrongSceneKind) as e:
+        earth.index(optical, "roughness")
+    assert "needs a radar scene" in e.value.message
+    radar = earth.load(AREA, earth.scenes(AREA, last="60d", kind="radar").latest_clear())
+    with pytest.raises(earth.WrongSceneKind) as e:
+        earth.index(radar, "greenness")
+    assert "needs an optical scene" in e.value.message
+    assert not isinstance(e.value, earth.NoClearScenes)
+    assert e.value.hint
+
+
+def test_any_exception_is_logged_as_a_failed_step():
+    from earth.calls import traced
+
+    calls: list[earth.EarthCall] = []
+    earth.set_listener(calls.append)
+
+    @traced(lambda r: "ok")
+    def boom():
+        raise KeyError("x")
+
+    with pytest.raises(KeyError):
+        boom()
+    assert calls[-1].error == "KeyError"
+    assert calls[-1].summary.startswith("Failed: KeyError:")
+
+
+@pytest.mark.parametrize(
+    "geojson",
+    [
+        {"type": "Polygon", "coordinates": [[[200, 10], [201, 10], [201, 11], [200, 10]]]},
+        {"type": "Polygon", "coordinates": [[[10, 95], [11, 95], [11, 96], [10, 95]]]},
+        None,
+        "garbage",
+        [1, 2],
+        {"type": "Polygon"},
+        {"type": "Polygon", "coordinates": [[[0, 0], [0, 0], [0, 0], [0, 0]]]},
+        {"type": "Polygon", "coordinates": [[[0, 0], [float("nan"), 0], [1, 1], [0, 0]]]},
+    ],
+)
+def test_area_rejects_bad_geojson_with_invalid_area(geojson):
+    with pytest.raises(earth.InvalidArea) as e:
+        earth.Area.from_geojson(geojson)
+    assert e.value.hint
+    assert "has no attribute" not in e.value.message
+
+
+def test_area_flags_swapped_lat_lon():
+    swapped = {
+        "type": "Polygon",
+        "coordinates": [[[22.5, 114.0], [22.5, 114.005], [22.505, 114.005], [22.5, 114.0]]],
+    }
+    with pytest.raises(earth.InvalidArea) as e:
+        earth.Area.from_geojson(swapped)
+    assert "swap" in (e.value.hint or "")
+
+
+def test_area_rejects_antimeridian_span():
+    wide = {
+        "type": "Polygon",
+        "coordinates": [[[179.9, 0], [-179.9, 0], [-179.9, 1], [179.9, 1], [179.9, 0]]],
+    }
+    with pytest.raises(earth.InvalidArea) as e:
+        earth.Area.from_geojson(wide)
+    assert "180" in (e.value.hint or "")
+
+
+def test_area_ha_must_be_positive_and_finite():
+    for bad in (0, -1, float("nan"), float("inf")):
+        with pytest.raises(earth.InvalidArea):
+            earth.Area(geojson=SQUARE, area_ha=bad)
+
+
+def test_from_point_radius_is_capped():
+    earth.Area.from_point(22.5, 114.0, radius_m=50_000)
+    with pytest.raises(earth.InvalidArea) as e:
+        earth.Area.from_point(22.5, 114.0, radius_m=50_001)
+    assert e.value.hint
+    with pytest.raises(earth.InvalidArea):
+        earth.Area.from_point(22.5, 114.0, radius_m=float("nan"))
+
+
+def test_area_still_accepts_the_forgiving_shapes():
+    a = earth.Area.from_geojson(SQUARE)  # unclosed ring
+    assert a.area_ha > 0
+    feature = {"type": "Feature", "properties": {}, "geometry": SQUARE}
+    assert earth.Area.from_geojson(feature)
+    assert earth.Area.from_geojson({"type": "FeatureCollection", "features": [feature]})
+    multi = {"type": "MultiPolygon", "coordinates": [SQUARE["coordinates"]]}
+    assert earth.Area.from_geojson(multi).area_ha == pytest.approx(a.area_ha)
+    bowtie = {"type": "Polygon", "coordinates": [[[0, 0], [1, 1], [1, 0], [0, 1], [0, 0]]]}
+    assert earth.Area.from_geojson(bowtie).area_ha > 0
+    threed = {"type": "Polygon", "coordinates": [[[0, 0, 5], [0, 1, 5], [1, 1, 5], [0, 0, 5]]]}
+    assert earth.Area.from_geojson(threed).area_ha > 0
+
+
+def test_area_upper_size_budget():
+    ok = earth.Area.from_point(22.5, 114.0, radius_m=1_500)  # ~707 ha
+    huge = earth.Area.from_point(22.5, 114.0, radius_m=3_000)  # ~2 800 ha
+    scene = earth.scenes(AREA, last="60d").latest_clear()
+    earth.load(ok, scene)
+    for call in (
+        lambda: earth.load(huge, scene),
+        lambda: earth.series(huge, "greenness", years=1),
+        lambda: earth.compare(huge, "bare", "2026-03-01", "2026-09-30"),
+    ):
+        with pytest.raises(earth.BudgetExceeded) as e:
+            call()
+        assert "smaller outline" in _hint(e)

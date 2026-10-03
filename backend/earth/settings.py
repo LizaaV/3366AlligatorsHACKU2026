@@ -20,4 +20,5 @@ def data_dir() -> Path:
 MAX_CALLS = 30
 MAX_SERIES_SCENES = 60
 MAX_PIXELS_PER_READ = 2_500_000
+MAX_AREA_HA = 2_500  # 25 km², HANDOFF B1.6
 MIN_PIXELS_10M = 25  # below ~0.25 ha nothing at 10 m is reliable

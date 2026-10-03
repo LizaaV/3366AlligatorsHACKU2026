@@ -7,10 +7,12 @@ Pixels stay inside `earth`; callers hold a `LayerRef` id instead.
 from __future__ import annotations
 
 import json
+import math
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field
+import shapely
+from pydantic import BaseModel, Field, field_validator
 from pyproj import CRS, Geod, Transformer
 from shapely.geometry import Point, mapping, shape
 from shapely.geometry.base import BaseGeometry
@@ -22,6 +24,7 @@ Measure = Literal["greenness", "moisture", "water", "bare", "burn", "roughness"]
 SceneKind = Literal["optical", "radar"]
 
 _GEOD = Geod(ellps="WGS84")
+MAX_RADIUS_M = 50_000
 
 
 class Provenance(BaseModel):
@@ -36,6 +39,29 @@ class Provenance(BaseModel):
     method: str  # "NDVI, SCL mask [0,1,3,8,9,10], mean over 958 clean pixels"
 
 
+def _check_coordinates(geom: BaseGeometry) -> None:
+    """Every vertex inside lon [-180, 180] / lat [-90, 90]; no antimeridian crossing."""
+    coords = shapely.get_coordinates(geom)
+    if not len(coords):
+        return
+    xs, ys = coords[:, 0], coords[:, 1]
+    if not (math.isfinite(float(xs.sum())) and math.isfinite(float(ys.sum()))):
+        raise InvalidArea(
+            "The outline has non-finite coordinates.", "Send real [lon, lat] numbers."
+        )
+    if (abs(xs) > 180).any() or (abs(ys) > 90).any():
+        swapped = (abs(xs) <= 90).all() and (abs(ys) <= 180).all()
+        hint = "Use lon in [-180, 180] and lat in [-90, 90]."
+        if swapped:
+            hint = "GeoJSON is [lon, lat]: did you swap them? " + hint
+        raise InvalidArea("Coordinates are outside the valid range.", hint)
+    if xs.max() - xs.min() > 180:
+        raise InvalidArea(
+            f"The outline spans {xs.max() - xs.min():.0f}° of longitude (antimeridian?).",
+            "Split the outline at 180° into two polygons.",
+        )
+
+
 # --- Area ---------------------------------------------------------------------------------------
 
 
@@ -46,14 +72,29 @@ class Area(BaseModel):
     area_ha: float
     name: str | None = None
 
+    @field_validator("area_ha")
+    @classmethod
+    def _area_ha_positive(cls, v: float) -> float:
+        if not math.isfinite(v) or v <= 0:
+            raise InvalidArea(f"area_ha must be a positive number, got {v}", "Draw a real outline.")
+        return v
+
     @classmethod
     def from_point(
         cls, lat: float, lon: float, radius_m: float = 400, name: str | None = None
     ) -> Area:
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-            raise InvalidArea(f"Not a valid coordinate: {lat}, {lon}", "Use lat in [-90, 90].")
-        if radius_m <= 0:
+            raise InvalidArea(
+                f"Not a valid coordinate: {lat}, {lon}",
+                "Use lat in [-90, 90] and lon in [-180, 180]: from_point(lat, lon).",
+            )
+        if not (math.isfinite(radius_m) and radius_m > 0):
             raise InvalidArea("radius_m must be positive", "Try radius_m=400.")
+        if radius_m > MAX_RADIUS_M:
+            raise InvalidArea(
+                f"radius_m={radius_m:g} is above the {MAX_RADIUS_M} m limit.",
+                "Use a smaller radius_m (400 is typical).",
+            )
         local = CRS.from_proj4(f"+proj=aeqd +lat_0={lat} +lon_0={lon} +units=m +datum=WGS84")
         to_wgs84 = Transformer.from_crs(local, "EPSG:4326", always_xy=True).transform
         circle = transform(to_wgs84, Point(0, 0).buffer(radius_m, quad_segs=16))
@@ -62,6 +103,11 @@ class Area(BaseModel):
     @classmethod
     def from_geojson(cls, geojson: dict, name: str | None = None) -> Area:
         """Accepts a Polygon, MultiPolygon, Feature or FeatureCollection in lon/lat."""
+        if not isinstance(geojson, dict):
+            raise InvalidArea(
+                f"Expected a GeoJSON object (dict), got {type(geojson).__name__}",
+                "Send a GeoJSON Polygon: {'type': 'Polygon', 'coordinates': [[[lon, lat], ...]]}",
+            )
         try:
             if geojson.get("type") == "FeatureCollection":
                 geom = unary_union([shape(f["geometry"]) for f in geojson["features"]])
@@ -79,15 +125,31 @@ class Area(BaseModel):
                 f"The outline must be a polygon, got {geom.geom_type}",
                 "Draw an outline, or use Area.from_point(lat, lon, radius_m).",
             )
-        if not geom.is_valid:
-            geom = geom.buffer(0)
+        _check_coordinates(geom)
+        try:
+            if not geom.is_valid:
+                geom = geom.buffer(0)
+        except Exception as exc:  # noqa: BLE001 — GEOS errors
+            raise InvalidArea(
+                f"Could not repair the outline: {exc}", "Redraw the outline."
+            ) from exc
         return cls._from_geometry(geom, name)
 
     @classmethod
     def _from_geometry(cls, geom: BaseGeometry, name: str | None) -> Area:
-        area_m2 = abs(_GEOD.geometry_area_perimeter(geom)[0])
-        geojson = json.loads(json.dumps(mapping(geom)))  # tuples → lists, as after a round trip
-        return cls(geojson=geojson, area_ha=round(area_m2 / 10_000, 4), name=name)
+        try:
+            area_m2 = abs(_GEOD.geometry_area_perimeter(geom)[0])
+            geojson = json.loads(json.dumps(mapping(geom)))  # tuples → lists, as after a round trip
+        except Exception as exc:  # noqa: BLE001 — shapely/GEOS/pyproj raise many types
+            raise InvalidArea(
+                f"Could not measure the outline: {exc}", "Redraw the outline."
+            ) from exc
+        area_ha = round(area_m2 / 10_000, 4)
+        if not math.isfinite(area_ha) or area_ha <= 0:
+            raise InvalidArea(
+                "The outline has no area.", "Draw a closed outline with at least 3 distinct points."
+            )
+        return cls(geojson=geojson, area_ha=area_ha, name=name)
 
     # Helpers for earth internals (not fields, so they never reach the API).
     def geometry(self) -> BaseGeometry:
