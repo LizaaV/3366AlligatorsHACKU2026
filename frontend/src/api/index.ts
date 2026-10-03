@@ -5,9 +5,8 @@
  * `fetch` directly. Each endpoint carries a `TODO(api)` comment naming the route it expects;
  * the shapes are documented for the backend team in `docs/data/README.md`.
  *
- * While `VITE_API_SOURCE=fixture` (the default), endpoints resolve from local stand-ins after
- * an artificial delay, so loading and error states are real today. Putting an endpoint live
- * means deleting its `fixture` property — no call site changes.
+ * Endpoints call the real backend. With `VITE_API_SOURCE=fixture` they resolve from local
+ * stand-ins after an artificial delay instead (useful for UI work without the backend).
  */
 
 import { areasApi } from './endpoints/areas';

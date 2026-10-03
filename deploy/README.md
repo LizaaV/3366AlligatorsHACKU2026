@@ -9,7 +9,7 @@ browser ──:80──> nginx (frontend container) ──/api/*──> backend:
 
 nginx is the single public entry point; the backend is not published on the host. The SPA calls `/api` on its own origin. The frontend image is built with `VITE_API_SOURCE=http` (Vite inlines it at build time), so the deployed app talks to the real backend instead of the scripted fixtures; set `VITE_API_SOURCE=fixture` in `deploy/.env` and rebuild to get the mock-only UI.
 
-> **Product note: `VITE_API_SOURCE=http` and unbuilt routes.** With `http`, every page whose backend route is not built yet shows an error instead of sample data: catalog, map layers, watches, skills, insights and export. Only the ask flow and areas (plus places, shares and dashboards once merged) are live. The team must decide with Liza and Anna Claire whether the demo build keeps sample data on for those pages. Options: build with `VITE_API_SOURCE=fixture` (everything mocked, including the ask flow), or migrate per endpoint in the frontend so live routes use `http` and the rest keep fixtures.
+> **Note:** the backend implements the whole API contract, so the `http` build has no pages left on sample data. Alerts are not sent yet (triggers are saved and checked only).
 
 ## 1. VM prerequisites
 
