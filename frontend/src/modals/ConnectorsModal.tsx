@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useStore, type Connectors } from '../state/store';
 import { Btn, Modal, ModalHead, Ms, Tier } from '../components/ui';
-import type { Channel } from '../data/watches';
+import type { ChannelId } from '../api/types';
+import { api } from '../api';
 
-const WA_NUMBER = '+1 (555) 014-7788';
+const WA_NUMBER = api.places.whatsappNumber();
 
 function WhatsAppSetup() {
   const { connectors, setConnectors, notify } = useStore();
@@ -49,7 +50,7 @@ function WhatsAppSetup() {
   );
 }
 
-export function ConnectorsModal({ focus }: { focus?: Channel }) {
+export function ConnectorsModal({ focus }: { focus?: ChannelId }) {
   const { close, connectors, setConnectors, open, notify, plan } = useStore();
   const [sel, setSel] = useState<keyof Connectors | 'api'>(focus ?? 'whatsapp');
   const rows: { id: keyof Connectors | 'api'; name: string; icon: string; desc: string; tier: 'free' | 'paid'; tierLabel?: string; on: boolean }[] = [

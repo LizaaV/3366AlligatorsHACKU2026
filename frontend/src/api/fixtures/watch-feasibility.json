@@ -1,0 +1,169 @@
+[
+  {
+    "match": "count the cars in the parking lot",
+    "response": {
+      "ok": false,
+      "partial": false,
+      "title": "Not possible with satellites",
+      "skillId": "",
+      "categoryKey": "society",
+      "metric": "",
+      "condition": "",
+      "satellites": "—",
+      "cadence": "—",
+      "tier": "free",
+      "cost": "—",
+      "confidence": "Low",
+      "notes": [
+        "Free satellites see 10 m pixels — a car or a person is smaller than one pixel.",
+        "Even 30 cm paid imagery cannot identify individuals, and we would not offer it."
+      ],
+      "alternative": "Watch for new buildings, roads or cleared land at this place instead"
+    }
+  },
+  {
+    "match": "how many people are in the field",
+    "response": {
+      "ok": false,
+      "partial": false,
+      "title": "Not possible with satellites",
+      "skillId": "",
+      "categoryKey": "society",
+      "metric": "",
+      "condition": "",
+      "satellites": "—",
+      "cadence": "—",
+      "tier": "free",
+      "cost": "—",
+      "confidence": "Low",
+      "notes": [
+        "Free satellites see 10 m pixels — a car or a person is smaller than one pixel.",
+        "Even 30 cm paid imagery cannot identify individuals, and we would not offer it."
+      ],
+      "alternative": "Watch for new buildings, roads or cleared land at this place instead"
+    }
+  },
+  {
+    "match": "is there a fire near my farm",
+    "response": {
+      "ok": true,
+      "partial": false,
+      "title": "Fire near my places",
+      "skillId": "active-fire-map",
+      "categoryKey": "disasters",
+      "metric": "Hotspots within 10 km",
+      "condition": "Any VIIRS hotspot within 10 km",
+      "satellites": "VIIRS / FIRMS",
+      "cadence": "Every ~12 hours",
+      "tier": "free",
+      "cost": "Free",
+      "confidence": "High",
+      "notes": [
+        "Small fires under ~1,000 m² may not be detected.",
+        "Alerts arrive 3–5 hours after the pass."
+      ]
+    }
+  },
+  {
+    "match": "will my land flood",
+    "response": {
+      "ok": true,
+      "partial": false,
+      "title": "Flooding on my place",
+      "skillId": "flood-extent",
+      "categoryKey": "disasters",
+      "metric": "Flooded area",
+      "condition": "New open water above 1 ha",
+      "satellites": "Sentinel-1",
+      "cadence": "Every 6 days",
+      "tier": "free",
+      "cost": "Free",
+      "confidence": "Medium",
+      "notes": [
+        "Radar passes every 6 days, so a short flood can be missed.",
+        "Wet soil after heavy rain can look like shallow water."
+      ]
+    }
+  },
+  {
+    "match": "has forest been cleared on this plot",
+    "response": {
+      "ok": true,
+      "partial": false,
+      "title": "New forest clearing",
+      "skillId": "deforestation-alerts",
+      "categoryKey": "forests",
+      "metric": "New clearing",
+      "condition": "Clearing above 0.5 ha",
+      "satellites": "Sentinel-1 · Sentinel-2",
+      "cadence": "Every 6 days",
+      "tier": "free",
+      "cost": "Free",
+      "confidence": "High",
+      "notes": [
+        "Selective logging of single trees is below 10 m and usually not seen."
+      ]
+    }
+  },
+  {
+    "match": "is there an algae bloom near the intake",
+    "response": {
+      "ok": true,
+      "partial": false,
+      "title": "Algae bloom near intake",
+      "skillId": "algae-red-tide-alert",
+      "categoryKey": "water",
+      "metric": "Chlorophyll-a",
+      "condition": "Bloom within 5 km",
+      "satellites": "Sentinel-3 OLCI",
+      "cadence": "Daily",
+      "tier": "free",
+      "cost": "Free",
+      "confidence": "Low",
+      "notes": [
+        "300 m pixels — fine near open water, unreliable within ~600 m of the shore."
+      ]
+    }
+  },
+  {
+    "match": "check my small backyard plot",
+    "response": {
+      "ok": true,
+      "partial": true,
+      "title": "Crop stress on a small plot",
+      "skillId": "small-field-stress-3-m",
+      "categoryKey": "agriculture",
+      "metric": "Stressed area",
+      "condition": "Stress on more than 10% of plot",
+      "satellites": "PlanetScope 3 m",
+      "cadence": "Daily",
+      "tier": "paid",
+      "cost": "$1.80 / km² · ~$0.40 / month",
+      "confidence": "Medium",
+      "notes": [
+        "Your plot is small for free 10 m data. We can watch it with free Sentinel-2 at low confidence, or with paid 3 m imagery."
+      ]
+    }
+  },
+  {
+    "match": "where are the dry patches in my field",
+    "response": {
+      "ok": true,
+      "partial": false,
+      "title": "Dry patches on my field",
+      "skillId": "dry-patch-finder",
+      "categoryKey": "agriculture",
+      "metric": "Dry area",
+      "condition": "Dry area larger than 5 ha",
+      "satellites": "Sentinel-2 · Landsat 9",
+      "cadence": "Every Sentinel-2 pass (~5 days)",
+      "tier": "free",
+      "cost": "Free",
+      "confidence": "Medium",
+      "notes": [
+        "Cloudy passes are skipped; in a wet week you may wait 10+ days for an update.",
+        "Areas under ~0.3 ha are below what 10 m pixels can size reliably."
+      ]
+    }
+  }
+]

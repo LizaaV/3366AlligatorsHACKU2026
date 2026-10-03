@@ -1,11 +1,13 @@
 import { useState, type ReactNode } from 'react';
-import { CATS, type Skill } from '../data/catalog';
-import { thumb } from '../data/geo';
+import { thumb } from '../lib/geo';
 import { Btn, CatPill, Ms, Tier, hideBroken } from '../components/ui';
+import { fmtRuns, slug } from '../lib/format';
+import { useStore } from '../state/store';
+import type { Skill } from '../model';
 
-export const fmtRuns = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`);
-
-export const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+// slug and fmtRuns now live in lib/format.ts — slug previously existed in three places.
+// Re-exported for existing importers; prefer importing from lib/format directly.
+export { fmtRuns, slug };
 
 /** Official = built by Groundtruth. Community = anyone else; "verified" means the publisher's identity is checked. */
 export const PublisherBadge = ({ s }: { s: Pick<Skill, 'official' | 'verified'> }) =>
@@ -19,16 +21,17 @@ export const PublisherBadge = ({ s }: { s: Pick<Skill, 'official' | 'verified'> 
   );
 
 export function SkillCard({ s, installed, onOpen, delay = 0 }: { s: Skill; installed: boolean; onOpen: () => void; delay?: number }) {
+  const { category } = useStore();
   return (
-    <button className="lib-card" onClick={onOpen} style={{ animationDelay: `${delay}ms` }} aria-label={`${s.name} by ${s.dev}`}>
+    <button className="lib-card" onClick={onOpen} style={{ animationDelay: `${delay}ms` }} aria-label={`${s.name} by ${s.publisherName}`}>
       <div className="lib-card-img">
-        <img onError={hideBroken} src={thumb(s.lat, s.lon, 13)} alt="" loading="lazy" />
+        <img onError={hideBroken} src={thumb(s.reference?.lat ?? 0, s.reference?.lon ?? 0, 13)} alt="" loading="lazy" />
         <span className="lib-ref">Reference</span>
         {installed && <span className="lib-installed"><Ms n="check" />Installed</span>}
       </div>
       <div className="lib-card-body">
         <div className="row wrap" style={{ gap: 6 }}>
-          <CatPill cat={s.cat} />
+          <CatPill category={category(s.categoryKey)} />
           <Tier tier={s.tier} label={s.tier === 'paid' ? s.cost : 'Free'} />
         </div>
         <div className="lib-card-name">{s.name}</div>
@@ -43,7 +46,7 @@ export function SkillCard({ s, installed, onOpen, delay = 0 }: { s: Skill; insta
         </div>
         <div className="lib-card-foot">
           <span className="row" style={{ gap: 4, minWidth: 0 }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>by {s.dev}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>by {s.publisherName}</span>
             {s.official && <Ms n="verified" className="lib-v-official" />}
             {!s.official && s.verified && <Ms n="verified_user" className="lib-v-community" />}
           </span>
@@ -102,4 +105,4 @@ export const StorageExplainer = () => (
   </div>
 );
 
-export const catColor = (c: number) => CATS[c].color;
+

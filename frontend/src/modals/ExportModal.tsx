@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useStore, type ExportTarget } from '../state/store';
 import { Btn, Check, Modal, ModalHead, Ms } from '../components/ui';
 import { LANGS } from '../data/i18n';
-import { thumb } from '../data/geo';
-import { FIELD } from '../data/places';
+import { DEFAULT_CENTER, thumb } from '../lib/geo';
 
 type Tab = 'link' | 'pdf' | 'data';
 
@@ -75,7 +74,7 @@ export function ExportModal({ target }: { target: ExportTarget }) {
               <span style={{ width: 8, height: 8, borderRadius: '50%', border: '1.5px solid #000' }} />GROUNDTRUTH REPORT
             </div>
             <div style={{ font: '700 11px/1.2 var(--font)' }}>{target.title}</div>
-            {opts.map && <div style={{ height: 70, borderRadius: 3, background: `#000 url(${thumb(FIELD.lat, FIELD.lon, 16)}) center/cover`, position: 'relative' }}><span style={{ position: 'absolute', inset: 14, borderRadius: '50%', border: '1.5px solid #ffcf25' }} /></div>}
+            {opts.map && <div style={{ height: 70, borderRadius: 3, background: `#000 url(${thumb(DEFAULT_CENTER.lat, DEFAULT_CENTER.lon, 16)}) center/cover`, position: 'relative' }}><span style={{ position: 'absolute', inset: 14, borderRadius: '50%', border: '1.5px solid #ffcf25' }} /></div>}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3 }}>
               {['4.6 ha', '0.12', 'Sep 8'].map((v) => <div key={v} style={{ background: '#f1f2f3', borderRadius: 2, padding: 3, font: '700 7px/1.2 var(--font)' }}>{v}{opts.ci && <div style={{ fontWeight: 500, color: '#656a76' }}>±0.7</div>}</div>)}
             </div>
