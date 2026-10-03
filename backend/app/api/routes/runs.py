@@ -16,9 +16,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sse_starlette import EventSourceResponse
 
 import earth
+from app.schemas.areas import AreaInput
 from app.schemas.runs import ID_PATTERN, ReplyRequest, RunRecord, RunRequest
 from app.schemas.stream import StreamEvent, to_sse
-from app.services import memory
+from app.services import memory, places
 from app.services import runs as run_store
 from app.services.preset_run import resume_preset_run, stream_preset_run
 from app.services.user import current_user
@@ -99,6 +100,12 @@ async def start_run(req: RunRequest, user_id: str = Depends(current_user)) -> Ev
             req.area.to_area()
         except earth.EarthError as exc:
             raise HTTPException(status_code=400, detail=exc.to_dict()) from exc
+    if req.area is None and req.place_id is not None:
+        # A saved place: run on its outline, never silently on the demo preset.
+        place = await asyncio.to_thread(places.get_place, user_id, req.place_id)
+        if place is None:
+            raise HTTPException(status_code=404, detail="Place not found.")
+        req = req.model_copy(update={"area": AreaInput(geojson=place.geometry, name=place.name)})
     if req.thread_id is not None:
         # Only server-issued threads: the user must already have runs there and nobody
         # else may. Owners never change, so this can't race with another user's insert.
