@@ -2032,6 +2032,117 @@
           }
         }
       }
+    },
+    "/api/runs/{run_id}/report.pdf": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Download a run as a PDF report",
+        "description": "Same content as a share link (answer, blocks, provenance, method); no memory or ids.",
+        "operationId": "get_run_report_api_runs__run_id__report_pdf_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report (A4 PDF).",
+            "content": {
+              "application/pdf": {}
+            }
+          },
+          "400": {
+            "description": "Invalid run id or X-User-Id."
+          },
+          "404": {
+            "description": "Run not found (or not yours)."
+          },
+          "409": {
+            "description": "The run is not finished yet."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/{slug}/report.pdf": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Download a shared run as a PDF (no login)",
+        "description": "The PDF of the snapshot behind a share link, for its viewers.",
+        "operationId": "get_shared_report_api_shares__slug__report_pdf_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report (A4 PDF).",
+            "content": {
+              "application/pdf": {}
+            }
+          },
+          "404": {
+            "description": "Unknown link."
+          },
+          "410": {
+            "description": "The link expired or was revoked."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

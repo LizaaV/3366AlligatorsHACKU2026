@@ -8,6 +8,7 @@ from app.api.routes import (
     layers,
     memory,
     places,
+    reports,
     runs,
     shares,
 )
@@ -23,3 +24,4 @@ api_router.include_router(places.router)
 api_router.include_router(memory.router)
 api_router.include_router(shares.router)
 api_router.include_router(dashboards.router)
+api_router.include_router(reports.router)

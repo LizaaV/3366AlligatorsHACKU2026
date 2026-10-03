@@ -46,7 +46,6 @@ npx openapi-typescript ../contracts/openapi.json -o src/api/schema.d.ts
 
 - threads list (A4)
 - watches and skills listing (A5)
-- dashboards, share links, PDF (Meet's modules)
 
 ## 3. The live stream (`POST /api/runs`)
 
@@ -351,3 +350,17 @@ Create/patch rules:
 - An unusable outline gives **400** `{kind, message, hint}`; show the `hint` (for example "did you swap them?"). Outlines over 25 km² are refused with `kind: "budget_exceeded"`.
 - Unknown or someone else's place: **404**.
 - Not built yet: place search (use `/api/areas/resolve`), detect-boundary, parcel lookup.
+
+## 11. PDF report
+
+| Method + path | What it does | Returns |
+|---|---|---|
+| `GET /api/runs/{run_id}/report.pdf` | The finished run as an A4 PDF. Owner only: **404** if not yours, **409** if the run is not `done`, **400** for a bad id | `application/pdf`, `Content-Disposition: attachment; filename="earth-agent-<run_id>.pdf"` |
+| `GET /api/shares/{slug}/report.pdf` | The same PDF for a share link, no login. **404** unknown link, **410** expired or revoked | `application/pdf`, filename `earth-agent-<first 8 of slug>.pdf` |
+
+Use a plain link or `fetch` + blob; the owner route needs the `X-User-Id` header, so fetch it if you use a non-demo user. On a share page, link to the share route.
+
+- Contents: question, place and date, the answer (sentence, confidence, cause, what to do, caveats), every block (then/now images side by side, timeline chart, highlight, stat, hypotheses table, scene table, limits box), then provenance and method (cards, skill). Footer on every page with the "not an official assessment" line and page numbers.
+- Privacy: built from the same allow-list snapshot as a share link. It never contains params, events, script, memory, user id, thread id or run id.
+- A layer image that is missing on disk shows a grey placeholder; the PDF is still returned.
+- Limit: built-in Helvetica font, Latin only. Chinese text (`zh-Hant`, `yue`) appears as `?` and the PDF says so.
