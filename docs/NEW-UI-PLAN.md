@@ -31,3 +31,9 @@ until it merges.
 - "Alex's globe" image and "Liza's example" chat are not in the repo; built from the text description.
 - Folder persistence on the server waits for #49 to merge (then add `folder_id` to threads).
 - Second translated language: the existing i18n already has 8; only new keys get translations.
+
+## Known gaps (team decisions, 4 Oct 2026)
+- **Alerts are sample only.** Triggers are saved and checked, but nothing sends alerts yet: there is no scheduler or notifier, delivery channels are "Coming soon", and a one-time trigger's auto-disable (`watches.record_event`) is not called. Kept as a sample for now.
+- **Skills still to be added.** Trigger feasibility rules point to skills the library does not have yet (e.g. `dry-patch-finder`, `flood-extent`, `active-fire-map`, `deforestation-alerts`); only `pond-filling-check` exists. The team will add them.
+- **Demo sample text stays** while the app runs on demo data (trigger builder examples, the sample email address).
+- **Live answers need `ANTHROPIC_API_KEY`** in `backend/.env`; without it only the Hoo Hok Wai demo place is answered.
