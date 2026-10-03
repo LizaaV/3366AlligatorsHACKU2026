@@ -2,11 +2,29 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { addSatellites } from './globeSatellites';
 
-/** Spinning, draggable 3D Earth with the live satellite constellation — ported from the prototype's initGlobe(). */
-export function Globe({ visible, autoRotate = true, offsetRight = true }: { visible: boolean; autoRotate?: boolean; offsetRight?: boolean }) {
+/**
+ * Spinning, draggable 3D Earth with the live satellite constellation.
+ *
+ * Tap the Earth (a click without dragging) and it turns that spot to face you and zooms in,
+ * then calls `onPick(lat, lon)` so the page can hand over to the map. A click that misses
+ * the Earth calls `onOutside`.
+ */
+export function Globe({
+  visible,
+  autoRotate = true,
+  offsetRight = true,
+  onPick,
+  onOutside,
+}: {
+  visible: boolean;
+  autoRotate?: boolean;
+  offsetRight?: boolean;
+  onPick?: (lat: number, lon: number) => void;
+  onOutside?: () => void;
+}) {
   const el = useRef<HTMLDivElement>(null);
-  const live = useRef({ visible, autoRotate, offsetRight });
-  live.current = { visible, autoRotate, offsetRight };
+  const live = useRef({ visible, autoRotate, offsetRight, onPick, onOutside });
+  live.current = { visible, autoRotate, offsetRight, onPick, onOutside };
   /** Restarts the render loop; set by the mount effect, called when the globe becomes visible. */
   const resume = useRef<() => void>(() => undefined);
 
@@ -80,15 +98,66 @@ export function Globe({ visible, autoRotate = true, offsetRight = true }: { visi
     const ro = new ResizeObserver(resize);
     ro.observe(host);
 
+    // Rest pose, restored whenever the globe is shown again after a fly-in.
+    const rest = { camZ: cam.position.z, rx: grp.rotation.x, rz: grp.rotation.z };
+    // A running fly-in: from the current pose to the picked spot facing the camera.
+    let fly: null | { t0: number; from: number[]; to: number[]; lat: number; lon: number } = null;
+    const ray = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+
+    /** lat/lon of a point on the Earth mesh, from its local (unrotated) coordinates. */
+    const toLatLon = (world: THREE.Vector3) => {
+      const p = earth.worldToLocal(world.clone()).normalize();
+      // three's SphereGeometry: u = atan2(z, -x) / 2π from lon -180°, v from the north pole.
+      const lat = THREE.MathUtils.radToDeg(Math.asin(p.y));
+      let u = Math.atan2(p.z, -p.x) / (2 * Math.PI);
+      if (u < 0) u += 1;
+      return { lat, lon: u * 360 - 180, local: p };
+    };
+
+    const pick = (e: PointerEvent) => {
+      const rect = host.getBoundingClientRect();
+      ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+      ray.setFromCamera(ndc, cam);
+      const hit = ray.intersectObject(earth, false)[0];
+      if (!hit) return live.current.onOutside?.();
+      const { lat, lon, local } = toLatLon(hit.point);
+      // Turn the spot to the front: rotate the Earth about Y so its longitude faces +z, then
+      // tilt the group by the latitude so it sits at the centre.
+      let ry = -Math.atan2(local.x, local.z);
+      while (ry - earth.rotation.y > Math.PI) ry -= 2 * Math.PI;
+      while (earth.rotation.y - ry > Math.PI) ry += 2 * Math.PI;
+      fly = {
+        t0: performance.now(),
+        from: [earth.rotation.y, grp.rotation.x, grp.rotation.z, grp.position.x, grp.position.y, cam.position.z],
+        to: [ry, THREE.MathUtils.degToRad(lat), 0, 0, 0, 1.45],
+        lat,
+        lon,
+      };
+    };
+
     let drag: { x: number; y: number } | null = null;
-    const down = (e: PointerEvent) => { drag = { x: e.clientX, y: e.clientY }; host.style.cursor = 'grabbing'; };
-    const up = () => { drag = null; host.style.cursor = 'grab'; };
+    let moved = 0;
+    const down = (e: PointerEvent) => { if (fly) return; drag = { x: e.clientX, y: e.clientY }; moved = 0; host.style.cursor = 'grabbing'; };
+    const up = (e: PointerEvent) => {
+      const wasClick = !!drag && moved < 6;
+      drag = null;
+      host.style.cursor = 'grab';
+      if (wasClick && e.target === r.domElement) pick(e);
+    };
     const move = (e: PointerEvent) => {
       if (!drag) return;
+      moved += Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y);
       earth.rotation.y += (e.clientX - drag.x) * 0.005;
       grp.rotation.x = Math.max(-1, Math.min(1, grp.rotation.x + (e.clientY - drag.y) * 0.003));
       drag = { x: e.clientX, y: e.clientY };
     };
+    const wheel = (e: WheelEvent) => {
+      if (fly) return;
+      e.preventDefault();
+      cam.position.z = Math.max(1.6, Math.min(5, cam.position.z * (1 + e.deltaY * 0.001)));
+    };
+    host.addEventListener('wheel', wheel, { passive: false });
     host.addEventListener('pointerdown', down);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointermove', move);
@@ -102,12 +171,29 @@ export function Globe({ visible, autoRotate = true, offsetRight = true }: { visi
         return;
       }
       raf = requestAnimationFrame(loop);
-      if (!drag && live.current.autoRotate) earth.rotation.y += 0.0011;
+      if (fly) {
+        const k = Math.min(1, (performance.now() - fly.t0) / 1300);
+        const ease = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        const v = fly.from.map((f, i) => f + (fly!.to[i] - f) * ease);
+        [earth.rotation.y, grp.rotation.x, grp.rotation.z, grp.position.x, grp.position.y, cam.position.z] = v;
+        if (k >= 1) {
+          const { lat, lon } = fly;
+          fly = null;
+          live.current.onPick?.(lat, lon);
+        }
+      } else if (!drag && live.current.autoRotate) earth.rotation.y += 0.0011;
       stars.rotation.y += 0.00005;
       sats.update();
       r.render(scene, cam);
     };
     resume.current = () => {
+      // Back from the map: zoom out to the rest pose, keeping the spot that was picked in view.
+      if (cam.position.z < rest.camZ - 0.01) {
+        cam.position.z = rest.camZ;
+        grp.rotation.x = rest.rx;
+        grp.rotation.z = rest.rz;
+        resize();
+      }
       if (!raf) raf = requestAnimationFrame(loop);
     };
     resume.current();
@@ -128,6 +214,7 @@ export function Globe({ visible, autoRotate = true, offsetRight = true }: { visi
       (stars.material as THREE.Material).dispose();
       ro.disconnect();
       host.removeEventListener('pointerdown', down);
+      host.removeEventListener('wheel', wheel);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointermove', move);
       r.dispose();

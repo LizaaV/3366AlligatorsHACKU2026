@@ -32,6 +32,8 @@ export interface AskTurn {
   id: string;
   text: string;
   placeId: string | null;
+  /** An unsaved spot to ask about (a pin on the map), used when there is no place. */
+  area?: SpotArea | null;
   skillId?: string;
   /** `clarify` is waiting on the user; `running` has a stream open. */
   phase: 'clarify' | 'running' | 'done' | 'error';
@@ -60,8 +62,16 @@ export interface AskTurn {
   durationMs?: number;
 }
 
+/** A dropped pin: the circle the question covers (`docs/API.md` §7). */
+export interface SpotArea {
+  point: { lat: number; lon: number; radius_m: number };
+  name?: string | null;
+}
+
 export interface SubmitOptions {
   skillId?: string;
+  /** Ask about an unsaved spot instead of a place. */
+  area?: SpotArea | null;
   /** `undefined` means "use the currently selected place". */
   placeId?: string | null;
   /** Continue an existing conversation rather than starting a new thread. */
@@ -191,6 +201,7 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
               question: turn.text,
               lang,
               place_id: turn.placeId,
+              area: turn.placeId ? null : (turn.area ?? null),
               thread_id: turn.threadId,
               skill_id: turn.skillId ?? null,
             },
@@ -233,6 +244,7 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
         id: newId(),
         text: trimmed,
         placeId: placeId ?? null,
+        area: opts.area ?? null,
         skillId: opts.skillId,
         phase: 'running',
         runId: null,

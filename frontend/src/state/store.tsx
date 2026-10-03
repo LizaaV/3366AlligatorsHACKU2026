@@ -135,7 +135,16 @@ interface Store {
   toast: Toast | null;
   notify: (text: string, action?: string, fn?: () => void, icon?: string) => void;
   dismissToast: () => void;
+  /** The opening screen (full-screen Earth) is showing; the nav hides until it is dismissed. */
+  splash: boolean;
+  setSplash: (on: boolean) => void;
 }
+
+/** Show the opening screen on a plain visit, not on a deep link (`#/places`, `?place=`). */
+const startsOnSplash = () => {
+  const h = window.location.hash.replace(/^#\/?/, '');
+  return h === '' || h === 'ask';
+};
 
 const Ctx = createContext<Store | null>(null);
 
@@ -229,6 +238,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   });
   const [modal, setModal] = useState<Modal | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [splash, setSplash] = useState<boolean>(startsOnSplash);
   const toastTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
@@ -355,6 +365,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toast,
       notify,
       dismissToast: () => setToast(null),
+      splash,
+      setSplash,
     }),
     [
       route,
@@ -382,6 +394,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       modal,
       toast,
       notify,
+      splash,
     ],
   );
 

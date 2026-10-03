@@ -240,3 +240,4 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
   .spinner { animation: spin 1.2s linear infinite !important; }
   .shimmer-text { animation: none; background: none; color: var(--muted); -webkit-text-fill-color: currentColor; }
 }
+button.chip.on:hover { color: #000; }

@@ -77,7 +77,8 @@ function AccountMenu() {
 }
 
 export function TopNav() {
-  const { route, t, lang, open } = useStore();
+  const { route, t, lang, open, splash } = useStore();
+  if (splash) return null;
   const L = LANGS.find((l) => l.code === lang)!;
   return (
     <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'var(--nav-h)', zIndex: 90, display: 'flex', alignItems: 'center', gap: 24, padding: '0 20px', background: '#000', borderBottom: '1px solid var(--hair-soft)' }}>
@@ -105,7 +106,8 @@ export function TopNav() {
 }
 
 export function MobileTabs() {
-  const { route, t } = useStore();
+  const { route, t, splash } = useStore();
+  if (splash) return null;
   return (
     <nav className="show-mobile" aria-label={t('nav.main')} style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 64, zIndex: 90, display: 'flex', background: '#000', borderTop: '1px solid var(--hair-soft)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {TABS.map((tb) => {

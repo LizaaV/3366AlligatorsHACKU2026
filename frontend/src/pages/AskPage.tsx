@@ -16,6 +16,13 @@ import { LANGS } from '../data/i18n';
 import { useAskRun, type AskTurn } from '../ask/useAskRun';
 import { AnswerCard } from './AnswerCard';
 import { AnswerBlocks } from '../components/blocks';
+import { Splash } from '../components/Splash';
+import { BANDS, bandTiles, recentScenes, type Band, type Scene } from '../lib/scenes';
+import type { PlaceContext } from '../api';
+
+/** Radius of the circle a question about a dropped pin covers. */
+const SPOT_RADIUS_M = 350;
+const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 function useViewport() {
   const [v, setV] = useState({ W: window.innerWidth, H: window.innerHeight });
@@ -29,11 +36,12 @@ function useViewport() {
 
 export function AskPage({ active }: { active: boolean }) {
   const store = useStore();
-  const { places, skills, askPlaceId, setAskPlace, route, go, open, notify, t, lang, watches, addPlace, category, mapLayers: catalogLayers } = store;
+  const { places, skills, askPlaceId, setAskPlace, route, go, open, notify, t, lang, watches, addPlace, category, mapLayers: catalogLayers, splash, setSplash } = store;
   const { W, H: winH } = useViewport();
-  const navH = W <= 760 ? 52 : 56;
   const mobile = W <= 760;
-  const H = winH - navH - (mobile ? 64 : 0);
+  // The opening screen takes the whole window: no nav bar, no tab bar.
+  const navH = splash ? 0 : W <= 760 ? 52 : 56;
+  const H = winH - navH - (mobile && !splash ? 64 : 0);
   const compact = W < 1280;
   const chatW = mobile ? W - 32 : compact ? 360 : 420;
 
@@ -58,6 +66,64 @@ export function AskPage({ active }: { active: boolean }) {
   const [placeOpen, setPlaceOpen] = useState(!mobile);
   const playT = useRef<number | undefined>(undefined);
   const thread = useRef<HTMLDivElement>(null);
+
+  /* ---------------- a picked spot: look around before asking ---------------- */
+
+  // A pin dropped from the globe or the map. Questions about it send the circle as `area`,
+  // so nothing has to be saved first.
+  const [spot, setSpot] = useState<{ lat: number; lon: number } | null>(null);
+  const [spotInfo, setSpotInfo] = useState<PlaceContext | null>(null);
+  const [band, setBand] = useState<Band | 'map'>('map');
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [sceneIdx, setSceneIdx] = useState(0);
+  const [scenesLoading, setScenesLoading] = useState(false);
+
+  /** Look at a spot: drop the pin, fly the map there and start showing the latest photo. */
+  const lookAt = useCallback(
+    (lat: number, lon: number, z = 15) => {
+      setSplash(false);
+      setAskPlace(null);
+      setSpot({ lat, lon });
+      setMode('map');
+      setCenter({ lat, lon });
+      setZoom(z);
+      setBand('photo');
+    },
+    [setAskPlace, setSplash],
+  );
+
+  // What's under the pin, from the backend (land cover, size, recent clear passes).
+  useEffect(() => {
+    setSpotInfo(null);
+    if (!spot) return;
+    const ac = new AbortController();
+    api.areas
+      .context({ point: { lat: spot.lat, lon: spot.lon, radius_m: SPOT_RADIUS_M } }, ac.signal)
+      .then(setSpotInfo)
+      .catch(() => undefined);
+    return () => ac.abort();
+  }, [spot]);
+
+  // Recent clear Sentinel-2 passes over whatever is in focus (the pin, or the selected place).
+  // A selected place replaces any pin.
+  useEffect(() => {
+    if (askPlaceId) setSpot(null);
+  }, [askPlaceId]);
+  const focusLat = place?.lat ?? spot?.lat, focusLon = place?.lon ?? spot?.lon;
+  useEffect(() => {
+    setScenes([]);
+    setSceneIdx(0);
+    if (focusLat === undefined || focusLon === undefined || mode !== 'map') return;
+    const ac = new AbortController();
+    setScenesLoading(true);
+    recentScenes(focusLat, focusLon, ac.signal)
+      .then((sc) => !ac.signal.aborted && setScenes(sc))
+      .catch(() => undefined)
+      .finally(() => !ac.signal.aborted && setScenesLoading(false));
+    return () => ac.abort();
+  }, [focusLat, focusLon, mode]);
+  const scene = scenes[sceneIdx] ?? null;
+  const liveTiles = scene && band !== 'map' ? bandTiles(scene.id, band) : null;
 
   // Layer definitions come from the catalog endpoint; keep the local on/ready flags.
   useEffect(() => {
@@ -158,6 +224,35 @@ export function AskPage({ active }: { active: boolean }) {
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [turns, last?.steps.length]);
 
+  /** The `area` for a question about the pin, when no saved place is selected. */
+  const spotOptions = () =>
+    spot && !place ? { area: { point: { lat: spot.lat, lon: spot.lon, radius_m: SPOT_RADIUS_M }, name: spotInfo?.name ?? null } } : {};
+
+  /** Keep the pin as a saved place (a circle), so it can have triggers and history. */
+  const saveSpot = async () => {
+    if (!spot) return;
+    const name = spotInfo?.name ?? `Spot ${places.length + 1}`;
+    try {
+      const created = await addPlace({
+        name,
+        categoryKey: 'agriculture',
+        center: spot,
+        // A circle of SPOT_RADIUS_M, in the reference-zoom pixels `circlePts` works in.
+        geometry: { type: 'Polygon', coordinates: [ptsToRing(circlePts(SPOT_RADIUS_M / ((156543.03 * Math.cos((spot.lat * Math.PI) / 180)) / 65536), 48), spot)] },
+        isCircle: true,
+        project: 'My places',
+        tags: [],
+        source: 'pin',
+        details: [{ label: 'Added via', value: 'Picked on the map' }],
+      });
+      setSpot(null);
+      setAskPlace(created.id);
+      notify(`${created.name} saved · ${created.areaHa} ha`, undefined, undefined, 'check_circle');
+    } catch {
+      notify('Could not save the place', undefined, undefined, 'error');
+    }
+  };
+
   const submit = () => {
     const text = q.trim();
     if (!text) return;
@@ -165,7 +260,7 @@ export function AskPage({ active }: { active: boolean }) {
     setPop(null);
     setSheet(false);
     setPlaceOpen(false);
-    ask(text);
+    ask(text, spotOptions());
   };
 
   const runSkill = useCallback(
@@ -266,7 +361,8 @@ export function AskPage({ active }: { active: boolean }) {
   const overlay = overlayPair ? overlayPair[overlayWhen] : null;
   const overlayName = overlayId ? layers.find((l) => l.id === overlayId)?.name ?? overlayId : '';
   const isMap = mode === 'map';
-  const showHero = !isMap && !turns.length && !sheet && H >= 560 && !mobile;
+  const showHero = !splash && !isMap && !turns.length && !sheet && H >= 560 && !mobile;
+  const spotName = spotInfo?.name ?? (spot ? fmtC(spot.lat, spot.lon) : '');
   const cloudy = timeline?.cloudyIndices.includes(dateIdx) ?? false;
   const placeWatches = place ? watches.filter((w) => w.placeId === place.id) : [];
   const L = LANGS.find((l) => l.code === lang)!;
@@ -274,7 +370,13 @@ export function AskPage({ active }: { active: boolean }) {
   // Questions the backend can actually answer today. The pond check is the one real skill;
   // the others are free-form questions the agent handles from the knowledge cards.
   const hasPondSkill = skills.some((x) => x.id === 'pond-filling-check');
-  const suggestions = place
+  const suggestions = spot && !place
+    ? [
+        { icon: 'history', text: 'What has changed here in the last year?', go: () => ask('What has changed here in the last year?', spotOptions()) },
+        { icon: 'apartment', text: 'Has this area been built on since 2022?', go: () => ask('Has this area been built on since 2022?', spotOptions()) },
+        { icon: 'water_drop', text: 'Is there less water here than last year?', go: () => ask('Is there less water here than last year?', spotOptions()) },
+      ]
+    : place
     ? [
         hasPondSkill
           ? { icon: 'water', text: 'Have these ponds been filled in?', go: () => runSkill('pond-filling-check') }
@@ -285,7 +387,7 @@ export function AskPage({ active }: { active: boolean }) {
     : [
         { icon: 'eco', text: 'What does the greenness index measure?', go: () => ask('What does the greenness index (NDVI) measure?') },
         { icon: 'satellite_alt', text: 'Which free satellites can see through clouds?', go: () => ask('Which free satellites can see through clouds?') },
-        { icon: 'pentagon', text: 'Pick a place to ask about it', go: () => setPop('place') },
+        { icon: 'public', text: 'Tap the globe to look at any place', go: () => notify('Tap anywhere on the globe to fly there', undefined, undefined, 'public') },
       ];
 
   const sq = searchQ.trim().toLowerCase();
@@ -317,16 +419,13 @@ export function AskPage({ active }: { active: boolean }) {
         d: r.description,
         icon: 'location_on',
         go: () => {
-          setMode('map');
-          setCenter({ lat: r.lat, lon: r.lon });
-          setZoom(r.zoom);
+          lookAt(r.lat, r.lon, Math.min(16, r.zoom));
           setPop(null);
           setSearchQ('');
-          notify(`${r.name} \u2014 not saved yet`, 'Save as place', () => open({ kind: 'addPlace' }), 'location_on');
         },
       })),
     ],
-    [places, sq, geo.data, setAskPlace, flyTo, notify, open],
+    [places, sq, geo.data, setAskPlace, flyTo, lookAt],
   );
 
   const tools: { k: string; icon?: string; title?: string; caret?: boolean }[] = [
@@ -340,9 +439,50 @@ export function AskPage({ active }: { active: boolean }) {
   return (
     <div style={{ position: 'fixed', top: navH, left: 0, right: 0, bottom: mobile ? 64 : 0, overflow: 'hidden', background: '#000', visibility: active ? 'visible' : 'hidden' }} aria-hidden={!active}>
       <Suspense fallback={null}>
-        <Globe visible={active && !isMap} offsetRight={!mobile} />
+        <Globe
+          visible={active && !isMap}
+          offsetRight={!mobile && !splash}
+          onPick={(lat, lon) => lookAt(lat, lon)}
+          onOutside={() => splash && setSplash(false)}
+        />
       </Suspense>
-      {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} contour overlay={overlay} pass={pass} />}
+      {isMap && (
+        <MapView
+          W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} contour overlay={overlay} pass={pass}
+          pin={spot && !place ? { ...spot, radiusM: SPOT_RADIUS_M } : null}
+          bandTiles={overlay ? null : liveTiles}
+          onCenter={drawing ? undefined : setCenter}
+          onZoom={drawing ? undefined : setZoom}
+          onTap={drawing ? undefined : (lat, lon) => { setAskPlace(null); setSpot({ lat, lon }); }}
+        />
+      )}
+
+      {splash && <Splash onContinue={() => setSplash(false)} />}
+      {!splash && (<>
+
+      {/* LIVE SATELLITE VIEW: band chips and recent passes for the pin or place in focus */}
+      {isMap && !overlay && !drawing && (spot || place) && (
+        <div className="panel col fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : 20, margin: '0 auto', width: 'max-content', maxWidth: mobile ? 'calc(100% - 32px)' : `calc(100% - ${chatW + 60}px)`, top: mobile ? 64 : 90, gap: 8, padding: 8, zIndex: 14 }}>
+          <div className="row wrap" style={{ gap: 6 }}>
+            <button className={`chip ${band === 'map' ? 'on' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setBand('map')} title="Cloud-free basemap (2020)">Map</button>
+            {BANDS.map((b) => (
+              <button key={b.id} className={`chip ${band === b.id ? 'on' : ''}`} style={{ padding: '4px 10px', opacity: scene ? 1 : 0.45 }} disabled={!scene} onClick={() => setBand(b.id)} title={b.hint} aria-pressed={band === b.id}>
+                {b.label}
+              </button>
+            ))}
+          </div>
+          <div className="row" style={{ gap: 6, overflowX: 'auto' }}>
+            {scenesLoading && <span className="tiny muted">Finding recent clear passes…</span>}
+            {!scenesLoading && !scenes.length && <span className="tiny muted">No clear Sentinel-2 pass in the last 4 months here.</span>}
+            {scenes.slice(0, 6).map((sc, i) => (
+              <button key={sc.id} onClick={() => { setSceneIdx(i); if (band === 'map') setBand('photo'); }} className="tiny" title={`${sc.satellite} · ${sc.cloud}% cloud in the tile`} style={{ flex: 'none', padding: '3px 8px', borderRadius: 9999, border: `1px solid ${i === sceneIdx && band !== 'map' ? '#fff' : 'var(--hair)'}`, background: 'transparent', color: i === sceneIdx && band !== 'map' ? '#fff' : 'var(--muted)' }}>
+                {new Date(sc.date + 'T00:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' })}
+              </button>
+            ))}
+          </div>
+          {scene && band !== 'map' && <span className="tiny muted">{scene.satellite} · {scene.date} · {scene.cloud}% cloud · {BANDS.find((b) => b.id === band)?.hint}</span>}
+        </div>
+      )}
 
       {/* REAL LAYER: which rendered image is on the map, and before/after */}
       {isMap && overlayPair && (
@@ -379,17 +519,15 @@ export function AskPage({ active }: { active: boolean }) {
         </>
       )}
 
-      {/* HERO */}
+      {/* HERO — after the opening screen, just the one instruction that matters */}
       {showHero && (
-        // Sits below the chat panel; the title scales with the window height so it never runs under it.
         <div style={{ position: 'absolute', left: 48, bottom: 40, maxWidth: 560, pointerEvents: 'none', animation: 'fadeUp .6s ease both' }}>
-          <div className="eyebrow muted" style={{ marginBottom: 12 }}>{t('hero.eyebrow')}</div>
-          <div className="display" style={{ fontSize: 'clamp(34px, 6.2vh, 64px)', letterSpacing: -1.5 }}>{t('hero.title')}</div>
-          <div className="body-lg" style={{ marginTop: 12, maxWidth: 480 }}>{t('hero.sub')}</div>
-          <div className="row wrap" style={{ marginTop: 20, gap: 8, pointerEvents: 'auto' }}>
-            <span className="pill" style={{ background: 'var(--s1)' }}><Ms n="translate" size={14} />{LANGS.length} languages</span>
+          <div className="h3" style={{ letterSpacing: -0.5 }}>Tap the globe to look at any place.</div>
+          <div className="body-sm muted" style={{ marginTop: 8 }}>Or search a town, paste coordinates, or pick one of your places. Then try its bands and ask what changed.</div>
+          <div className="row wrap" style={{ marginTop: 16, gap: 8 }}>
             <span className="pill" style={{ background: 'var(--s1)' }}><Ms n="satellite_alt" size={14} />Sentinel-1/2 · Landsat</span>
             <span className="pill" style={{ background: 'var(--s1)' }}><span className="dot" style={{ background: 'var(--green)' }} />Free, open data</span>
+            <span className="pill" style={{ background: 'var(--s1)' }}><Ms n="translate" size={14} />{LANGS.length} languages</span>
           </div>
         </div>
       )}
@@ -402,7 +540,7 @@ export function AskPage({ active }: { active: boolean }) {
             <span className="eyebrow">{t('chat.place')}</span>
             <button onClick={() => setPop((p) => (p === 'place' ? null : 'place'))} className="row" style={{ gap: 6, padding: '4px 8px 4px 10px', borderRadius: 9999, background: place ? 'var(--s2)' : 'transparent', border: `1px ${place ? 'solid' : 'dashed'} var(--hair)`, font: '600 13px/1.38 var(--font)', minWidth: 0, maxWidth: '100%' }} aria-haspopup="menu" aria-expanded={pop === 'place'}>
               {place ? <span className="dot" style={{ background: category(place.categoryKey).color }} /> : <Ms n="public" size={14} className="muted" />}
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place ? place.name : t('chat.noPlace')}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place ? place.name : spot ? `Pin · ${spotName}` : t('chat.noPlace')}</span>
               {place && <span className="tiny">{place.areaHa} ha</span>}
               <Ms n="arrow_drop_down" size={18} className="muted" />
             </button>
@@ -431,7 +569,7 @@ export function AskPage({ active }: { active: boolean }) {
           </div>
           <div className="row" style={{ gap: 12, padding: '8px 8px 8px 14px', flex: 'none' }}>
             <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #fff', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} /></div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder={place ? `Ask about ${place.name}…` : t('chat.placeholder')} aria-label="Ask a question" style={{ flex: 1, minWidth: 0, height: 36, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 15px/1.5 var(--font)' }} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder={place ? `Ask about ${place.name}…` : spot ? `Ask about ${spotName}…` : t('chat.placeholder')} aria-label="Ask a question" style={{ flex: 1, minWidth: 0, height: 36, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 15px/1.5 var(--font)' }} />
             <button onClick={submit} title="Send" aria-label="Send" style={{ width: 36, height: 36, flex: 'none', borderRadius: 8, background: '#fff', color: '#000', border: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ms n="arrow_upward" size={20} /></button>
           </div>
           {!turns.length && (
@@ -466,6 +604,38 @@ export function AskPage({ active }: { active: boolean }) {
             </div>
           )}
         </div>
+
+        {/* PICKED SPOT — what's under the pin, before asking */}
+        {spot && !place && isMap && !drawing && (
+          <div className="panel fade-up col" style={{ flex: 'none', pointerEvents: 'auto', padding: 14, gap: 10 }}>
+            <div className="row" style={{ gap: 10 }}>
+              <Ms n="location_on" size={20} />
+              <div className="col grow" style={{ minWidth: 0 }}>
+                <span className="ink" style={{ font: '600 15px/1.35 var(--font)' }}>{spotName}{spotInfo?.country ? <span className="tiny"> · {spotInfo.country}</span> : null}</span>
+                <span className="tiny">{fmtC(spot.lat, spot.lon)} · circle of {SPOT_RADIUS_M} m{spotInfo ? ` · ${spotInfo.area_ha.toFixed(1)} ha` : ''}</span>
+              </div>
+              <IconBtn icon="close" className="sm" onClick={() => setSpot(null)} aria-label="Remove pin" />
+            </div>
+            {spotInfo ? (
+              <>
+                <div className="caption">
+                  {Object.entries(spotInfo.land_cover).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${pct(v)} ${k}`).join(' · ')}
+                </div>
+                <div className="tiny muted">
+                  {spotInfo.recent_scenes.clear} clear looks in 60 days · {spotInfo.recent_scenes.radar} radar passes
+                  {spotInfo.elevation_m ? ` · ${Math.round(spotInfo.elevation_m.min)}–${Math.round(spotInfo.elevation_m.max)} m high` : ''}
+                </div>
+                {spotInfo.warnings.map((w) => <div key={w} className="tiny" style={{ color: 'var(--yellow)' }}>{w}</div>)}
+              </>
+            ) : (
+              <div className="tiny muted">Reading what is here…</div>
+            )}
+            <div className="row wrap" style={{ gap: 6 }}>
+              <Btn size="sm" variant="primary" icon="bookmark_add" onClick={saveSpot}>Save as place</Btn>
+              <span className="tiny muted">Drag to look around · scroll to zoom · click to move the pin</span>
+            </div>
+          </div>
+        )}
 
         {/* PLACE DETAIL — pinned at the bottom of the ask page */}
         {place && isMap && !drawing && (
@@ -564,7 +734,7 @@ export function AskPage({ active }: { active: boolean }) {
                     <div className="eyebrow">Go to coordinates</div>
                     <label className="field">Latitude<input className="input" value={coord.lat} onChange={(e) => setCoord({ ...coord, lat: e.target.value })} /></label>
                     <label className="field">Longitude<input className="input" value={coord.lon} onChange={(e) => setCoord({ ...coord, lon: e.target.value })} /></label>
-                    <Btn variant="primary" onClick={() => { const la = parseFloat(coord.lat), lo = parseFloat(coord.lon); if (isNaN(la) || isNaN(lo) || Math.abs(la) > 85 || Math.abs(lo) > 180) return notify('Enter a valid latitude and longitude', undefined, undefined, 'error'); setMode('map'); setCenter({ lat: la, lon: lo }); setZoom(15); setPop(null); }}>Fly there</Btn>
+                    <Btn variant="primary" onClick={() => { const la = parseFloat(coord.lat), lo = parseFloat(coord.lon); if (isNaN(la) || isNaN(lo) || Math.abs(la) > 85 || Math.abs(lo) > 180) return notify('Enter a valid latitude and longitude', undefined, undefined, 'error'); lookAt(la, lo); setPop(null); }}>Fly there</Btn>
                   </div>
                 )}
               </div>
@@ -628,7 +798,7 @@ export function AskPage({ active }: { active: boolean }) {
             {t('nav.triggers')}<span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999, background: '#fff', color: '#000', font: '600 11px/18px var(--font)', textAlign: 'center' }}>{watches.filter((w) => w.enabled).length}</span>
           </Btn>
         )}
-        {isMap && !mobile && <IconBtn icon="public" title="Back to globe" aria-label="Back to globe" onClick={() => { setMode('globe'); setPlaying(false); setDrawing(false); }} />}
+        {isMap && !mobile && <IconBtn icon="public" title="Back to globe" aria-label="Back to globe" onClick={() => { setMode('globe'); setPlaying(false); setDrawing(false); setSpot(null); }} />}
       </div>
 
       {/* ZOOM */}
@@ -645,6 +815,7 @@ export function AskPage({ active }: { active: boolean }) {
           onRun={(id) => runSkill(id)}
           onOpen={(id) => go('library', id)} />
       )}
+      </>)}
     </div>
   );
 }
