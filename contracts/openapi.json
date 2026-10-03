@@ -3516,7 +3516,8 @@
               "water",
               "bare",
               "burn",
-              "roughness"
+              "roughness",
+              "heat"
             ],
             "title": "Measure"
           },
@@ -5829,7 +5830,8 @@
                   "water",
                   "bare",
                   "burn",
-                  "roughness"
+                  "roughness",
+                  "heat"
                 ]
               },
               {
@@ -5960,7 +5962,8 @@
               "water",
               "bare",
               "burn",
-              "roughness"
+              "roughness",
+              "heat"
             ],
             "title": "Measure"
           },

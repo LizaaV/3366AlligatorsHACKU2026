@@ -39,6 +39,8 @@ from earth.types import (
     Area,
     Comparison,
     EarthCall,
+    FireDetection,
+    FireList,
     LayerRef,
     Measure,
     PlaceContext,
@@ -59,6 +61,8 @@ __all__ = [
     "Comparison",
     "EarthCall",
     "EarthError",
+    "FireDetection",
+    "FireList",
     "InvalidArea",
     "LayerRef",
     "Measure",
@@ -75,6 +79,7 @@ __all__ = [
     "WrongSceneKind",
     "compare",
     "describe",
+    "fires",
     "index",
     "load",
     "measure",
@@ -98,6 +103,7 @@ def _impl() -> ModuleType:
 
 _LAST = re.compile(r"^[1-9]\d{0,3}[dwmy]$")
 _EVERY = ("month", "quarter", "year")
+_UNITS = {"d": "days", "w": "weeks", "m": "months", "y": "years"}
 
 
 def _check_measure(measure: object) -> None:
@@ -143,7 +149,7 @@ def _check_size(area: Area) -> None:
 
 
 def _sat(kind: str) -> str:
-    return "Sentinel-1" if kind == "radar" else "Sentinel-2"
+    return {"radar": "Sentinel-1", "thermal": "Landsat"}.get(kind, "Sentinel-2")
 
 
 @traced(
@@ -273,6 +279,7 @@ def _as_date(d: date | str) -> date:
 # --- places and weather (M9a) -------------------------------------------------------------------
 # Not in `earth.real` (M1/M2 own it): in real mode these call the providers directly.
 
+from earth.providers import firms as _firms  # noqa: E402
 from earth.providers import nominatim as _nominatim  # noqa: E402
 from earth.providers import openmeteo as _openmeteo  # noqa: E402
 from earth.providers.nominatim import PlaceHit  # noqa: E402
@@ -308,3 +315,25 @@ def weather(area: Area, last: str = "14d") -> RainSeries:
     if settings.impl() == "stub":
         return _impl().weather(area, last)
     return _openmeteo.rain(area, last)
+
+
+# --- fire (M9c) ---------------------------------------------------------------------------------
+
+
+@traced(
+    lambda f: (
+        f"{f.total} fire detection{'' if f.total == 1 else 's'} within {f.radius_km:g} km "
+        f"in {f.last[:-1]} {_UNITS[f.last[-1]]}"
+    )
+)
+def fires(area: Area, last: str = "30d", radius_km: float = 10) -> FireList:
+    """NASA FIRMS VIIRS active-fire detections near the area (NOT a burned-area measure).
+
+    Needs FIRMS_MAP_KEY on the server; without it this raises an EarthError (no crash).
+    """
+    _check_last(last)
+    if not isinstance(radius_km, int | float) or not 0 < radius_km <= 100:
+        raise EarthError(f"radius_km={radius_km!r} is not usable.", "Use a number from 1 to 100.")
+    if settings.impl() == "stub":
+        return _impl().fires(area, last, float(radius_km))
+    return _firms.fires(area, last, float(radius_km))
