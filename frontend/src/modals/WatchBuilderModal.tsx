@@ -8,18 +8,21 @@ import { Btn, Check, Modal, ModalHead, Ms } from '../components/ui';
 import { ErrorState } from '../components/async';
 
 const EXAMPLES = [
-  'Tell me when the dry patch on North Pivot passes 5 ha',
-  'Alert me if a fire starts within 10 km of my farm',
-  'Warn me if forest is cleared on plot 14',
+  'Tell me when open water at this place drops by 20%',
+  'Alert me if a fire starts within 10 km',
+  'Warn me if trees are cleared here',
   'Count the cars in my parking lot',
 ];
+
+/** Channels that can be picked today; the rest cannot deliver yet. */
+const SELECTABLE_CHANNELS: ChannelId[] = ['email'];
 
 const CHECK_STEPS = ['Reading your request', 'Matching a skill', 'Checking satellite coverage & revisit', 'Estimating accuracy'];
 
 type Stage = 'ask' | 'check' | 'deliver';
 
 export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashboardId }: { prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean; dashboardId?: string }) {
-  const { places, skills, channels: catalogChannels, category, close, addWatch, notify, go, connectors, setConnectors, open } = useStore();
+  const { places, skills, channels: catalogChannels, category, close, addWatch, notify, go } = useStore();
   const presetSkill = skillId ? skills.find((x) => x.id === skillId) : undefined;
   const autoText = presetSkill ? `Tell me when ${presetSkill.name.toLowerCase()} finds something new` : '';
 
@@ -32,7 +35,6 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
   const [channels, setChannels] = useState<ChannelId[]>(['email']);
   const [error, setError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
-  const [waNumber, setWaNumber] = useState('');
   const [recurrence, setRecurrence] = useState<WatchRecurrence>('recurring');
   const [dashId, setDashId] = useState<string>(dashboardId ?? '');
   const dashboards = useResource(useCallback((signal) => api.dashboards.list(signal), []), []);
@@ -55,21 +57,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
     timers.current = CHECK_STEPS.map((_, i) => window.setTimeout(() => setChecking(i + 1), (i + 1) * 350));
 
     try {
-      let f = await api.watches.checkFeasibility({ text: query, placeId: place || null });
-      // A watch started from a skill page keeps that skill when the text gives no better match.
-      if (presetSkill && f.ok && f.skillId === 'dry-patch-finder' && presetSkill.id !== f.skillId) {
-        f = {
-          ...f,
-          title: presetSkill.name,
-          skillId: presetSkill.id,
-          categoryKey: presetSkill.categoryKey,
-          satellites: presetSkill.sat,
-          tier: presetSkill.tier,
-          cost: presetSkill.cost,
-          metric: presetSkill.name,
-          condition: 'Any significant change vs the 5-year range',
-        };
-      }
+      const f = await api.watches.checkFeasibility({ text: query, placeId: place || null });
       // Use the threshold the person typed, if there is one.
       const num = query.match(/(\d+(?:\.\d+)?)\s*(ha|km|%|\u00b0C|\u00b5g\/L)/i);
       // Keep the direction the person asked for: "drops by 20%" is a fall, not "above 20%".
@@ -219,66 +207,37 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
         <>
           <div className="col" style={{ gap: 2 }}>
             {catalogChannels.map((c) => {
-              const on = channels.includes(c.id);
-              const waMissing = c.id === 'whatsapp' && !connectors.whatsapp.connected;
+              const canPick = SELECTABLE_CHANNELS.includes(c.id);
+              const on = canPick && channels.includes(c.id);
               return (
                 <div key={c.id} className="col" style={{ borderBottom: '1px solid var(--hair-soft)', padding: '10px 0', gap: 10 }}>
-                  <button className="row" onClick={() => toggle(c.id)} aria-pressed={on} style={{ gap: 12, background: 'none', border: 0, padding: 0, textAlign: 'left', width: '100%' }}>
+                  <button className="row" onClick={() => toggle(c.id)} aria-pressed={on} disabled={!canPick} style={{ gap: 12, background: 'none', border: 0, padding: 0, textAlign: 'left', width: '100%', opacity: canPick ? 1 : 0.55, cursor: canPick ? 'pointer' : 'not-allowed' }}>
                     <Check on={on} />
                     <Ms n={c.icon} size={20} className="muted" />
                     <span className="grow">
                       <span className="body-sm ink" style={{ display: 'block' }}>{c.name}</span>
-                      <span className="tiny">
-                        {c.id === 'email' && connectors.email.connected ? connectors.email.address : c.id === 'whatsapp' && connectors.whatsapp.connected ? connectors.whatsapp.number : c.note}
-                      </span>
+                      <span className="tiny">{canPick ? c.note : 'Coming soon'}</span>
                     </span>
                   </button>
-                  {on && waMissing && (
-                    <div className="row wrap" style={{ gap: 8, paddingLeft: 30 }}>
-                      <input className="input" style={{ flex: '1 1 180px', height: 36 }} placeholder="+1 555 010 2030" inputMode="tel" value={waNumber} onChange={(e) => setWaNumber(e.target.value)} aria-label="WhatsApp number" />
-                      <Btn
-                        size="sm"
-                        icon="link"
-                        disabled={waNumber.replace(/\D/g, '').length < 7}
-                        onClick={() => {
-                          setConnectors({ ...connectors, whatsapp: { connected: true, number: waNumber.trim() } });
-                          notify('WhatsApp connected — we sent a test message', undefined, undefined, 'chat');
-                        }}
-                      >
-                        Connect WhatsApp
-                      </Btn>
-                    </div>
-                  )}
-                  {on && c.id === 'push' && !connectors.push.connected && (
-                    <div className="tiny" style={{ paddingLeft: 30 }}>
-                      Install the app to receive push alerts.{' '}
-                      <button onClick={() => open({ kind: 'app' })} style={{ border: 0, background: 'none', padding: 0, color: 'var(--blue)', font: 'inherit' }}>Get the app</button>
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
 
+          <div className="tiny">Triggers are checked and saved, but alerts are not sent yet.</div>
+
           <div className="sunk" style={{ padding: '12px 16px' }}>
             <div className="body-sm">
-              <span className="ink">Checks {feas.cadence.charAt(0).toLowerCase() + feas.cadence.slice(1)}</span> with {feas.satellites}. You’ll hear from us when <span className="ink">{condition || feas.condition}</span>
-              {placeObj ? ` on ${placeObj.name}` : ' on any of your places'}. First result after the next pass.
+              <span className="ink">Checks {feas.cadence.charAt(0).toLowerCase() + feas.cadence.slice(1)}</span> with {feas.satellites}. Once alerts are live, you’ll hear from us when <span className="ink">{condition || feas.condition}</span>
+              {placeObj ? ` on ${placeObj.name}` : ' on any of your places'}.
             </div>
           </div>
-
-          {channels.includes('whatsapp') && !connectors.whatsapp.connected && (
-            <div className="tiny" style={{ color: 'var(--yellow)' }}>Connect WhatsApp above, or untick it, to start.</div>
-          )}
 
           <div className="modal-foot">
             <Btn variant="text" icon="arrow_back" onClick={() => setStage('check')}>Back</Btn>
             <Btn
               variant="primary"
               icon="visibility"
-             
-             
-              disabled={channels.length === 0 || (channels.includes('whatsapp') && !connectors.whatsapp.connected)}
               onClick={create}
             >
               {recurrence === 'once' ? 'Create one-time trigger' : 'Create trigger'}

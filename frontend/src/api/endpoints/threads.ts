@@ -5,48 +5,31 @@
  *   GET /api/threads/{id}     -> ThreadDetail, oldest run first, to reload it exactly
  *   PATCH /api/threads/{id} {project_id} -> ThreadSummary, files the chat in a project (null unfiles)
  *
- * Shapes mirror `backend/app/schemas/threads.py` from PR #49 (`be/threads`). That PR is not
- * merged and `contracts/openapi.json` has no threads yet, so the types are written by hand here
- * and both calls are fixture-backed. When #49 lands: take the types from `schema.d.ts` and
- * delete the `fixture` properties.
+ * The types come from the contract. In fixture mode (`VITE_API_SOURCE=fixture`) the calls are
+ * answered from the scripted threads below.
  */
 
 import { ApiError, request } from '../http';
+import type { components } from '../schema';
+import { usingFixtures } from '../config';
 import type { RunRecord } from './runs';
 import { FIXTURE_RUN_ANSWER } from '../fixtures/run';
 import { fixtureAssignments } from '../fixtures/projects';
 
-export interface ThreadSummary {
-  thread_id: string;
-  /** The thread's first question (shortened). */
-  title: string;
-  /** The place of the latest run, if any. */
-  place_name: string | null;
-  last_question: string;
-  last_status: RunRecord['status'];
-  /** The latest answer's one-liner. */
-  last_sentence: string | null;
-  run_count: number;
-  started_at: string;
-  updated_at: string;
-  /** The chat project it is filed in, if any. */
-  project_id?: string | null;
-}
+type S = components['schemas'];
 
-export interface ThreadDetail {
-  thread_id: string;
-  runs: RunRecord[];
-}
+export type ThreadSummary = S['ThreadSummary'];
+export type ThreadDetail = S['ThreadDetail'];
 
 export const threadsApi = {
-  /** TODO(api): GET /api/threads?limit= (PR #49) */
+  /** GET /api/threads?limit= */
   list: (limit = 50, signal?: AbortSignal): Promise<ThreadSummary[]> =>
     request<ThreadSummary[]>({
       method: 'GET',
       path: '/threads',
       query: { limit },
       signal,
-      fixture: () => FIXTURE_THREADS.slice(0, limit).map(summaryOf),
+      ...(usingFixtures() ? { fixture: () => FIXTURE_THREADS.slice(0, limit).map(summaryOf) } : {}),
     }),
 
   /** PATCH /api/threads/{id} — move a chat into a project, or out of it with `null`. 404 for an unknown chat or project. */
@@ -56,25 +39,28 @@ export const threadsApi = {
       path: `/threads/${encodeURIComponent(threadId)}`,
       body: { project_id: projectId },
       signal,
-      fixture: () => {
-        if (projectId) fixtureAssignments.set(threadId, projectId);
-        else fixtureAssignments.delete(threadId);
-        const t = FIXTURE_THREADS.find((x) => x.id === threadId);
-        if (!t) throw new ApiError('Thread not found', 'http', 404);
-        return summaryOf(t);
-      },
+      ...(usingFixtures()
+        ? {
+            fixture: () => {
+              if (projectId) fixtureAssignments.set(threadId, projectId);
+              else fixtureAssignments.delete(threadId);
+              const t = FIXTURE_THREADS.find((x) => x.id === threadId);
+              if (!t) throw new ApiError('Thread not found', 'http', 404);
+              return summaryOf(t);
+            },
+          }
+        : {}),
     }),
 
-  /** TODO(api): GET /api/threads/{id} (PR #49) */
+  /** GET /api/threads/{id} */
   get: (threadId: string, signal?: AbortSignal): Promise<ThreadDetail> =>
     request<ThreadDetail>({
       method: 'GET',
       path: `/threads/${encodeURIComponent(threadId)}`,
       signal,
-      fixture: () => {
-        const t = FIXTURE_THREADS.find((x) => x.id === threadId);
-        return { thread_id: threadId, runs: t ? t.runs : [] };
-      },
+      ...(usingFixtures()
+        ? { fixture: () => ({ thread_id: threadId, runs: FIXTURE_THREADS.find((x) => x.id === threadId)?.runs ?? [] }) }
+        : {}),
     }),
 };
 

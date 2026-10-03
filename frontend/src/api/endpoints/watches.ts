@@ -1,6 +1,7 @@
 /** Watches: standing questions the agent re-asks on each satellite pass. */
 
 import { request } from '../http';
+import { usingFixtures } from '../config';
 import * as fixtures from '../fixtures';
 import type { CreateWatchRequest, FeasibilityRequest, FeasibilityWireDto, WatchPatch, WatchProofDto, WatchWireDto } from '../types';
 import type { components } from '../schema';
@@ -37,11 +38,11 @@ const toPatchBody = (p: WatchPatch): S['PatchWatchRequest'] => ({
 });
 
 export const watchesApi = {
-  /** TODO(api): GET /api/watches */
+  /** GET /api/watches */
   list: (signal?: AbortSignal): Promise<Watch[]> =>
-    request<WatchWireDto[]>({ method: 'GET', path: '/watches', signal, fixture: fixtures.watches }).then((l) => l.map(toWatch)),
+    request<WatchWireDto[]>({ method: 'GET', path: '/watches', signal, ...(usingFixtures() && { fixture: fixtures.watches }) }).then((l) => l.map(toWatch)),
 
-  /** TODO(api): POST /api/watches */
+  /** POST /api/watches */
   create: (req: CreateWatchRequest, signal?: AbortSignal): Promise<Watch> => {
     const body = toCreateBody(req);
     return request<WatchWireDto>({
@@ -49,11 +50,11 @@ export const watchesApi = {
       path: '/watches',
       body,
       signal,
-      fixture: () => fixtures.createWatch(body),
+      ...(usingFixtures() && { fixture: () => fixtures.createWatch(body) }),
     }).then(toWatch);
   },
 
-  /** TODO(api): PATCH /api/watches/{id} — pause/resume, edit condition, change channels */
+  /** PATCH /api/watches/{id} — pause/resume, edit condition, change channels */
   update: (id: string, patch: WatchPatch, signal?: AbortSignal): Promise<Watch> => {
     const body = toPatchBody(patch);
     return request<WatchWireDto>({
@@ -61,21 +62,21 @@ export const watchesApi = {
       path: `/watches/${encodeURIComponent(id)}`,
       body,
       signal,
-      fixture: () => fixtures.updateWatch(id, body),
+      ...(usingFixtures() && { fixture: () => fixtures.updateWatch(id, body) }),
     }).then(toWatch);
   },
 
-  /** TODO(api): DELETE /api/watches/{id} */
+  /** DELETE /api/watches/{id} */
   remove: (id: string, signal?: AbortSignal): Promise<void> =>
     request<void>({
       method: 'DELETE',
       path: `/watches/${encodeURIComponent(id)}`,
       signal,
-      fixture: () => fixtures.deleteWatch(id),
+      ...(usingFixtures() && { fixture: () => fixtures.deleteWatch(id) }),
     }),
 
   /**
-   * TODO(api): GET /api/watches/{id}/proof
+   * GET /api/watches/{id}/proof
    * The scenes behind the most recent run, including the ones that were rejected and why.
    */
   proof: (id: string, signal?: AbortSignal): Promise<WatchProofDto> =>
@@ -83,11 +84,11 @@ export const watchesApi = {
       method: 'GET',
       path: `/watches/${encodeURIComponent(id)}/proof`,
       signal,
-      fixture: () => fixtures.watchProof(id),
+      ...(usingFixtures() && { fixture: () => fixtures.watchProof(id) }),
     }),
 
   /**
-   * TODO(api): POST /api/watches/feasibility
+   * POST /api/watches/feasibility
    * "Can satellites actually watch this?", asked before a watch is created.
    *
    * This endpoint is expected to REFUSE some requests — counting cars, identifying people —
@@ -101,7 +102,7 @@ export const watchesApi = {
       path: '/watches/feasibility',
       body,
       signal,
-      fixture: () => fixtures.feasibility(body),
+      ...(usingFixtures() && { fixture: () => fixtures.feasibility(body) }),
     }).then(toFeasibility);
   },
 };

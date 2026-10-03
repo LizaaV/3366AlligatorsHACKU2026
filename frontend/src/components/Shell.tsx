@@ -20,8 +20,9 @@ export const BigDipper = ({ width = 30 }: { width?: number }) => (
   </svg>
 );
 
-export const Logo = () => (
-  <a href={href('ask')} className="row" style={{ gap: 10, font: '600 15px/1 var(--font)', color: '#fff' }} aria-label="Constellation home">
+/** `to` overrides the link for pages outside the app's hash routes (the public /proof page). */
+export const Logo = ({ to }: { to?: string }) => (
+  <a href={to ?? href('ask')} className="row" style={{ gap: 10, font: '600 15px/1 var(--font)', color: '#fff' }} aria-label="Constellation home">
     <BigDipper />
     Constellation
   </a>
@@ -55,7 +56,9 @@ function AccountMenu() {
           </div>
           <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'connectors' }); }}>
             <Ms n="hub" />Connectors
-            <span className="tiny" style={{ marginLeft: 'auto' }}>{Object.values(connectors).filter((c) => c.connected).length} on</span>
+            {Object.values(connectors).some((c) => c.connected) && (
+              <span className="tiny" style={{ marginLeft: 'auto' }}>{Object.values(connectors).filter((c) => c.connected).length} on</span>
+            )}
           </button>
           <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'aboutYou' }); }}>
             <Ms n="person" />About you

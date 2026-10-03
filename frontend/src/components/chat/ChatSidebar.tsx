@@ -186,7 +186,7 @@ export function ChatSidebar({
                         <span className="tiny">{inside.length}</span>
                       </button>
                       <button aria-label={`Rename ${f.name}`} title="Rename" onClick={() => startRename(f.id, f.name)} style={{ flex: 'none', width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 0, color: 'var(--muted)' }}><Ms n="edit" size={16} /></button>
-                      <button aria-label={`Delete ${f.name}`} title="Delete project (chats are kept)" onClick={() => deleteFolder(f.id)} style={{ flex: 'none', width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 0, color: 'var(--muted)' }}><Ms n="close" size={16} /></button>
+                      <button aria-label={`Delete ${f.name}`} title="Delete project (chats are kept)" onClick={() => { if (window.confirm(`Delete the project “${f.name}”? Its chats are kept and move back to Chats.`)) deleteFolder(f.id); }} style={{ flex: 'none', width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 0, color: 'var(--muted)' }}><Ms n="close" size={16} /></button>
                     </>
                   )}
                 </div>

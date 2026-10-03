@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { MapView, type MapLayers } from '../../components/MapView';
+import { MapView } from '../../components/MapView';
 import { IconBtn } from '../../components/ui';
 import { fmtC, type Pt } from '../../lib/geo';
 import type { Place } from '../../model';
@@ -37,8 +37,8 @@ export interface PointerHandlers {
   up?: (pt: Pt, e: React.PointerEvent<HTMLDivElement>) => void;
 }
 
-export function MapFrame({ H, center, zoom, setZoom, place, layers, onPick, onGlobe, pointer, cursor, children }: {
-  H: number; center: { lat: number; lon: number }; zoom: number; setZoom: (z: number) => void; place: Place | null; layers: MapLayers;
+export function MapFrame({ H, center, zoom, setZoom, place, onPick, onGlobe, pointer, cursor, children }: {
+  H: number; center: { lat: number; lon: number }; zoom: number; setZoom: (z: number) => void; place: Place | null;
   onPick?: (dx16: number, dy16: number) => void;
   onGlobe?: () => void;
   pointer?: PointerHandlers;
@@ -90,7 +90,7 @@ export function MapFrame({ H, center, zoom, setZoom, place, layers, onPick, onGl
         onPointerMove={pointer?.move ? (e) => pointer.move!(toPt(e), e) : undefined}
         onPointerUp={pointer?.up ? (e) => pointer.up!(toPt(e), e) : undefined}
       >
-        <MapView W={W} H={H} cx={W / 2} cy={H / 2} center={center} zoom={zoom} place={place} layers={layers} dateIdx={7} />
+        <MapView W={W} H={H} cx={W / 2} cy={H / 2} center={center} zoom={zoom} place={place} />
         {children && (
           <svg width={W} height={H} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible' }}>
             {children(s, W, H, toPt)}

@@ -3,14 +3,14 @@ import { useStore } from '../state/store';
 import { sourceLabel } from '../data/presentation';
 import type { Place, Watch } from '../model';
 import { TILE, txy } from '../lib/geo';
-import { Btn, CatPill, Empty, IconBtn, Ms, RingOverlay, hideBroken } from '../components/ui';
+import { Btn, CatPill, Empty, IconBtn, Ms, hideBroken } from '../components/ui';
 import { ErrorState, SkeletonCard } from '../components/async';
 
 const THUMB_H = 170;
 const STATUS_COLOR: Record<Watch['status'], string> = { ok: 'var(--green)', warn: 'var(--yellow)', alert: 'var(--red)' };
 
 /** Satellite thumbnail centred on the place, with its outline drawn at the right scale. */
-function PlaceThumb({ place, ring }: { place: Place; ring: boolean }) {
+function PlaceThumb({ place }: { place: Place }) {
   // Pick a zoom where the outline fits in the thumbnail height with some margin.
   const xs = place.pts.map((p) => p[0]);
   const ys = place.pts.map((p) => p[1]);
@@ -24,7 +24,6 @@ function PlaceThumb({ place, ring }: { place: Place; ring: boolean }) {
   const tiles: { url: string; l: number; t: number }[] = [];
   for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) tiles.push({ url: TILE(z, tx + i, ty + j), l: (i + 1) * 256, t: (j + 1) * 256 });
   const pts = place.pts.map((p) => `${(p[0] * s).toFixed(1)},${(p[1] * s).toFixed(1)}`).join(' ');
-  const ringSize = place.circle ? Math.round((Math.max(...ys) - Math.min(...ys)) * s) : 0;
 
   return (
     <div style={{ position: 'relative', height: THUMB_H, background: '#0b0d10', overflow: 'hidden', borderRadius: 'var(--r-lg) var(--r-lg) 0 0' }}>
@@ -34,17 +33,9 @@ function PlaceThumb({ place, ring }: { place: Place; ring: boolean }) {
         ))}
       </div>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.12)' }} />
-      {ring && place.circle ? (
-        <RingOverlay size={ringSize} />
-      ) : (
-        <svg width="0" height="0" style={{ position: 'absolute', left: '50%', top: '50%', overflow: 'visible' }} aria-hidden>
-          <polygon points={pts} fill="rgba(255,255,255,.08)" stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" />
-        </svg>
-      )}
-      <span className="live" style={{ position: 'absolute', left: 12, bottom: 12, background: 'rgba(0,0,0,.8)' }}>
-        <Ms n="satellite_alt" size={13} />
-        SENTINEL-2
-      </span>
+      <svg width="0" height="0" style={{ position: 'absolute', left: '50%', top: '50%', overflow: 'visible' }} aria-hidden>
+        <polygon points={pts} fill="rgba(255,255,255,.08)" stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
     </div>
   );
 }
@@ -77,6 +68,7 @@ function CardMenu({ place, onClose }: { place: Place; onClose: () => void }) {
       {item('support_agent', 'Ask an expert', () => open({ kind: 'expert', context: place.name, placeId: place.id }))}
       <div className="divider" style={{ margin: '6px 0' }} />
       {item('delete', 'Delete', () => {
+        if (!window.confirm(`Delete ${place.name}? This also removes what the agent remembers about it.`)) return;
         removePlace(place.id).then(
           () => notify(`${place.name} deleted`, undefined, undefined, 'delete'),
           (err: unknown) => notify(`Could not delete ${place.name}${err instanceof Error && err.message ? `: ${err.message}` : ''}`, undefined, undefined, 'error'),
@@ -91,7 +83,6 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
   const [menu, setMenu] = useState(false);
   const ask = () => go('ask', undefined, { place: place.id });
   const ha = place.areaHa;
-  const ring = watches.some((w) => w.ring);
 
   return (
     <div
@@ -105,7 +96,7 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--hair)')}
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = '')}
     >
-      <PlaceThumb place={place} ring={ring} />
+      <PlaceThumb place={place} />
       <div style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div className="grow">

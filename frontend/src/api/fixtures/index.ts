@@ -297,5 +297,3 @@ export const detectBoundary = (lat: number, lon: number, w = 400, h = 300) => {
   });
   return pts;
 };
-
-export const WHATSAPP_NUMBER = '+1 (555) 014-7788';

@@ -96,8 +96,8 @@ export const StorageExplainer = () => (
     <div className="col" style={{ gap: 4 }}>
       <div className="ink" style={{ font: '600 14px/1.4 var(--font)' }}>How skills are stored</div>
       <div className="body-sm">
-        Skills are stored as a versioned JSON manifest (validated against a JSON Schema). The registry keeps each version in a database
-        (Postgres JSONB) with publisher, signature and run stats, so a skill run is reproducible: same modules, same params, same version.
+        Skills are saved on the server as JSON manifests: the modules, their settings and a version number, so a skill can be
+        read and re-run the same way.
       </div>
     </div>
   </div>

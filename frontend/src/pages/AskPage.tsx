@@ -3,11 +3,11 @@ import { useStore } from '../state/store';
 // three.js is ~600 kB and only the landing globe needs it, so it is split out of the main
 // bundle and loaded when the globe first renders.
 const Globe = lazy(() => import('../components/Globe').then((m) => ({ default: m.Globe })));
-import { MapView, type MapLayers } from '../components/MapView';
+import { MapView } from '../components/MapView';
 import { Btn, IconBtn, Ms } from '../components/ui';
 import { api } from '../api';
 import type { MapLayer } from '../model';
-import { layerIdsFrom, passTimelineFrom } from '../model';
+import { passTimelineFrom } from '../model';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../lib/geo';
 import { useAskRun } from '../ask/useAskRun';
 import { Composer } from '../components/chat/Composer';
@@ -47,6 +47,8 @@ export function AskPage({ active }: { active: boolean }) {
   const [center, setCenter] = useState({ lat: place?.lat ?? DEFAULT_CENTER.lat, lon: place?.lon ?? DEFAULT_CENTER.lon });
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [layers, setLayers] = useState<MapLayer[]>([]);
+  /** The place outline is drawn locally, independent of the layer catalog. On by default. */
+  const [outlineOn, setOutlineOn] = useState(true);
   const [dateIdx, setDateIdx] = useState(0);
   const [q, setQ] = useState('');
   const [sidebar, setSidebar] = useState(false);
@@ -120,7 +122,10 @@ export function AskPage({ active }: { active: boolean }) {
 
   const panelOpen = !mobile && artifacts.length > 0 && !collapsed;
   const expandedW = Math.max(MIN_PANEL_W, W - sideW - 24);
-  const panelWidth = expanded ? expandedW : panelW;
+  // Keep ~300px of map (and the layer rail) visible between the chat column and the panel.
+  const roomForPanel = W - sideW - 300;
+  const tight = roomForPanel < MIN_PANEL_W;
+  const panelWidth = expanded ? expandedW : Math.max(MIN_PANEL_W, Math.min(panelW, roomForPanel));
   /** Room the right-edge map controls and the map centre keep clear of the panel. */
   const rightPad = panelOpen ? panelWidth + 12 : 0;
   const cx = sideW + (W - sideW - rightPad) / 2;
@@ -162,7 +167,8 @@ export function AskPage({ active }: { active: boolean }) {
     hydrating.current = false;
     if (!pick) return;
     setSelectedId(pick.id);
-    if (!mobile) setCollapsed(false);
+    // On a narrow window the panel would cover the map: leave it as the pill.
+    if (!mobile && !tight) setCollapsed(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artifacts, last]);
 
@@ -178,6 +184,12 @@ export function AskPage({ active }: { active: boolean }) {
     const wasOn = !!(cur && cur.on && cur.ready);
     setLayers((ls) => ls.map((l) => (l.id === activeLayer ? { ...l, ready: true, on: true } : l)));
     if (selectedPlace) flyTo(selectedPlace);
+    else if (raster) {
+      // No saved place on this answer: frame the image itself.
+      const [w, s, e, n] = raster.bounds;
+      const span = Math.max(e - w, (n - s) * 1.5, 1e-6);
+      flyTo({ lat: (s + n) / 2, lon: (w + e) / 2, zoom: Math.max(3, Math.min(17, Math.floor(Math.log2(360 / span)) + 1)) });
+    }
     return () => {
       if (!wasOn) setLayers((ls) => ls.map((l) => (l.id === activeLayer ? { ...l, on: false } : l)));
     };
@@ -187,19 +199,21 @@ export function AskPage({ active }: { active: boolean }) {
   // The real rendered image for the layer on show: the selected layer artifact, else the agent
   // layer most recently switched on. Taken from the newest run that rendered that measure.
   const rasterLayerId = activeLayer ?? [...layers].reverse().find((l) => l.isAgentMade && l.on && l.ready)?.id ?? null;
+  const passDate = timeline?.dates[dateIdx] ?? null;
   const raster = useMemo(() => {
     if (!rasterLayerId) return null;
     for (const turn of [...turns].reverse()) {
       for (const b of turn.blocks) {
         if (b.type !== 'then_now' && b.type !== 'highlight') continue;
-        const ref = b.type === 'then_now' ? b.after : b.base;
+        // The pass slider picks the image: passes before the "after" date show the "before" one.
+        const ref = b.type === 'then_now' ? (passDate && b.before && passDate < b.after.date ? b.before : b.after) : b.base;
         if (ref?.url && ref.bounds && catalogLayerFor(ref.layer_id, b.measure, (id) => id === rasterLayerId) === rasterLayerId) {
           return { url: ref.url, bounds: ref.bounds };
         }
       }
     }
     return null;
-  }, [rasterLayerId, turns]);
+  }, [rasterLayerId, turns, passDate]);
 
   const setLayersOn = useCallback(
     (ids: string[]) => setLayers((ls) => ls.map((l) => (ids.includes(l.id) ? { ...l, ready: true, on: true } : l))),
@@ -210,7 +224,6 @@ export function AskPage({ active }: { active: boolean }) {
    * Map choreography, keyed on a coarse stage rather than a step index — runs vary in how
    * many steps they take, so an index would mean nothing across two runs.
    */
-  const [pass, setPass] = useState<string | null>(null);
   useEffect(() => {
     if (stage === 'idle') return;
     if (stage === 'starting') {
@@ -224,24 +237,20 @@ export function AskPage({ active }: { active: boolean }) {
       if (p) flyTo(p);
     }
     if (stage === 'locating') return;
-    if (stage === 'routing') {
-      const skill = last?.skillId ? skills.find((x) => x.id === last.skillId) : undefined;
-      setPass(skill?.sat.split(' · ')[0] ?? 'Sentinel-2');
-      return;
-    }
-    if (stage === 'analysing') {
-      setPass(null);
-      setLayersOn(['ndvi']);
-      return;
-    }
     if (stage === 'done') {
-      setPass(null);
-      const ids = last ? layerIdsFrom(last.blocks) : [];
-      if (ids.length) setLayersOn(ids);
+      // Switch on the layers this run actually rendered, mapped onto the catalog ids.
+      const ids = new Set<string>();
+      for (const b of last?.blocks ?? []) {
+        if (b.type !== 'then_now' && b.type !== 'highlight') continue;
+        const refs = b.type === 'then_now' ? [b.after, b.before] : b.base ? [b.base] : [];
+        for (const r of refs) {
+          const id = catalogLayerFor(r.layer_id, b.measure, (x) => catalogIds.has(x));
+          if (id) ids.add(id);
+        }
+      }
+      if (ids.size) setLayersOn([...ids]);
       setDateIdx(Math.max(0, (timeline?.dates.length ?? 1) - 1));
-      return;
     }
-    if (stage === 'error') setPass(null);
     // `last` is intentionally not a dependency: the stage transition is the trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
@@ -262,7 +271,10 @@ export function AskPage({ active }: { active: boolean }) {
   const runSkill = useCallback(
     (skillId: string, placeId?: string | null) => {
       const skill = skills.find((x) => x.id === skillId);
-      if (!skill) return;
+      if (!skill) {
+        notify('That skill is not in the library yet', undefined, undefined, 'info');
+        return;
+      }
       const pid = placeId !== undefined ? placeId : askPlaceId;
       if (!pid) {
         notify('Pick a place to run this skill on', undefined, undefined, 'pentagon');
@@ -362,17 +374,23 @@ export function AskPage({ active }: { active: boolean }) {
   /* ---------------- derived ---------------- */
 
   const on = (id: string) => { const l = layers.find((x) => x.id === id); return !!(l && l.on && l.ready); };
+  // The rail shows the local outline toggle first, then the catalog layers (minus the catalog's
+  // own `contour`, which the outline replaces).
+  const railLayers: MapLayer[] = [
+    ...(place ? [{ id: 'outline', name: 'Outline', source: 'You', color: '#ffffff', isAgentMade: false, on: outlineOn, ready: true } as MapLayer] : []),
+    ...layers.filter((l) => l.id !== 'contour'),
+  ];
   // Backend layer ids are measure names; the map overlays still use the index names.
-  const mapLayers: MapLayers = { contour: on('contour'), ndmi: on('ndmi') || on('moisture'), ndvi: on('ndvi') || on('greenness'), lst: on('lst') || on('heat'), dry: on('dry') || on('bare'), clouds: on('clouds') };
   const isMap = mode === 'map';
-  const showHero = !turns.length && !loadingThread;
+  // The title belongs on the globe; over a place's map it hides the place.
+  const showHero = !turns.length && !loadingThread && !isMap;
   const focusPt = place ?? spot;
 
   const suggestions = place
     ? [
         { icon: 'water_drop', text: 'Where are the dry patches in my field?', go: () => ask('Where are the dry patches in my field?') },
-        { icon: 'eco', text: `How healthy is ${place.name} this week?`, go: () => runSkill('weekly-crop-health') },
-        { icon: 'local_fire_department', text: 'Any fires within 10 km of this place?', go: () => runSkill('active-fire-map') },
+        { icon: 'eco', text: `How healthy is ${place.name} this week?`, go: () => ask(`How healthy is ${place.name} this week?`) },
+        { icon: 'local_fire_department', text: 'Any fires within 10 km of this place?', go: () => ask('Any fires within 10 km of this place?') },
       ]
     : [
         { icon: 'satellite_alt', text: 'Which free satellite is best for crop health?', go: () => ask('Which free satellite is best for crop health?') },
@@ -396,16 +414,17 @@ export function AskPage({ active }: { active: boolean }) {
           onPickLocation={(p) => setGlobePick({ lat: p.lat, lon: p.lon })}
         />
       </Suspense>
-      {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} layers={mapLayers} dateIdx={dateIdx} pass={pass} timeline={timeline} raster={raster} />}
+      {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} outline={outlineOn} raster={raster} />}
 
       {/* LAYER RAIL (place view): right edge, under the zoom and globe buttons. */}
       {isMap && (
         <div style={{ position: 'absolute', right: 8 + rightPad, top: 0, width: 0, height: '100%', zIndex: 25 }}>
           <LayerRail
-            layers={layers}
+            layers={railLayers}
             side="right"
             top={170}
             onToggle={(id) => {
+              if (id === 'outline') return setOutlineOn((v) => !v);
               const l = layers.find((x) => x.id === id);
               if (l && !l.ready) return notify('Ask the agent about this place to generate this layer', undefined, undefined, 'info');
               setLayers((ls) => ls.map((x) => (x.id === id ? { ...x, on: !x.on } : x)));

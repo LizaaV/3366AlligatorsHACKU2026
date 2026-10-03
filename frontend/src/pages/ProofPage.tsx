@@ -24,6 +24,9 @@ export const proofSlug = (path = window.location.pathname): string | null => {
   return m ? m[1] : null;
 };
 
+/** The app itself. A full path: this page lives at /proof/<slug>, so a bare `#/ask` would stay here. */
+const APP_URL = '/#/ask';
+
 const LAYER_URL = /^(.*)\/layers\/[^/?#]+\/([a-z_]+)\/([^/?#]+\.png)(\?.*)?$/;
 
 /** Point `/api/layers/{run}/{measure}/{scene}.png` urls at the share's own route; other values stay as they are. */
@@ -54,7 +57,7 @@ export function ProofPage({ slug }: { slug: string }) {
   return (
     <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', background: 'var(--canvas)' }}>
       <header className="row" style={{ height: 'var(--nav-h)', padding: '0 20px', borderBottom: '1px solid var(--hair-soft)' }}>
-        <Logo />
+        <Logo to={APP_URL} />
         <span className="tiny" style={{ marginLeft: 'auto' }}>Shared answer</span>
       </header>
 
@@ -93,7 +96,7 @@ export function ProofPage({ slug }: { slug: string }) {
 
             <div className="row wrap" style={{ gap: 8 }}>
               <a className="btn btn-primary" href={pdf} download><Ms n="picture_as_pdf" />Download PDF report</a>
-              <a className="btn btn-ghost" href="/"><Ms n="public" />Open Constellation</a>
+              <a className="btn btn-ghost" href={APP_URL}><Ms n="public" />Open Constellation</a>
             </div>
             <div className="tiny">Snapshot taken {fmtDate(run.shared_at)} · link valid until {fmtDate(run.expires_at)}</div>
           </>

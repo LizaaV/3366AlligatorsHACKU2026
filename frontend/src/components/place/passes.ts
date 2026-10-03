@@ -20,8 +20,8 @@ export interface Pass {
   used: boolean;
   /** Why it was left out, when it was. */
   why: string | null;
-  /** Server-rendered image for this pass, when a block carried one. */
-  imageUrl: string | null;
+  /** Server-rendered images for this pass, by measure, exactly as the blocks carried them. */
+  images: Record<string, string>;
   /** Measures a block rendered for this pass (then_now.measure, timeline.measure). */
   measures: string[];
 }
@@ -55,7 +55,7 @@ export function collectPasses(blocks: AnswerBlock[]): Pass[] {
   const get = (scene: string, date: string): Pass => {
     let p = map.get(scene);
     if (!p) {
-      p = { scene, date, satellite: satelliteFromScene(scene), cloud: null, used: false, why: null, imageUrl: null, measures: [] };
+      p = { scene, date, satellite: satelliteFromScene(scene), cloud: null, used: false, why: null, images: {}, measures: [] };
       map.set(scene, p);
     }
     return p;
@@ -91,13 +91,13 @@ export function collectPasses(blocks: AnswerBlock[]): Pass[] {
     } else if (b.type === 'then_now') {
       for (const img of [b.before, b.after]) {
         const p = get(img.scene, img.date);
-        p.imageUrl = img.url;
+        if (img.url && b.measure) p.images[b.measure] = img.url;
         if (!decided.has(img.scene)) p.used = true;
         addMeasure(p, b.measure);
       }
     } else if (b.type === 'highlight' && b.base) {
       const p = get(b.base.scene, b.base.date);
-      p.imageUrl ??= b.base.url;
+      if (b.base.url && b.measure) p.images[b.measure] ??= b.base.url;
       p.used = true;
     }
   }
@@ -113,14 +113,16 @@ export function groupBySatellite(passes: Pass[]): { satellite: string; passes: P
     .sort((a, b) => a.satellite.localeCompare(b.satellite));
 }
 
-/** The kinds of picture offered for a pass, in plain words. `measure` null = real photo. */
-export const VIEWS: { id: string; label: string; measure: string | null }[] = [
-  { id: 'true', label: 'True colour', measure: null },
-  { id: 'plants', label: 'Plant health', measure: 'greenness' },
-  { id: 'moisture', label: 'Moisture', measure: 'moisture' },
-  { id: 'heat', label: 'Heat', measure: 'heat' },
-  { id: 'water', label: 'Water', measure: 'water' },
-];
+/** A kind of picture offered for a pass. `measure` null = the plain basemap. */
+export interface View { id: string; label: string; measure: string | null }
 
-export const layerPngUrl = (apiBase: string, runId: string, measure: string, scene: string) =>
-  `${apiBase}/layers/${encodeURIComponent(runId)}/${encodeURIComponent(measure)}/${encodeURIComponent(scene)}.png`;
+export const BASEMAP_VIEW: View = { id: 'basemap', label: 'True colour (basemap)', measure: null };
+
+/**
+ * Views backed by images the run really rendered: one per measure that at least one pass has
+ * an image for. Always starts with the basemap, which needs no run.
+ */
+export function viewsFor(passes: Pass[], labelOf: (measure: string) => string): View[] {
+  const measures = [...new Set(passes.flatMap((p) => Object.keys(p.images)))];
+  return [BASEMAP_VIEW, ...measures.map((m) => ({ id: m, label: labelOf(m), measure: m }))];
+}

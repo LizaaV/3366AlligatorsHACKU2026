@@ -9,7 +9,6 @@
 
 import type { PlaceSource } from '../../api/types';
 import type { Pt } from '../../lib/geo';
-import type { MapLayers } from '../../components/MapView';
 
 export type Method = 'search' | 'pin' | 'coords' | 'upload';
 
@@ -17,7 +16,7 @@ export const METHODS: { id: Method; icon: string; title: string; hint: string }[
   { id: 'search', icon: 'search', title: 'Search a place name', hint: 'Town, farm, lake, port or region' },
   { id: 'pin', icon: 'location_on', title: 'Drop a pin', hint: 'Pick anywhere on the globe, then zoom in' },
   { id: 'coords', icon: 'my_location', title: 'Coordinates', hint: 'Latitude / longitude or your location' },
-  { id: 'upload', icon: 'upload_file', title: 'Upload file', hint: 'KML, GeoJSON, Shapefile, CSV of points' },
+  { id: 'upload', icon: 'upload_file', title: 'Upload file', hint: 'GeoJSON, KML/KMZ, GPX or CSV' },
 ];
 
 /** What a locate-method yields. `null` from a method means "not enough input yet". */
@@ -48,6 +47,3 @@ export type Tool = 'edit' | 'polygon' | 'rect' | 'circle';
 export interface MethodProps {
   onChange: (loc: Loc | null) => void;
 }
-
-export const NO_LAYERS: MapLayers = { contour: false, ndmi: false, ndvi: false, lst: false, dry: false, clouds: false };
-export const CONTOUR: MapLayers = { ...NO_LAYERS, contour: true };

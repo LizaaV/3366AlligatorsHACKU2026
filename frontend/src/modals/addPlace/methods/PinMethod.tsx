@@ -7,10 +7,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../../../state/store';
-import { DEFAULT_CENTER, fmtC, shift, type Pt } from '../../../lib/geo';
+import { fmtC, shift, type Pt } from '../../../lib/geo';
 import { GlobePicker } from '../GlobePicker';
 import { MapFrame } from '../MapFrame';
-import { NO_LAYERS, type Loc, type MethodProps } from '../types';
+import { type Loc, type MethodProps } from '../types';
 
 export function PinMethod({ onChange }: MethodProps) {
   const { places } = useStore();
@@ -21,10 +21,7 @@ export function PinMethod({ onChange }: MethodProps) {
 
   // Memoised: a fresh array every render would re-fire the effects that depend on it.
   const jumps = useMemo(
-    () => [
-      { n: 'My Farm, Garden City', lat: DEFAULT_CENTER.lat, lon: DEFAULT_CENTER.lon },
-      ...places.map((p) => ({ n: p.name, lat: p.lat, lon: p.lon })),
-    ],
+    () => places.map((p) => ({ n: p.name, lat: p.lat, lon: p.lon })),
     [places],
   );
 
@@ -46,20 +43,20 @@ export function PinMethod({ onChange }: MethodProps) {
   return (
     <div className="col" style={{ gap: 10 }}>
       <div className="row wrap" style={{ gap: 8, justifyContent: 'space-between' }}>
-        <label className="row caption" style={{ gap: 8 }}>
+        {jumps.length > 0 && <label className="row caption" style={{ gap: 8 }}>
           Or jump to
           <select className="input" style={{ height: 34, width: 'auto', fontSize: 13 }} value="" aria-label="Jump to a saved place"
-            onChange={(e) => { const j = jumps[+e.target.value]; if (j) flyTo(j, +e.target.value === 0 ? 15 : 13); }}>
+            onChange={(e) => { const j = jumps[+e.target.value]; if (j) flyTo(j, 13); }}>
             <option value="" disabled>Choose…</option>
             {jumps.map((j, i) => <option key={`${j.n}-${i}`} value={i}>{j.n}</option>)}
           </select>
-        </label>
+        </label>}
       </div>
 
       {globe || !spot ? (
         <GlobePicker H={280} focus={spot} onPick={(p) => flyTo(p, 12)} onBack={spot ? () => setGlobe(false) : undefined} />
       ) : (
-        <MapFrame H={260} center={spot} zoom={zoom} setZoom={setZoom} place={null} layers={NO_LAYERS}
+        <MapFrame H={260} center={spot} zoom={zoom} setZoom={setZoom} place={null}
           onGlobe={() => setGlobe(true)} onPick={(dx, dy) => setPin([dx, dy])}>
           {(s, W, H) => pin ? (
             <g>

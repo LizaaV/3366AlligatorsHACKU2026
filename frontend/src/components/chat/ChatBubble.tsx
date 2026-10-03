@@ -12,14 +12,17 @@ import { Composer } from './Composer';
 import { TurnView } from './TurnView';
 import { ArtifactsContext } from '../artifacts/ArtifactsContext';
 import { deriveArtifacts } from '../artifacts/artifacts';
-import { contextFromRoute, contextHint, contextKey, contextPlaceId, contextSuggestions, setChatHandoff } from './chatContext';
+import { contextFromRoute, contextHint, contextKey, contextPlaceId, contextSkillId, contextSuggestions, setChatHandoff } from './chatContext';
 
 export function ChatBubble() {
-  const { route, places, watches, lang, go, t } = useStore();
+  const { route, places, watches, skills, lang, go, t } = useStore();
   const ctx = contextFromRoute(route);
   const key = contextKey(ctx);
   const placeId = contextPlaceId(ctx) ?? (ctx.kind === 'trigger' && ctx.triggerId ? watches.find((w) => w.id === ctx.triggerId)?.placeId ?? null : null);
   const place = places.find((p) => p.id === placeId);
+  // Sent with every question: the skill a trigger runs, or the one open in the library.
+  const skillId = contextSkillId(ctx, watches, skills);
+  const skill = skills.find((s) => s.id === skillId);
 
   const [expanded, setExpanded] = useState(false);
   const [q, setQ] = useState('');
@@ -44,13 +47,15 @@ export function ChatBubble() {
   const send = (text: string) => {
     if (!text.trim()) return;
     setQ('');
-    run.submit(text, { placeId });
+    run.submit(text, { placeId, skillId: skillId ?? undefined });
   };
 
   // The bubble has no map or sidebar: its turns are words only, and a reference opens the full chat on that artifact.
   const artifacts = useMemo(() => deriveArtifacts(turns), [turns]);
 
   const openFull = (artifactId?: string) => {
+    // A run still streaming keeps going and is re-attached by the Ask page.
+    run.detach();
     setChatHandoff({ turns, placeId, artifactId });
     setExpanded(false);
     go('ask', undefined, { place: placeId ?? 'none' });
@@ -81,7 +86,7 @@ export function ChatBubble() {
       <div className="row" style={{ padding: '10px 10px 10px 16px', borderBottom: '1px solid var(--hair-soft)', gap: 8 }}>
         <div className="col grow">
           <span style={{ font: '600 14px/1.3 var(--font)' }}>Ask</span>
-          <span className="tiny">{contextHint(ctx, place?.name)}</span>
+          <span className="tiny">{contextHint(ctx, place?.name, skill?.name)}</span>
         </div>
         <button className="btn btn-text btn-sm" onClick={() => openFull()} title="Continue in the full chat"><Ms n="open_in_full" />Open in full chat</button>
         <button className="icon-btn" onClick={() => setExpanded(false)} aria-label="Close chat"><Ms n="close" /></button>

@@ -143,32 +143,12 @@ export const fitZoom = (pts: Pt[], box: number) =>
 export const fmtC = (lat: number, lon: number) =>
   `${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'} ${Math.abs(lon).toFixed(4)}°${lon >= 0 ? 'E' : 'W'}`;
 
-const arcPt = (r: number, deg: number) => {
-  const a = (deg * Math.PI) / 180;
-  return [(300 + Math.sin(a) * r).toFixed(1), (300 - Math.cos(a) * r).toFixed(1)];
-};
-
-/** Dry-zone arc overlay path, in the 600x600 overlay coordinate space. */
-export const DRY_PATH = (() => {
-  const a0 = 14;
-  const a1 = 100;
-  const o0 = arcPt(206, a0);
-  const o1 = arcPt(206, a1);
-  const i1 = arcPt(132, a1);
-  const i0 = arcPt(132, a0);
-  return `M${o0} A206 206 0 0 1 ${o1} L${i1} A132 132 0 0 0 ${i0} Z`;
-})();
-
 /** Normalised 0..1 series -> SVG polyline points. */
 export const pts2 = (arr: number[], w = 300, h = 100, pad = 90) =>
   arr.map((v, i) => `${((i / (arr.length - 1)) * w).toFixed(1)},${(h - v * pad).toFixed(1)}`).join(' ');
 
-/**
- * Where the map opens before a place is selected. Presentation default, not domain data —
- * previously this was `FIELD` in the places fixture, which tied the map's initial view to a
- * specific demo record.
- */
-export const DEFAULT_CENTER = { lat: 37.9785, lon: -100.9155 };
+/** Where the map opens before a place is selected: a neutral world view, not a real site. */
+export const DEFAULT_CENTER = { lat: 20, lon: 10 };
 export const DEFAULT_ZOOM = 16;
 
 /**

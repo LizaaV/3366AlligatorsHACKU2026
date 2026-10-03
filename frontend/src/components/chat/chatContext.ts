@@ -37,7 +37,7 @@ export const contextSuggestions = (ctx: ChatContext, placeName?: string): string
     case 'place':
       return [`How healthy is ${placeName ?? 'this place'} this week?`, 'Where are the dry patches?', 'What changed here since last month?'];
     case 'dashboard':
-      return ['What changed on this dashboard today?', 'Which block needs my attention?'];
+      return ['Which free satellite is best for crop health?', 'How can I map a flood through clouds?'];
     case 'trigger':
       return ctx.triggerId
         ? ['What changed since the last pass?', 'Is this normal for the time of year?', 'When will it cross my threshold?']
@@ -49,16 +49,19 @@ export const contextSuggestions = (ctx: ChatContext, placeName?: string): string
   }
 };
 
-export const contextHint = (ctx: ChatContext, placeName?: string): string => {
+/**
+ * What a question from the bubble really carries. `RunRequest` has a place and a skill but no
+ * dashboard or trigger field, so the hint names only what is sent.
+ */
+export const contextHint = (ctx: ChatContext, placeName?: string, skillName?: string): string => {
   switch (ctx.kind) {
     case 'place':
       return placeName ? `Asking about ${placeName}` : 'Asking about this place';
-    case 'dashboard':
-      return 'Asking about your dashboard';
     case 'trigger':
-      return ctx.triggerId ? 'Asking about this trigger' : 'Asking about your triggers';
-    case 'library':
-      return ctx.skillId ? 'Asking about this skill' : 'Asking about the skills library';
+    case 'library': {
+      const parts = [placeName && `Asking about ${placeName}`, skillName && `${placeName ? 'using' : 'Using'} the “${skillName}” skill`].filter(Boolean);
+      return parts.length ? parts.join(' ') : 'General question';
+    }
     default:
       return 'General question';
   }
@@ -87,4 +90,18 @@ export const takeChatHandoff = (): ChatHandoff | null => {
   const h = pending;
   pending = null;
   return h;
+};
+
+/**
+ * The skill a context pins questions to, if it exists in the loaded skills: the skill being
+ * viewed in the library, or the skill a trigger runs.
+ */
+export const contextSkillId = (
+  ctx: ChatContext,
+  watches: { id: string; skillId: string }[],
+  skills: { id: string }[],
+): string | null => {
+  const id =
+    ctx.kind === 'library' ? ctx.skillId : ctx.kind === 'trigger' && ctx.triggerId ? watches.find((w) => w.id === ctx.triggerId)?.skillId : undefined;
+  return id && skills.some((s) => s.id === id) ? id : null;
 };
