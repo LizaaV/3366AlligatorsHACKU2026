@@ -207,6 +207,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Places */
+        get: operations["list_places_api_places_get"];
+        put?: never;
+        /** Create Place */
+        post: operations["create_place_api_places_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/places/{place_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Place */
+        get: operations["get_place_api_places__place_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Place */
+        delete: operations["delete_place_api_places__place_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Place */
+        patch: operations["patch_place_api_places__place_id__patch"];
+        trace?: never;
+    };
+    "/api/places/{place_id}/memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Place Memory */
+        get: operations["get_place_memory_api_places__place_id__memory_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Place Memory */
+        patch: operations["patch_place_memory_api_places__place_id__memory_patch"];
+        trace?: never;
+    };
+    "/api/me/memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Me Memory */
+        get: operations["get_me_memory_api_me_memory_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Me Memory */
+        patch: operations["patch_me_memory_api_me_memory_patch"];
+        trace?: never;
+    };
+    "/api/runs/{run_id}/insight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Run Insight
+         * @description Saves one insight to a place's memory. The run must be the caller's own; if the run
+         *     names places, the insight's place must be one of them.
+         */
+        post: operations["save_run_insight_api_runs__run_id__insight_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -577,6 +671,48 @@ export interface components {
             usd: number;
         };
         /**
+         * CreatePlaceRequest
+         * @description Send `geometry` (a GeoJSON polygon; `center` is then ignored and recomputed),
+         *     or `center` + `radius_m` for a dropped pin.
+         */
+        CreatePlaceRequest: {
+            /** Geometry */
+            geometry?: {
+                [key: string]: unknown;
+            } | null;
+            center?: components["schemas"]["LatLon"] | null;
+            /** Radius M */
+            radius_m?: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Category Key
+             * @default
+             */
+            category_key: string;
+            /** Is Circle */
+            is_circle?: boolean | null;
+            /** Project */
+            project?: string | null;
+            /** Tags */
+            tags?: string[];
+            /**
+             * Source
+             * @default drawn
+             * @enum {string}
+             */
+            source: "drawn" | "uploaded" | "search" | "coords" | "whatsapp" | "parcel" | "pin";
+            /** Details */
+            details?: components["schemas"]["DetailRow"][] | null;
+        };
+        /** DetailRow */
+        DetailRow: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /**
          * Done
          * @description The stream ended (always its last event).
          *
@@ -840,6 +976,62 @@ export interface components {
             /** Label */
             label: string;
         };
+        /** Insight */
+        Insight: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Text */
+            text: string;
+            /**
+             * Confidence
+             * @default
+             */
+            confidence: string;
+            /**
+             * Run Id
+             * @default
+             */
+            run_id: string;
+            /**
+             * Status
+             * @default saved
+             */
+            status: string;
+        };
+        /** InsightCreate */
+        InsightCreate: {
+            /** Place Id */
+            place_id: string;
+            /** Text */
+            text: string;
+            /**
+             * Confidence
+             * @default
+             */
+            confidence: string;
+        };
+        /** InsightSaved */
+        InsightSaved: {
+            /** Run Id */
+            run_id: string;
+            /** Place Id */
+            place_id: string;
+            /**
+             * Saved
+             * @default true
+             */
+            saved: boolean;
+        };
+        /** LatLon */
+        LatLon: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+        };
         /** LimitAction */
         LimitAction: {
             /** Label */
@@ -895,6 +1087,32 @@ export interface components {
             /** Rule Id */
             rule_id?: string | null;
         };
+        /** MeMemory */
+        MeMemory: {
+            /** Profile */
+            profile: {
+                [key: string]: string;
+            };
+        };
+        /** MePatch */
+        MePatch: {
+            /** Profile */
+            profile: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * MemoryPatch
+         * @description User edits on the Places page. The LLM never calls this.
+         */
+        MemoryPatch: {
+            /** Profile */
+            profile?: {
+                [key: string]: string;
+            } | null;
+            /** Note */
+            note?: string | null;
+        };
         /**
          * Method
          * @description What produced the answer: cards, skill and code reference.
@@ -909,6 +1127,16 @@ export interface components {
              */
             code_ref?: string | null;
         };
+        /** Note */
+        Note: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Text */
+            text: string;
+        };
         /** Patch */
         Patch: {
             /** Ha */
@@ -922,6 +1150,30 @@ export interface components {
             geojson: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * PatchPlaceRequest
+         * @description Every field optional. Sending `geometry` (wins over `center`) or `center` + `radius_m`
+         *     replaces the outline.
+         */
+        PatchPlaceRequest: {
+            /** Geometry */
+            geometry?: {
+                [key: string]: unknown;
+            } | null;
+            center?: components["schemas"]["LatLon"] | null;
+            /** Radius M */
+            radius_m?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Category Key */
+            category_key?: string | null;
+            /** Is Circle */
+            is_circle?: boolean | null;
+            /** Project */
+            project?: string | null;
+            /** Tags */
+            tags?: string[] | null;
         };
         /**
          * PlaceContext
@@ -951,6 +1203,64 @@ export interface components {
              */
             warnings: string[];
         };
+        /** PlaceDto */
+        PlaceDto: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Category Key
+             * @default
+             */
+            category_key: string;
+            center: components["schemas"]["LatLon"];
+            /** Geometry */
+            geometry: {
+                [key: string]: unknown;
+            };
+            /** Area Ha */
+            area_ha: number;
+            /**
+             * Is Circle
+             * @default false
+             */
+            is_circle: boolean;
+            /** Project */
+            project?: string | null;
+            /** Tags */
+            tags?: string[];
+            /**
+             * Source
+             * @default drawn
+             * @enum {string}
+             */
+            source: "drawn" | "uploaded" | "search" | "coords" | "whatsapp" | "parcel" | "pin";
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Details */
+            details?: components["schemas"]["DetailRow"][];
+        };
+        /** PlaceMemory */
+        PlaceMemory: {
+            /** Place Id */
+            place_id: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Profile */
+            profile?: {
+                [key: string]: components["schemas"]["Prefill"];
+            };
+            /** Insights */
+            insights?: components["schemas"]["Insight"][];
+            /** Notes */
+            notes?: components["schemas"]["Note"][];
+        };
         /**
          * PointInput
          * @description A point plus a radius; the area is the circle around it.
@@ -972,6 +1282,16 @@ export interface components {
              * @default 400
              */
             radius_m: number;
+        };
+        /** Prefill */
+        Prefill: {
+            /** Value */
+            value: string;
+            /**
+             * Saved
+             * Format: date
+             */
+            saved: string;
         };
         /**
          * ProofScene
@@ -1890,6 +2210,419 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CardIndexEntry"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_places_api_places_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceDto"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_place_api_places_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePlaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceDto"];
+                };
+            };
+            /** @description Unusable outline: `{kind, message, hint}` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_place_api_places__place_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                place_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceDto"];
+                };
+            };
+            /** @description No such place for this user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_place_api_places__place_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                place_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such place for this user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_place_api_places__place_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                place_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchPlaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceDto"];
+                };
+            };
+            /** @description Unusable outline: `{kind, message, hint}` */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such place for this user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_place_memory_api_places__place_id__memory_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                place_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceMemory"];
+                };
+            };
+            /** @description No such place for this user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_place_memory_api_places__place_id__memory_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                place_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemoryPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceMemory"];
+                };
+            };
+            /** @description No such place for this user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_me_memory_api_me_memory_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeMemory"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_me_memory_api_me_memory_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeMemory"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_run_insight_api_runs__run_id__insight_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsightCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightSaved"];
+                };
+            };
+            /** @description place_id is not one of the run's places */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Run or place not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
