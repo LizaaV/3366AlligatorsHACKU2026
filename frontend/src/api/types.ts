@@ -15,6 +15,7 @@
  */
 
 import type { Position } from '../lib/geo';
+import type { components } from './schema';
 
 /* ---------------- primitives ---------------- */
 
@@ -213,12 +214,8 @@ export interface ParseBoundaryFileResponse {
 /* ---------------- watches ---------------- */
 
 export type WatchStatus = 'ok' | 'warn' | 'alert';
-/**
- * TODO: drop once schema.d.ts is regenerated. Backend stream A is adding `recurrence` and
- * `dashboard_id` to WatchDto / CreateWatchRequest / PatchWatchRequest; until the contract
- * carries them they are optional here so older payloads still parse.
- */
-export type WatchRecurrence = 'recurring' | 'once';
+/** `once` triggers disable themselves after their first alert-level event. From the contract. */
+export type WatchRecurrence = components['schemas']['CreateWatchRequest']['recurrence'];
 export type WatchEventLevel = 'info' | 'warn' | 'alert';
 
 export interface WatchSeriesDto {
@@ -270,9 +267,8 @@ export interface WatchDto {
   thumbnail?: { zoom: number };
   ring: boolean;
   events: WatchEventDto[];
-  /** TODO: drop once schema.d.ts is regenerated. Absent = `recurring`. */
-  recurrence?: WatchRecurrence;
-  /** TODO: drop once schema.d.ts is regenerated. The dashboard this trigger watches, if any. */
+  recurrence: WatchRecurrence;
+  /** The dashboard this trigger watches, if any. */
   dashboardId?: string | null;
 }
 
@@ -285,9 +281,9 @@ export interface CreateWatchRequest {
   condition: string;
   channels: ChannelId[];
   cadence: string;
-  /** TODO: drop once schema.d.ts is regenerated. */
+  /** Defaults to `recurring` server-side. */
   recurrence?: WatchRecurrence;
-  /** TODO: drop once schema.d.ts is regenerated. */
+  /** 404 if it is not the user's dashboard. */
   dashboardId?: string | null;
 }
 

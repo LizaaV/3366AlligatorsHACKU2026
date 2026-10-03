@@ -251,7 +251,6 @@ export interface Watch {
   events: WatchEvent[];
   /** `once` triggers fire a single time, then stop. */
   recurrence: WatchRecurrence;
-  /** TODO: drop the fallbacks once schema.d.ts carries these fields. */
   dashboardId: string | null;
 }
 
@@ -283,7 +282,7 @@ export const toWatch = (d: WatchDto): Watch => ({
   thumbnailZoom: d.thumbnail?.zoom ?? 14,
   ring: d.ring,
   events: d.events.map((e) => ({ at: parseIso(e.at), text: e.text, level: e.level })),
-  recurrence: d.recurrence ?? 'recurring',
+  recurrence: d.recurrence,
   dashboardId: d.dashboardId ?? null,
 });
 
