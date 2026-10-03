@@ -97,8 +97,8 @@ export function ExportModal({ target }: { target: ExportTarget }) {
               <div className="col" style={{ gap: 8 }}>
                 <div className="field">Send it</div>
                 <div className="row wrap" style={{ gap: 8 }}>
-                  <Btn icon="chat" tier="free" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer')}>WhatsApp</Btn>
-                  <Btn icon="mail" tier="free" onClick={() => { window.location.href = `mailto:?subject=${encodeURIComponent(target.title)}&body=${encodeURIComponent(text)}`; }}>Email</Btn>
+                  <Btn icon="chat" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer')}>WhatsApp</Btn>
+                  <Btn icon="mail" onClick={() => { window.location.href = `mailto:?subject=${encodeURIComponent(target.title)}&body=${encodeURIComponent(text)}`; }}>Email</Btn>
                 </div>
               </div>
             </>
@@ -127,7 +127,7 @@ export function ExportModal({ target }: { target: ExportTarget }) {
         <div className="row" style={{ gap: 12, padding: '10px 12px', borderRadius: 8, background: '#000', border: '1px solid var(--hair-soft)' }}>
           <Ms n="data_object" size={20} className="muted" />
           <div className="col grow"><span style={{ font: '600 14px/1.4 var(--font)' }}>GeoJSON</span><span className="tiny">{isAnswer ? 'The outline this answer is about, with its area' : 'The outline of this place, with its area'}</span></div>
-          <Btn size="sm" icon="download" tier="free" disabled={!target.id || busy === 'geo'} onClick={() => void downloadGeo()}>{busy === 'geo' ? 'Preparing…' : 'Download'}</Btn>
+          <Btn size="sm" icon="download" disabled={!target.id || busy === 'geo'} onClick={() => void downloadGeo()}>{busy === 'geo' ? 'Preparing…' : 'Download'}</Btn>
         </div>
       )}
 

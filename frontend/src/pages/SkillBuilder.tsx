@@ -30,8 +30,6 @@ export function SkillBuilder() {
   const [categoryKey, setCategoryKey] = useState<string>(from?.categoryKey ?? 'agriculture');
   const [short, setShort] = useState(from ? from.short : '');
   const [vis, setVis] = useState<Visibility>('private');
-  const [paid, setPaid] = useState(false);
-  const [price, setPrice] = useState('$1 / km²');
   const [steps, setSteps] = useState<Step[]>(() => (from ? from.steps : DEFAULT_STEPS).filter((id) => mod(id)).map(mk));
   const [openUid, setOpenUid] = useState<number | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -70,7 +68,6 @@ export function SkillBuilder() {
     last?.group === 'Output' ? { level: 'ok', text: `Ends with an Output module (${last.name})` } : { level: 'error', text: 'Must end with an Output module (Show the answer or Keep watching)' },
     ...(steps.some((s) => s.module === 'scenes.filter') ? [] : [{ level: 'warn' as const, text: 'No “Find clear images” step — results may include cloudy images' }]),
     ...(steps.some((s) => mod(s.module)?.group === 'Analysis') ? [] : [{ level: 'warn' as const, text: 'No Analysis module — the skill will only return raw images' }]),
-    ...(paid && !price.trim() ? [{ level: 'error' as const, text: 'Set a price for a paid skill' }] : []),
   ];
   const errors = hints.filter((h) => h.level === 'error').length;
 
@@ -92,7 +89,7 @@ export function SkillBuilder() {
     satellites: sats,
     publisher: { name: 'You', official: false, verified: false },
     visibility: vis,
-    pricing: { tier: paid ? 'paid' : 'free', price: paid ? price : null },
+    pricing: { tier: 'free', price: null },
     inputs: [
       { key: 'area', type: 'geometry', required: true, accepts: ['place', 'polygon', 'geojson', 'kml'] },
       ...(steps.some((s) => s.module === 'ask.clarify') ? [{ key: 'context', type: 'answers', required: false }] : []),
@@ -119,8 +116,8 @@ export function SkillBuilder() {
         name: name.trim(),
         categoryKey,
         short: short.trim() || `Custom ${categories.find((c) => c.key === categoryKey)?.name.toLowerCase() ?? ''} skill.`.trim(),
-        tier: paid ? 'paid' : 'free',
-        cost: paid ? price.trim() : 'Free',
+        tier: 'free',
+        cost: 'Free',
         visibility: vis,
         steps: steps.map((st) => ({ module: st.module, params: st.params })),
       });
@@ -178,18 +175,6 @@ export function SkillBuilder() {
             </div>
             {vis === 'public' && <span className="tiny">Public skills show under Community with your name. Constellation does not validate them unless you apply for verification.</span>}
           </div>
-          <div className="field">Pricing
-            <div className="seg" role="radiogroup" aria-label="Pricing" style={{ alignSelf: 'flex-start' }}>
-              <button role="radio" aria-checked={!paid} className={!paid ? 'on' : ''} onClick={() => setPaid(false)}>Free</button>
-              <button role="radio" aria-checked={paid} className={paid ? 'on' : ''} onClick={() => setPaid(true)}>Paid</button>
-            </div>
-          </div>
-          {paid && (
-            <label className="field">Price
-              <input className="input" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="$1 / km²" />
-              <span className="tiny">Charged per run on top of any paid imagery the steps use.</span>
-            </label>
-          )}
         </div>
 
         {/* ---------- middle: steps ---------- */}
@@ -305,7 +290,7 @@ export function SkillBuilder() {
         <Btn icon="science" disabled title="Test runs are not available yet">
           Test run · Coming soon
         </Btn>
-        <Btn variant="primary" icon="publish" tier="free" onClick={publish} disabled={errors > 0 || publishing} title={errors ? 'Fix the checks above first' : undefined}>
+        <Btn variant="primary" icon="publish" onClick={publish} disabled={errors > 0 || publishing} title={errors ? 'Fix the checks above first' : undefined}>
           Publish to library
         </Btn>
       </div>

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
 import { api } from '../api';
-import { Btn, ConfidenceBadge, Ms, Tier } from '../components/ui';
+import { Btn, ConfidenceBadge, Ms } from '../components/ui';
 import type { Answer } from '../model';
 import { cloudFromPercent } from '../lib/format';
 import { ArtifactRefs, LinkedText } from '../components/artifacts/ArtifactRefs';
@@ -128,7 +128,7 @@ export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunS
               <div key={id} className="row" style={{ gap: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--s1)', border: '1px solid var(--hair-soft)' }}>
                 <div className="col grow"><span style={{ font: '600 13px/1.38 var(--font)' }}>{s.name}</span><span className="tiny">{s.sat} · by {s.publisherName}</span></div>
                 <Btn size="sm" variant="text" onClick={() => go('library', id)}>Open</Btn>
-                <Btn size="sm" icon="play_arrow" tier={s.tier} onClick={() => onRunSkill(id)}>Run</Btn>
+                <Btn size="sm" icon="play_arrow" onClick={() => onRunSkill(id)}>Run</Btn>
               </div>
             );
           })}
@@ -211,18 +211,13 @@ export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunS
 
       <div className="row wrap" style={{ gap: 8, borderTop: '1px solid var(--hair)', paddingTop: 14 }}>
         {a.kind === 'place' ? (
-          <Btn variant="primary" icon="visibility" tier="free" onClick={() => open({ kind: 'watchBuilder', prefill: watchPrefill(question, a, place?.name), placeId, skillId: a.skillId ?? undefined, fromAnswer: true })}>Keep watching</Btn>
+          <Btn variant="primary" icon="visibility" onClick={() => open({ kind: 'watchBuilder', prefill: watchPrefill(question, a, place?.name), placeId, skillId: a.skillId ?? undefined, fromAnswer: true })}>Keep watching</Btn>
         ) : (
           <Btn variant="primary" icon="pentagon" onClick={() => go('places')}>Pick a place</Btn>
         )}
-        <Btn variant="secondary" icon="ios_share" tier="free" onClick={() => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: a.eyebrow, id: runId ?? undefined } })}>Export</Btn>
-        <Btn icon="support_agent" tier="paid" tierLabel="from $49" onClick={() => open({ kind: 'expert', context: a.title, placeId })}>Ask an expert</Btn>
+        <Btn variant="secondary" icon="ios_share" onClick={() => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: a.eyebrow, id: runId ?? undefined } })}>Export</Btn>
+        <Btn icon="support_agent" onClick={() => open({ kind: 'expert', context: a.title, placeId })}>Ask an expert</Btn>
       </div>
-      {a.kind === 'place' && (
-        <div className="tiny row" style={{ gap: 6 }}>
-          <Tier tier="free" /> This run used free satellites only. Paid sources are always marked before you spend.
-        </div>
-      )}
     </div>
   );
 }

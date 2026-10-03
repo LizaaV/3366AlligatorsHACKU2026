@@ -8,28 +8,17 @@ export const Ms = ({ n, size, className = '', style }: { n: string; size?: numbe
   </span>
 );
 
-/** Free / paid marker. Every CTA that triggers work carries one. */
-export const Tier = ({ tier, label }: { tier: 'free' | 'paid'; label?: string }) => (
-  <span className={`tier tier-${tier}`}>
-    {tier === 'paid' && <Ms n="bolt" />}
-    {label ?? (tier === 'free' ? 'Free' : 'Paid')}
-  </span>
-);
-
 type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'text';
   size?: 'sm' | 'md' | 'lg';
   icon?: string;
-  tier?: 'free' | 'paid';
-  tierLabel?: string;
   trailing?: string;
 };
 
-export const Btn = ({ variant = 'ghost', size = 'md', icon, tier, tierLabel, trailing, className = '', children, ...rest }: BtnProps) => (
+export const Btn = ({ variant = 'ghost', size = 'md', icon, trailing, className = '', children, ...rest }: BtnProps) => (
   <button className={`btn btn-${variant} ${size !== 'md' ? 'btn-' + size : ''} ${className}`} {...rest}>
     {icon && <Ms n={icon} />}
     {children}
-    {tier && <Tier tier={tier} label={tierLabel} />}
     {trailing && <Ms n={trailing} />}
   </button>
 );

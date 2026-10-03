@@ -1,7 +1,7 @@
 /** Step 3: name it, file it, tag it, and optionally start watching it. */
 
 import { useStore } from '../../state/store';
-import { Check, Tier } from '../../components/ui';
+import { Check } from '../../components/ui';
 import { sourceLabel } from '../../data/presentation';
 import { fmtC } from '../../lib/geo';
 import type { Loc, Shape } from './types';
@@ -66,7 +66,6 @@ export function DetailsStep({ loc, ha, form, outline }: { loc: Loc; ha: number; 
                     <span style={{ font: '600 14px/1.4 var(--font)' }}>{sk.name}</span>
                     <span className="caption" style={{ display: 'block' }}>{sk.short} · {sk.sat}</span>
                   </span>
-                  <Tier tier={sk.tier} label={sk.tier === 'paid' ? sk.cost : undefined} />
                 </button>
               );
             })}

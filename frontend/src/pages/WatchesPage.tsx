@@ -6,7 +6,7 @@ import { STATUS_STYLE } from '../data/presentation';
 import { fmtDay, timeKey } from '../lib/format';
 import { api } from '../api';
 import { useResource } from '../hooks/useResource';
-import { Btn, Empty, HistoryChart, Ms, RingOverlay, Tier, Toggle } from '../components/ui';
+import { Btn, Empty, HistoryChart, Ms, RingOverlay, Toggle } from '../components/ui';
 import { ErrorState, SkeletonCard } from '../components/async';
 import { RecurrencePill, WatchDetail, hasSeries, watchBaseline, watchRange, watchValue } from './WatchDetail';
 
@@ -71,7 +71,7 @@ function Overview() {
           <div className="h1" style={{ marginTop: 10 }}>{t('watches.title')}</div>
           <div className="body" style={{ marginTop: 6, maxWidth: 640 }}>{t('watches.sub')}</div>
         </div>
-        <Btn variant="primary" icon="add" tier="free" onClick={() => open({ kind: 'watchBuilder' })}>{t('cta.newTrigger')}</Btn>
+        <Btn variant="primary" icon="add" onClick={() => open({ kind: 'watchBuilder' })}>{t('cta.newTrigger')}</Btn>
       </div>
 
       <div className="stats wp-stats">
@@ -135,7 +135,7 @@ function Overview() {
           <ErrorState error={errors.watches} onRetry={reload} title="Could not load your triggers" />
         ) : watches.length === 0 ? (
           <Empty icon="visibility" title="No triggers yet" body="Tell the agent what to keep an eye on. It checks whether satellites can see it, then alerts you by email, WhatsApp or push.">
-            <Btn variant="primary" icon="add" tier="free" onClick={() => open({ kind: 'watchBuilder' })}>{t('cta.newTrigger')}</Btn>
+            <Btn variant="primary" icon="add" onClick={() => open({ kind: 'watchBuilder' })}>{t('cta.newTrigger')}</Btn>
           </Empty>
         ) : byKind.length === 0 ? (
           <Empty icon="filter_alt_off" title="No triggers match" body="Try a different filter to see the rest of your triggers.">
@@ -177,7 +177,6 @@ function AddTile() {
       <Ms n="add" size={28} />
       Ask the agent to build a trigger
       <span className="tiny" style={{ maxWidth: 240 }}>Describe it in a sentence — the agent checks if satellites can see it.</span>
-      <Tier tier="free" />
     </button>
   );
 }
@@ -264,7 +263,6 @@ function WatchCard({ w, placeName, place, dashboardName }: { w: Watch; placeName
             {w.channels.map((c) => <Ms key={c} n={channels.find((x) => x.id === c)?.icon ?? 'notifications'} size={16} className="muted" />)}
           </span>
           <span className="tiny grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.cadence}</span>
-          <Tier tier={w.tier} />
           <span onClick={stop} onKeyDown={stop}>
             <Toggle
               on={w.enabled}

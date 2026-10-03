@@ -4,8 +4,6 @@
  */
 
 import { useEffect, useRef, type ReactNode } from 'react';
-import { LANGS } from '../../data/i18n';
-import { useStore } from '../../state/store';
 import { Ms } from '../ui';
 
 export function Composer({
@@ -29,8 +27,6 @@ export function Composer({
   compact?: boolean;
   autoFocus?: boolean;
 }) {
-  const { lang, open } = useStore();
-  const L = LANGS.find((l) => l.code === lang) ?? LANGS[0];
   const ta = useRef<HTMLTextAreaElement>(null);
 
   // Grow with the text up to a cap, then scroll. Re-measured on resize, since a narrow
@@ -76,17 +72,6 @@ export function Composer({
       <div className="row" style={{ marginTop: 8, gap: 8 }}>
         <div style={{ minWidth: 0, flex: '0 1 auto' }}>{leading}</div>
         <span className="grow" />
-        <button
-          type="button"
-          className="pill"
-          onClick={() => open({ kind: 'lang' })}
-          title={`Answer language: ${L.english}`}
-          aria-label={`Answer language: ${L.english}`}
-          style={{ border: '1px solid var(--hair-soft)', background: 'transparent' }}
-        >
-          <Ms n="translate" size={14} />
-          {L.code.toUpperCase()}
-        </button>
         <button
           type="button"
           onClick={onSubmit}

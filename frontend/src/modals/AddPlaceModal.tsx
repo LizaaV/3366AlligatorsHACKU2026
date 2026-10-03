@@ -219,7 +219,7 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
         {step === 1 ? <Btn variant="text" onClick={close}>Cancel</Btn> : <Btn variant="text" icon="arrow_back" onClick={goBack}>Back</Btn>}
         {step === 1 && <Btn variant="primary" trailing="arrow_forward" disabled={!loc} onClick={goStep2}>Continue</Btn>}
         {step === 2 && <Btn variant="primary" trailing="arrow_forward" disabled={!loc || ha <= 0} onClick={goStep3}>Continue</Btn>}
-        {step === 3 && <Btn variant="primary" icon="check" tier="free" disabled={!form.complete || saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save place'}</Btn>}
+        {step === 3 && <Btn variant="primary" icon="check" disabled={!form.complete || saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save place'}</Btn>}
       </div>
     </Modal>
   );

@@ -145,7 +145,7 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
         </div>
 
         <div style={{ marginTop: 'auto', paddingTop: 8 }}>
-          <Btn variant="primary" icon="forum" tier="free" onClick={(e) => { e.stopPropagation(); ask(); }} style={{ width: '100%' }}>
+          <Btn variant="primary" icon="forum" onClick={(e) => { e.stopPropagation(); ask(); }} style={{ width: '100%' }}>
             Ask about this place
           </Btn>
         </div>
@@ -179,7 +179,7 @@ export function PlacesPage() {
             <h1 className="h1" style={{ margin: '8px 0 0' }}>{t('places.title')}</h1>
             <div className="body" style={{ marginTop: 8 }}>{t('places.sub')}</div>
           </div>
-          <Btn variant="primary" icon="add_location_alt" tier="free" onClick={() => open({ kind: 'addPlace' })}>Add place</Btn>
+          <Btn variant="primary" icon="add_location_alt" onClick={() => open({ kind: 'addPlace' })}>Add place</Btn>
         </div>
 
         <div className="row wrap" style={{ gap: 12, justifyContent: 'space-between' }}>
@@ -208,7 +208,7 @@ export function PlacesPage() {
         ) : shown.length === 0 ? (
           <Empty icon="travel_explore" title="No places match" body={q ? `Nothing in ${project === 'All' ? 'your places' : projectLabel(project)} matches “${q}”.` : 'This project has no places yet.'}>
             <Btn onClick={() => { setQ(''); setProject('All'); }}>Clear filters</Btn>
-            <Btn variant="primary" icon="add_location_alt" tier="free" onClick={() => open({ kind: 'addPlace' })}>Add place</Btn>
+            <Btn variant="primary" icon="add_location_alt" onClick={() => open({ kind: 'addPlace' })}>Add place</Btn>
           </Empty>
         ) : (
           <div className="grid-cards">

@@ -42,7 +42,7 @@ import {
   type SkillModule,
   type Watch,
 } from '../model';
-import { LANGS, translate } from '../data/i18n';
+import { translate } from '../data/i18n';
 import { navigate, useRoute, type Page, type Route } from '../router';
 
 /* ---------- modals ---------- */
@@ -56,7 +56,6 @@ export type Modal =
   | { kind: 'app' }
   | { kind: 'addPlace'; prefill?: { lat: number; lon: number; name?: string; method?: 'pin' } }
   | { kind: 'watchBuilder'; prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean; dashboardId?: string }
-  | { kind: 'lang' }
   | { kind: 'knowledgeCard'; cardId: string };
 
 export interface Connectors {
@@ -125,7 +124,6 @@ interface Store {
   askPlaceId: string | null;
   setAskPlace: (id: string | null) => void;
   lang: string;
-  setLang: (c: string) => void;
   t: (key: string) => string;
   connectors: Connectors;
   setConnectors: (c: Connectors) => void;
@@ -213,13 +211,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     'algae-red-tide-alert',
   ]);
   const [askPlaceId, setAskPlaceId] = useState<string | null>(null);
-  const [lang, setLangState] = useState<string>(() => {
-    try {
-      return localStorage.getItem('gt.lang') || 'en';
-    } catch {
-      return 'en';
-    }
-  });
+  // English only: answers, PDFs and the interface.
+  const lang = 'en';
   const [connectors, setConnectors] = useState<Connectors>({
     email: { connected: true, address: 'you@farm.example' },
     whatsapp: { connected: false, number: '' },
@@ -247,17 +240,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setAskPlaceId(route.query.place === 'none' ? null : route.query.place);
     }
   }, [route]);
-
-  useEffect(() => {
-    const l = LANGS.find((x) => x.code === lang);
-    document.documentElement.lang = lang;
-    document.documentElement.dir = l?.rtl && l.ui ? 'rtl' : 'ltr';
-    try {
-      localStorage.setItem('gt.lang', lang);
-    } catch {
-      /* storage unavailable (private window, blocked site data) */
-    }
-  }, [lang]);
 
   const go = useCallback((page: Page, id?: string, query?: Record<string, string>) => navigate(page, id, query), []);
 
@@ -350,8 +332,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       askPlaceId,
       setAskPlace: setAskPlaceId,
       lang,
-      setLang: setLangState,
-      t: (key) => translate(LANGS.find((x) => x.code === lang)?.ui ? lang : 'en', key),
+      t: (key) => translate(key),
       connectors,
       setConnectors,
       modal,

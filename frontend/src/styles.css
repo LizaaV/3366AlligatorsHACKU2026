@@ -151,12 +151,6 @@ input[type='range'] { accent-color: #fff; }
 .icon-btn.boxed:hover { background: var(--glass-fill-hover); }
 
 /* tier tag inside CTAs — "separation of free vs paid in every CTA" */
-.tier { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; padding: 1px 6px; border-radius: 9999px; font: 600 10.5px/1.5 var(--font); letter-spacing: 0.3px; text-transform: uppercase; }
-.tier .ms { font-size: 12px !important; }
-.tier-free { background: rgba(0, 202, 142, 0.14); color: var(--green); }
-.tier-paid { background: rgba(255, 207, 37, 0.16); color: var(--yellow); }
-.btn-primary .tier-free { background: rgba(0, 150, 105, 0.14); color: #007a56; }
-.btn-primary .tier-paid { background: #000; color: var(--yellow); }
 
 /* ---------- Chips / pills ---------- */
 .chip {

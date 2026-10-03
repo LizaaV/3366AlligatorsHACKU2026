@@ -4,7 +4,7 @@ import { ApiError, api, toApiError } from '../api';
 import type { ChannelId, Feasibility } from '../model';
 import type { WatchRecurrence } from '../api/types';
 import { useResource } from '../hooks/useResource';
-import { Btn, Check, Modal, ModalHead, Ms, Tier } from '../components/ui';
+import { Btn, Check, Modal, ModalHead, Ms } from '../components/ui';
 import { ErrorState } from '../components/async';
 
 const EXAMPLES = [
@@ -86,9 +86,6 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
       setChecking(CHECK_STEPS.length);
     }
   };
-
-  const effTier: 'free' | 'paid' =
-    feas?.tier === 'paid' || channels.some((c) => catalogChannels.find((x) => x.id === c)?.tier === 'paid') ? 'paid' : 'free';
 
   const toggle = (c: ChannelId) => setChannels((s) => (s.includes(c) ? s.filter((x) => x !== c) : [...s, c]));
 
@@ -186,7 +183,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
           </div>
           <div className="modal-foot">
             <Btn variant="text" onClick={close}>Cancel</Btn>
-            <Btn variant="primary" icon="travel_explore" tier="free" disabled={!text.trim()} onClick={() => runCheck(text)}>Check if it’s possible</Btn>
+            <Btn variant="primary" icon="travel_explore" disabled={!text.trim()} onClick={() => runCheck(text)}>Check if it’s possible</Btn>
           </div>
         </>
       )}
@@ -235,7 +232,6 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
                         {c.id === 'email' && connectors.email.connected ? connectors.email.address : c.id === 'whatsapp' && connectors.whatsapp.connected ? connectors.whatsapp.number : c.note}
                       </span>
                     </span>
-                    <Tier tier={c.tier} label={c.tier === 'paid' ? c.note.split(' ')[0] === 'Pro' ? 'Pro' : c.note.split(' / ')[0] : undefined} />
                   </button>
                   {on && waMissing && (
                     <div className="row wrap" style={{ gap: 8, paddingLeft: 30 }}>
@@ -280,8 +276,8 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
             <Btn
               variant="primary"
               icon="visibility"
-              tier={effTier}
-              tierLabel={effTier === 'paid' ? (feas.partial ? feas.cost.split(' · ').pop() : 'Paid') : 'Free'}
+             
+             
               disabled={channels.length === 0 || (channels.includes('whatsapp') && !connectors.whatsapp.connected)}
               onClick={create}
             >
@@ -322,7 +318,6 @@ function Result({ feas, condition, setCondition, onAlternative }: {
           <div><div className="l">Satellite</div><div className="v" style={{ fontSize: 14 }}>{feas.satellites}</div></div>
           <div><div className="l">How often</div><div className="v" style={{ fontSize: 14 }}>{feas.cadence}</div></div>
           <div><div className="l">Confidence</div><div className="v" style={{ fontSize: 14 }}>{feas.confidence}</div></div>
-          <div><div className="l">Cost</div><div className="v row" style={{ fontSize: 14, gap: 4 }}>{feas.cost}<Tier tier={feas.tier} /></div></div>
         </div>
       )}
 
@@ -331,7 +326,6 @@ function Result({ feas, condition, setCondition, onAlternative }: {
           <div><div className="l">Satellite</div><div className="v" style={{ fontSize: 14 }}>{feas.satellites}</div></div>
           <div><div className="l">How often</div><div className="v" style={{ fontSize: 14 }}>{feas.cadence}</div></div>
           <div><div className="l">Confidence</div><div className="v" style={{ fontSize: 14 }}>{feas.confidence}</div></div>
-          <div><div className="l">Cost</div><div className="v row" style={{ fontSize: 14, gap: 4 }}>{feas.cost}<Tier tier={feas.tier} /></div></div>
         </div>
       )}
 

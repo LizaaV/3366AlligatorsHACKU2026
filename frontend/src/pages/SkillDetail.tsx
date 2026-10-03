@@ -5,7 +5,7 @@ import { useResource } from '../hooks/useResource';
 import type { Skill } from '../model';
 import { DEFAULT_CENTER, fmtC, quad } from '../lib/geo';
 import { fmtDate } from '../lib/format';
-import { Btn, CatPill, Empty, Ms, Tier, hideBroken } from '../components/ui';
+import { Btn, CatPill, Empty, Ms, hideBroken } from '../components/ui';
 import { ErrorState, Skeleton } from '../components/async';
 import { CopyBtn, JsonCode, PublisherBadge, StorageExplainer, fmtRuns } from './libraryParts';
 
@@ -52,7 +52,6 @@ function Detail({ s }: { s: Skill }) {
 
   const meta: { l: string; v: React.ReactNode }[] = [
     { l: 'Satellite', v: s.sat },
-    { l: 'Cost', v: <>{s.tier === 'paid' ? s.cost : 'Free sources'}<Tier tier={s.tier} /></> },
     { l: 'Category', v: <><span className="sq" style={{ background: c.color }} />{c.name}</> },
     { l: 'Developer', v: <>{s.publisherName}{s.official ? <Ms n="verified" size={16} className="lib-v-official" /> : s.verified ? <Ms n="verified_user" size={16} className="lib-v-community" /> : null}</> },
     { l: 'Resolution', v: s.res },
@@ -187,7 +186,7 @@ function Detail({ s }: { s: Skill }) {
             <div className="body-sm">You have no saved places yet. Add one in Places, then come back to run this skill on it.</div>
           )}
           <div className="row wrap">
-            <Btn variant="primary" icon="play_arrow" tier={s.tier} tierLabel={s.tier === 'paid' ? s.cost : undefined} disabled={!place} onClick={run}>
+            <Btn variant="primary" icon="play_arrow" disabled={!place} onClick={run}>
               Run on {place ? place.name : 'a place'}
             </Btn>
             {!places.length && <Btn icon="add_location_alt" onClick={() => go('places')}>Add a place</Btn>}

@@ -5,7 +5,7 @@ import { useResource } from '../hooks/useResource';
 import type { ChannelId, DeliveryChannel, Watch } from '../model';
 import { STATUS_STYLE } from '../data/presentation';
 import { ciLabel, fmtDateTime, fmtDay, fmtVal } from '../lib/format';
-import { Btn, Check, ConfidenceBadge, Empty, HistoryChart, Ms, Tier } from '../components/ui';
+import { Btn, Check, ConfidenceBadge, Empty, HistoryChart, Ms } from '../components/ui';
 import { ErrorState, Skeleton } from '../components/async';
 
 /* ---------- status pill ---------- */
@@ -133,7 +133,7 @@ export function WatchDetail({ id }: { id: string }) {
           <ConfidenceBadge level={w.confidence} />
         </div>
         <div className="row wrap">
-          <Btn icon="support_agent" tier="paid" tierLabel="from $49" onClick={() => open({ kind: 'expert', context: w.name, placeId: w.placeId })}>Ask an expert</Btn>
+          <Btn icon="support_agent" onClick={() => open({ kind: 'expert', context: w.name, placeId: w.placeId })}>Ask an expert</Btn>
           <Btn icon="refresh" disabled title="Running a trigger on demand is not available yet">Run now · Coming soon</Btn>
           <Btn
             icon={w.enabled ? 'pause' : 'play_arrow'}
@@ -271,7 +271,6 @@ export function WatchDetail({ id }: { id: string }) {
                       <Check on={on} />
                       <Ms n={c.icon} size={18} className="muted" />
                       <span className="body-sm ink">{c.name}</span>
-                      <Tier tier={c.tier} />
                     </button>
                     {needsConnect ? (
                       <Btn size="sm" variant="text" onClick={() => open({ kind: 'connectors', focus: 'whatsapp' })}>Connect</Btn>

@@ -142,7 +142,7 @@ export function TurnView({
                   <input type="checkbox" checked={turn.remember} onChange={(e) => onRemember(e.target.checked)} />
                   Remember these answers for this place
                 </label>
-                <Btn variant="primary" style={{ alignSelf: 'flex-start' }} onClick={onContinue} tier="free">Continue</Btn>
+                <Btn variant="primary" style={{ alignSelf: 'flex-start' }} onClick={onContinue}>Continue</Btn>
               </div>
             )}
           </div>
