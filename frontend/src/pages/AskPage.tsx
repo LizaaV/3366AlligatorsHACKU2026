@@ -31,9 +31,8 @@ const kindIcon = (kind: string | null) =>
   : 'location_on';
 
 /** What a drawn outline is, and the catalog category it is filed under. */
-// "Not sure" adds no tag, so suggestions come from the land cover measured there.
-const DRAFT_KINDS = { 'Not sure': 'society', Field: 'agriculture', Pond: 'water', Plot: 'agriculture', 'Building site': 'urban', Forest: 'forests' } as const;
-type DraftKind = keyof typeof DRAFT_KINDS;
+// Drawn places get no type: suggestions come from the land cover measured inside them.
+const DRAWN_CATEGORY = 'society';
 
 /** Radius of the circle a question about a dropped pin covers. */
 const SPOT_RADIUS_M = 350;
@@ -72,7 +71,6 @@ export function AskPage({ active }: { active: boolean }) {
   // Corners of an outline being drawn, on the live map (pan and zoom keep working).
   const [draft, setDraft] = useState<{ lat: number; lon: number }[]>([]);
   const [draftName, setDraftName] = useState('');
-  const [draftKind, setDraftKind] = useState<DraftKind>('Not sure');
   // Drawing a circle instead: click the centre, move to size it, click again to fix it (or
   // pick or type a radius).
   const [drawShape, setDrawShape] = useState<'polygon' | 'circle'>('polygon');
@@ -206,7 +204,10 @@ export function AskPage({ active }: { active: boolean }) {
       return;
     }
     if (place) flyTo(place);
-    else if (!first) setMode('globe');
+    // No place and no pin: back to the globe. A pin dropped on the map also clears the place,
+    // and must keep the map where it is.
+    else if (!first && !spot) setMode('globe');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [askPlaceId, place, flyTo]);
 
 
@@ -377,7 +378,6 @@ export function AskPage({ active }: { active: boolean }) {
     setPop(null);
     setDraft([]);
     setDraftName('');
-    setDraftKind('Not sure');
     setDrawShape(shape);
     setCirc({ center: null, radiusM: 250, sizing: false });
     setDrawing(true);
@@ -414,13 +414,13 @@ export function AskPage({ active }: { active: boolean }) {
     if (!circ.center) return notify('Click the map to set the centre', undefined, undefined, 'info');
     try {
       const created = await addPlace({
-        name: draftName.trim() || `${draftKind === 'Not sure' ? 'Place' : draftKind} ${places.length + 1}`,
-        categoryKey: DRAFT_KINDS[draftKind],
+        name: draftName.trim() || `Place ${places.length + 1}`,
+        categoryKey: DRAWN_CATEGORY,
         center: circ.center,
         geometry: { type: 'Polygon', coordinates: [circleRing(circ.center, circ.radiusM)] },
         isCircle: true,
         project: 'My places',
-        tags: draftKind === 'Not sure' ? [] : [draftKind.toLowerCase()],
+        tags: [],
         source: 'pin',
         details: [{ label: 'Added via', value: `Circle of ${circ.radiusM} m on the map` }],
       });
@@ -441,13 +441,13 @@ export function AskPage({ active }: { active: boolean }) {
     const c = { lat: draft.reduce((a, p) => a + p.lat, 0) / draft.length, lon: draft.reduce((a, p) => a + p.lon, 0) / draft.length };
     try {
       const created = await addPlace({
-        name: draftName.trim() || `${draftKind === 'Not sure' ? 'Place' : draftKind} ${places.length + 1}`,
-        categoryKey: DRAFT_KINDS[draftKind],
+        name: draftName.trim() || `Place ${places.length + 1}`,
+        categoryKey: DRAWN_CATEGORY,
         center: c,
         geometry: { type: 'Polygon', coordinates: [ring] },
         isCircle: false,
         project: 'My places',
-        tags: draftKind === 'Not sure' ? [] : [draftKind.toLowerCase()],
+        tags: [],
         source: 'drawn',
         details: [{ label: 'Added via', value: 'Drawn on the map' }],
       });
@@ -521,8 +521,9 @@ export function AskPage({ active }: { active: boolean }) {
   type SearchRow = { key: string; n: string; d: string; icon: string; go: () => void };
   const searchSections = useMemo(() => {
     const mine: SearchRow[] = places
-      .filter((p) => !sq || `${p.name} ${p.project}`.toLowerCase().includes(sq))
-      .slice(0, sq ? 3 : 5)
+      // Only when typing: an empty box is for looking somewhere new, not a list of everything.
+      .filter((p) => sq.length > 0 && `${p.name} ${p.project}`.toLowerCase().includes(sq))
+      .slice(0, 3)
       .map((p) => ({
         key: `place:${p.id}`,
         n: p.name,
@@ -576,8 +577,9 @@ export function AskPage({ active }: { active: boolean }) {
           pin={
             drawing && drawShape === 'circle'
               ? circ.center ? { ...circ.center, radiusM: circ.radiusM } : null
-              : spot && !place && !drawing ? { ...spot, radiusM: SPOT_RADIUS_M } : null
+              : null
           }
+          marker={spot && !place && !drawing ? spot : null}
           draft={drawing && drawShape === 'polygon' ? draft : null}
           onHover={
             drawing && drawShape === 'circle' && circ.sizing && circ.center
@@ -665,17 +667,12 @@ export function AskPage({ active }: { active: boolean }) {
                   ? 'Click the centre of the circle'
                   : circ.sizing
                     ? 'Move to size it, click to fix it'
-                    : 'Click elsewhere to move it, or set the size below'}
+                    : 'Click elsewhere to move it, or type the radius'}
             </span>
           </div>
           {drawShape === 'circle' && (
             <div className="row wrap" style={{ gap: 6, alignItems: 'center' }}>
               <span className="tiny muted">Radius</span>
-              {[100, 250, 500, 1000].map((m) => (
-                <button key={m} className={`chip ${circ.radiusM === m ? 'on' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setRadius(m)}>
-                  {m < 1000 ? `${m} m` : `${m / 1000} km`}
-                </button>
-              ))}
               <input
                 className="input"
                 type="number"
@@ -687,14 +684,11 @@ export function AskPage({ active }: { active: boolean }) {
                 aria-label="Radius in metres"
                 style={{ width: 84, height: 30 }}
               />
-              <span className="tiny muted">m · {(Math.PI * circ.radiusM * circ.radiusM / 10_000).toFixed(1)} ha</span>
+              <span className="tiny muted">metres</span>
             </div>
           )}
           <div className="row wrap" style={{ gap: 8 }}>
-            <input className="input" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder={`${draftKind === 'Not sure' ? 'Place' : draftKind} ${places.length + 1}`} aria-label="Name" style={{ width: 180, height: 32 }} />
-            {(Object.keys(DRAFT_KINDS) as DraftKind[]).map((k) => (
-              <button key={k} className={`chip ${draftKind === k ? 'on' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setDraftKind(k)} aria-pressed={draftKind === k}>{k}</button>
-            ))}
+            <input className="input" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder={`Place ${places.length + 1}`} aria-label="Name" style={{ width: 180, height: 32 }} />
           </div>
           {drawShape === 'polygon' ? (
             <div className="row" style={{ gap: 8 }}>
@@ -772,7 +766,7 @@ export function AskPage({ active }: { active: boolean }) {
               <Ms n="location_on" size={20} />
               <div className="col grow" style={{ minWidth: 0 }}>
                 <span className="ink" style={{ font: '600 15px/1.35 var(--font)' }}>{spotName}{spotInfo?.country ? <span className="tiny"> · {spotInfo.country}</span> : null}</span>
-                <span className="tiny">Circle of {SPOT_RADIUS_M} m{spotInfo ? ` · ${spotInfo.area_ha.toFixed(1)} ha` : ''}</span>
+                <span className="tiny">Dropped pin · questions look {SPOT_RADIUS_M} m around it</span>
               </div>
               <IconBtn icon="close" className="sm" onClick={() => setSpot(null)} aria-label="Remove pin" />
             </div>
@@ -789,7 +783,7 @@ export function AskPage({ active }: { active: boolean }) {
               <div className="tiny muted">Reading what is here…</div>
             )}
             <div className="row wrap" style={{ gap: 6 }}>
-              <Btn size="sm" variant="primary" icon="bookmark_add" onClick={saveSpot}>Save this circle</Btn>
+              <Btn size="sm" variant="primary" icon="bookmark_add" onClick={saveSpot}>Save as a place</Btn>
               <Btn size="sm" icon="polyline" onClick={() => startDraw('polygon')}>Draw an outline</Btn>
             </div>
             <div className="tiny muted">Drag to look around · scroll to zoom · click to move the pin</div>
@@ -868,7 +862,7 @@ export function AskPage({ active }: { active: boolean }) {
                 {!searching && sq.length >= 2 && !searchSections.length && (
                   <div className="caption" style={{ padding: 12 }}>Nothing found for "{searchQ.trim()}". Try a nearby town, or paste a Google Maps link.</div>
                 )}
-                {!sq && !searchSections.length && <div className="caption muted" style={{ padding: 12 }}>Type a town, a park, a lake… or paste a map link.</div>}
+                {!sq && !searchSections.length && <div className="caption muted" style={{ padding: 12 }}>Type a town, a park or a lake, or paste a Google Maps link. Your own places are under the shape button.</div>}
               </div>
             )}
           </div>

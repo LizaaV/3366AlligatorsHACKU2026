@@ -21,6 +21,8 @@ interface Props {
   pass?: string | null; // satellite name to draw a ground-track for while the agent routes
   /** A picked spot: pin plus the circle a question about it covers. */
   pin?: { lat: number; lon: number; radiusM: number } | null;
+  /** A dropped pin: a solid marker, no radius ring, so it never looks like a drawn circle. */
+  marker?: { lat: number; lon: number } | null;
   /** An outline being drawn: its corners so far. */
   draft?: { lat: number; lon: number }[] | null;
   /** Drag to pan, wheel to zoom, click to tap. Without these the map is static. */
@@ -38,7 +40,7 @@ const fromTxy = (x: number, y: number, z: number) => {
 };
 
 /** Basemap tiles, the place outline, and the run's own rendered layer on top. */
-export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, pass, pin, draft, onCenter, onZoom, onTap, onHover }: Props) {
+export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, pass, pin, marker, draft, onCenter, onZoom, onTap, onHover }: Props) {
   const drag = useRef<{ x: number; y: number; moved: number; c: { x: number; y: number } } | null>(null);
   const lastWheel = useRef(0);
   const interactive = !!(onCenter || onZoom || onTap || onHover);
@@ -145,9 +147,15 @@ export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, p
       {pinPx && (
         <div style={{ position: 'absolute', left: pinPx.x, top: pinPx.y, width: 0, height: 0, pointerEvents: 'none' }}>
           <div style={{ position: 'absolute', left: -pinPx.r, top: -pinPx.r, width: pinPx.r * 2, height: pinPx.r * 2, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,.85)', background: 'rgba(255,255,255,.06)' }} />
-          <div style={{ position: 'absolute', left: -7, top: -7, width: 14, height: 14, borderRadius: '50%', background: '#fff', boxShadow: '0 0 0 3px #000, 0 0 0 5px rgba(255,255,255,.5)' }} />
+          <div style={{ position: 'absolute', left: -3, top: -3, width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />
         </div>
       )}
+      {marker && (() => {
+        const m = screen(marker.lat, marker.lon);
+        return (
+          <div style={{ position: 'absolute', left: m.x - 11, top: m.y - 11, width: 22, height: 22, borderRadius: '50%', background: '#fff', border: '4px solid #000', boxShadow: '0 0 0 2px rgba(255,255,255,.55), 0 2px 8px rgba(0,0,0,.6)', pointerEvents: 'none' }} />
+        );
+      })()}
       {draft && draft.length > 0 && (() => {
         const pts = draft.map((p) => screen(p.lat, p.lon));
         return (
