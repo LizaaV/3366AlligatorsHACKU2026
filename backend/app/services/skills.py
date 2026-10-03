@@ -1,10 +1,14 @@
 """Skills registry (issue #41): built-in skills plus skills made in the builder.
 
-- Built-in, `available`: skills with a script in `backend/skills/<id>/run.py` (today only
-  `pond-filling-check`). Their manifest carries `code_ref` + `code_sha256`.
-- Built-in, `concept`: the library entries carried over from the design prototype
-  (`app/registry/skills.json`). They have no implementation, so `runs`, `rating` and
-  `accuracy` are null rather than the prototype's invented numbers.
+- Built-in, `available`: exactly the skills of the agent's registry
+  (`app/services/agent/skills.py`, folders `backend/skills/<id>/`). That registry is the single
+  source of truth for which skills exist and for their id, name, version, description and
+  limits, so this listing cannot drift from what the agent can run. The manifest carries
+  `code_ref` + `code_sha256` of the skill's `run.py`.
+- Presentation-only fields the registry lacks (category, satellites, publisher, thumbnail
+  location, builder steps) come from a small static overlay keyed by skill id,
+  `app/registry/skill_overlay.json`. It never adds or removes skills.
+- `runs`, `rating` and `accuracy` stay null rather than invented numbers.
 - User-made, `draft`: one JSON file, `<EARTH_DATA_DIR>/skills/registry.json`. Visible to their
   owner, and to everyone when `visibility` is 'public'. 'team' behaves like 'private' until the
   app has teams.
@@ -22,7 +26,6 @@ import threading
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +41,9 @@ from app.schemas.skills import (
     SkillStep,
 )
 from app.services import catalog
+from app.services.agent import skills as registry
+from app.services.agent.skills import SKILLS_DIR
+from app.services.agent.skills import Skill as RegistrySkill
 from earth import settings as earth_settings
 
 log = logging.getLogger(__name__)
@@ -59,61 +65,15 @@ _DRAFT_OUTPUTS = [
     {"key": "proof", "type": "proof_pack"},
 ]
 
-# --- Built-in skills with a real implementation ------------------------------------------------
+# --- Built-in skills: the agent registry plus the presentation overlay -------------------------
 
-#: `pond-filling-check` (backend/skills/pond-filling-check): steps describe what run.py does,
-#: with the params it actually uses (60-day scene search, 4 years of monthly series, ...).
-_POND = {
-    "id": "pond-filling-check",
-    "category_key": "water",
-    "name": "Pond filling check",
-    "sat": "Sentinel-2",
+#: Defaults for a registry skill that has no entry in the overlay file yet.
+_FALLBACK_OVERLAY: dict[str, Any] = {
+    "sat": "",
     "cost": "Free",
     "tier": "free",
-    "price": None,
-    "short": "Checks whether fish ponds have been filled in, and when.",
-    "long": "Compares the water, bare-ground and greenness series inside the ponds with the "
-    "surroundings over the last four years, finds when the change started, and scores the "
-    "pond-filling hypothesis against its look-alikes (seasonal drying, water loss, "
-    "construction, new bare ground) using the knowledge cards' signs and weights.",
     "publisher": {"name": "Earth Agent", "official": True, "verified": False},
-    "reference": {"lat": 22.534, "lon": 114.0906},  # Hoo Hok Wai preset
-    "res": "10 m",
-    "revisit": "5 days",
-    "version": "0.1.0",
-    "updated_at": "2026-10-03T13:51:17Z",
-    "limits": [
-        "Radar (Sentinel-1 roughness) is not used yet, so construction is hard to rule out.",
-        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
-        "Outlines must be between about 20 m across and 25 km².",
-    ],
-    "inputs": [_AREA_INPUT, {"key": "context", "type": "answers", "required": False}],
-    "steps": [
-        {"module": "area.mark", "params": {}},
-        {"module": "time.window", "params": {"recent_days": 60, "baseline_years": 4}},
-        {"module": "sat.route", "params": {"prefer": "free", "candidates": ["s2"]}},
-        {"module": "scenes.filter", "params": {"max_cloud_pct": 30}},
-        {"module": "scenes.clean", "params": {"mask": "SCL"}},
-        {"module": "index.compute", "params": {"indices": ["NDWI", "NDBI", "NDVI", "NDMI"]}},
-        {"module": "detect.change", "params": {}},
-        {
-            "module": "explain.cause",
-            "params": {
-                "cards": [
-                    "pond_filling",
-                    "seasonal",
-                    "water_loss",
-                    "construction",
-                    "new_bare_or_built",
-                ]
-            },
-        },
-        {"module": "output.map", "params": {"confidence": True}},
-    ],
-    "outputs": _DRAFT_OUTPUTS,
-    "code_ref": "skills/pond-filling-check/run.py",
 }
-IMPLEMENTED = (_POND,)
 
 
 @dataclass(frozen=True)
@@ -173,11 +133,52 @@ def _entry(row: dict[str, Any], status: str, owner: str | None = None) -> _Entry
     return _Entry(skill, manifest, owner)
 
 
-@lru_cache(maxsize=1)
+def _section(body: str, heading: str) -> str:
+    """Text under `## <heading>` in a SKILL.md body, up to the next `## `."""
+    m = re.search(rf"^## {re.escape(heading)}\s*$(.*?)(?=^## |\Z)", body, re.M | re.S)
+    return m.group(1).strip() if m else ""
+
+
+def _paragraph(text: str) -> str:
+    return " ".join(text.split("\n\n")[0].split())
+
+
+def _bullets(text: str) -> list[str]:
+    return [line[2:].strip() for line in text.splitlines() if line.startswith("- ")]
+
+
+def _overlay() -> dict[str, dict[str, Any]]:
+    return json.loads((catalog.REGISTRY / "skill_overlay.json").read_text(encoding="utf-8"))
+
+
+def _row(skill: RegistrySkill, overlay: dict[str, Any]) -> dict[str, Any]:
+    """The `_entry` row for one registry skill. Id, name, version, description and limits come
+    from SKILL.md; the rest from the overlay."""
+    mtime = (SKILLS_DIR / skill.id / "SKILL.md").stat().st_mtime
+    return {
+        "category_key": sorted(catalog.category_keys())[0],
+        **_FALLBACK_OVERLAY,
+        "steps": [],
+        "inputs": [_AREA_INPUT],
+        "outputs": _DRAFT_OUTPUTS,
+        **overlay,
+        "id": skill.id,
+        "name": skill.name,
+        "short": skill.summary,
+        "long": _paragraph(_section(skill.body, "What it does")),
+        "limits": _bullets(_section(skill.body, "Limits")),
+        "version": f"{skill.version}.0.0",
+        "updated_at": datetime.fromtimestamp(mtime, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "code_ref": f"skills/{skill.id}/run.py",
+    }
+
+
 def _builtins() -> tuple[_Entry, ...]:
-    concept = json.loads((catalog.REGISTRY / "skills.json").read_text(encoding="utf-8"))
+    """Built on every call; the registry caches the skill files itself, so this follows
+    `clear_cache()` there and never lists a skill the agent cannot run."""
+    overlay = _overlay()
     return tuple(
-        [_entry(r, "available") for r in IMPLEMENTED] + [_entry(r, "concept") for r in concept]
+        _entry(_row(sk, overlay.get(sk.id, {})), "available") for sk in registry.all_skills()
     )
 
 

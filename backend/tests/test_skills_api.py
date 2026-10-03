@@ -1,10 +1,15 @@
 import hashlib
+import json
+import shutil
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services import catalog
+from app.services import skills as svc
+from app.services.agent import skills as registry
 
 BACKEND = Path(__file__).resolve().parents[1]
 ALICE = {"X-User-Id": "alice"}
@@ -32,14 +37,37 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 # --- library ---------------------------------------------------------------------------------
 
 
-def test_list_has_real_skill_first_then_concepts(client: TestClient) -> None:
+def test_listing_equals_the_agent_registry(client: TestClient) -> None:
+    """One source of truth: the listing is the agent's skill registry, nothing more or less."""
     res = client.get("/api/skills")
     assert res.status_code == 200
-    skills = res.json()
-    assert len(skills) == 29
-    assert skills[0]["id"] == "pond-filling-check"
-    assert skills[0]["status"] == "available"
-    assert {s["status"] for s in skills[1:]} == {"concept"}
+    assert [s["id"] for s in res.json()] == registry.skill_ids()
+    assert "pond-filling-check" in registry.skill_ids()
+
+
+def test_every_registry_skill_has_an_overlay_entry() -> None:
+    """A new skill folder needs presentation data (category, satellites, ...) in the overlay."""
+    overlay = json.loads((catalog.REGISTRY / "skill_overlay.json").read_text(encoding="utf-8"))
+    assert set(registry.skill_ids()) <= set(overlay)
+    assert set(overlay) <= set(registry.skill_ids())  # no overlay for skills that do not exist
+
+
+def test_pond_filling_check_comes_from_its_skill_md(client: TestClient) -> None:
+    sk = registry.get_skill("pond-filling-check")
+    s = client.get("/api/skills/pond-filling-check").json()
+    assert s["name"] == sk.name == "Pond filling check"
+    assert s["short"] == sk.summary
+    assert s["version"] == f"{sk.version}.0.0"
+    assert s["status"] == "available"
+    assert s["long"].startswith("Checks one group of fishponds")
+    assert s["limits"] and all(isinstance(x, str) for x in s["limits"])
+    assert s["limits"][0].startswith("Who did the filling")
+    # presentation-only fields come from the overlay
+    assert s["category_key"] == "water"
+    assert s["sat"] == "Sentinel-2"
+    assert s["publisher"]["name"] == "Earth Agent"
+    assert s["steps"][0] == "area.mark"
+    assert s["updated_at"].endswith("Z")
 
 
 def test_no_invented_metrics(client: TestClient) -> None:
@@ -49,50 +77,30 @@ def test_no_invented_metrics(client: TestClient) -> None:
         assert s["accuracy"] is None
 
 
-def test_skill_shape(client: TestClient) -> None:
-    s = client.get("/api/skills/dry-patch-finder").json()
-    assert s["category_key"] == "agriculture"
-    assert s["tier"] == "free"
-    assert s["publisher"] == {"name": "Groundtruth Labs", "official": True, "verified": True}
-    assert s["reference"] == {"lat": 37.9785, "lon": -100.9155}
-    assert s["steps"][:2] == ["ask.clarify", "area.mark"]
-    assert s["version"] == "2.0.0"
-    assert s["updated_at"].endswith("Z")
-    assert s["limits"]
-
-
 def test_filter_by_category(client: TestClient) -> None:
     water = client.get("/api/skills", params={"category": "water"}).json()
-    assert water and all(s["category_key"] == "water" for s in water)
-    assert "pond-filling-check" in {s["id"] for s in water}
+    assert [s["id"] for s in water] == ["pond-filling-check"]
     assert client.get("/api/skills", params={"category": "nope"}).json() == []
 
 
 def test_filter_by_tier(client: TestClient) -> None:
-    paid = client.get("/api/skills", params={"tier": "paid"}).json()
-    assert {s["id"] for s in paid} == {
-        "small-field-stress-3-m",
-        "eudr-proof-pack",
-        "rooftop-solar-potential",
-        "crop-insurance-check",
-    }
+    free = client.get("/api/skills", params={"tier": "free"}).json()
+    assert "pond-filling-check" in {s["id"] for s in free}
+    assert client.get("/api/skills", params={"tier": "paid"}).json() == []
     assert client.get("/api/skills", params={"tier": "gold"}).status_code == 422
 
 
 def test_filter_by_text(client: TestClient) -> None:
     hits = client.get("/api/skills", params={"q": "  POND "}).json()
     assert "pond-filling-check" in {s["id"] for s in hits}
-    by_pub = client.get("/api/skills", params={"q": "agrisense"}).json()
-    assert by_pub and all(s["publisher"]["name"] == "AgriSense Co-op" for s in by_pub)
-    combo = client.get(
-        "/api/skills", params={"q": "crop", "category": "agriculture", "tier": "free"}
-    ).json()
-    assert combo and all(s["category_key"] == "agriculture" for s in combo)
+    assert client.get("/api/skills", params={"q": "zzz-nothing"}).json() == []
 
 
 def test_get_unknown_is_404(client: TestClient) -> None:
     assert client.get("/api/skills/no-such-skill").status_code == 404
     assert client.get("/api/skills/no-such-skill/manifest").status_code == 404
+    # ids of the old static prototype library are gone
+    assert client.get("/api/skills/dry-patch-finder").status_code == 404
 
 
 def test_get_malformed_id_is_422(client: TestClient) -> None:
@@ -102,15 +110,17 @@ def test_get_malformed_id_is_422(client: TestClient) -> None:
 # --- manifest --------------------------------------------------------------------------------
 
 
-def test_manifest_of_implemented_skill_pins_the_script(client: TestClient) -> None:
+def test_manifest_of_registry_skill_pins_the_script(client: TestClient) -> None:
     m = client.get("/api/skills/pond-filling-check/manifest").json()
     assert m["status"] == "available"
+    assert m["version"] == "1.0.0"
     assert m["code_ref"] == "skills/pond-filling-check/run.py"
     script = (BACKEND / m["code_ref"]).read_bytes()
     assert m["code_sha256"] == hashlib.sha256(script).hexdigest()
     skill = client.get("/api/skills/pond-filling-check").json()
     assert [s["module"] for s in m["steps"]] == skill["steps"]
     assert m["accuracy"]["statement"] is None
+    assert m["accuracy"]["known_limits"] == skill["limits"]
 
 
 def test_manifest_steps_are_catalog_modules(client: TestClient) -> None:
@@ -121,16 +131,32 @@ def test_manifest_steps_are_catalog_modules(client: TestClient) -> None:
         assert set(s["steps"]) <= modules, s["id"]
 
 
-def test_manifest_of_concept_has_no_code(client: TestClient) -> None:
-    m = client.get("/api/skills/dry-patch-finder/manifest").json()
-    assert m["status"] == "concept"
-    assert m["code_ref"] is None and m["code_sha256"] is None
-    assert m["steps"][2] == {
-        "module": "time.window",
-        "params": {"recent_days": 45, "baseline_years": 3},
-    }
-    assert m["pricing"] == {"tier": "free", "price": None}
-    assert m["inputs"][0]["key"] == "area"
+def test_listing_follows_the_registry(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A skill folder added to the registry shows up without touching the overlay."""
+    root = tmp_path / "skills"
+    shutil.copytree(registry.SKILLS_DIR, root)
+    shutil.copytree(root / "pond-filling-check", root / "extra-skill")
+    text = (root / "extra-skill" / "SKILL.md").read_text(encoding="utf-8")
+    (root / "extra-skill" / "SKILL.md").write_text(
+        text.replace("id: pond-filling-check", "id: extra-skill").replace(
+            "name: Pond filling check", "name: Extra skill"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(registry, "SKILLS_DIR", root)
+    monkeypatch.setattr(svc, "SKILLS_DIR", root)
+    monkeypatch.setattr(svc, "BACKEND", tmp_path)  # code_ref resolves to <tmp>/skills/<id>/run.py
+    registry.clear_cache()
+    try:
+        ids = [s["id"] for s in client.get("/api/skills").json()]
+        assert ids == ["extra-skill", "pond-filling-check"]
+        extra = client.get("/api/skills/extra-skill").json()
+        assert extra["name"] == "Extra skill" and extra["status"] == "available"
+    finally:
+        monkeypatch.undo()
+        registry.clear_cache()
 
 
 # --- builder ---------------------------------------------------------------------------------
@@ -189,7 +215,7 @@ def test_create_unknown_module_is_422(client: TestClient) -> None:
     [err] = res.json()["detail"]
     assert err["loc"] == ["body", "steps", 1, "module"]
     assert err["type"] == "unknown_module"
-    assert client.get("/api/skills", headers=ALICE).json()[-1]["status"] == "concept"
+    assert {s["status"] for s in client.get("/api/skills", headers=ALICE).json()} == {"available"}
 
 
 def test_create_unknown_category_is_422(client: TestClient) -> None:
