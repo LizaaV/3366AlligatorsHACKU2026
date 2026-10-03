@@ -941,6 +941,16 @@ export interface components {
             lat: number;
             /** Lon */
             lon: number;
+            /**
+             * Description
+             * @description Where it is, to tell same-named places apart, e.g. 'Texas, United States'.
+             */
+            description?: string | null;
+            /**
+             * Kind
+             * @description What it is, e.g. 'city', 'park', 'lake'.
+             */
+            kind?: string | null;
         };
         /**
          * AreaResolveRequest
@@ -980,6 +990,8 @@ export interface components {
              * @description Other search candidates (search only).
              */
             matches?: components["schemas"]["AreaMatch"][];
+            /** @description The candidate `area` was built from, with its description (search only). */
+            best?: components["schemas"]["AreaMatch"] | null;
         };
         /**
          * BlockReady

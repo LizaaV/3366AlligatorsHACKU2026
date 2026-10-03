@@ -3646,6 +3646,30 @@
           "lon": {
             "type": "number",
             "title": "Lon"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Where it is, to tell same-named places apart, e.g. 'Texas, United States'."
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind",
+            "description": "What it is, e.g. 'city', 'park', 'lake'."
           }
         },
         "type": "object",
@@ -3737,6 +3761,17 @@
             "type": "array",
             "title": "Matches",
             "description": "Other search candidates (search only)."
+          },
+          "best": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaMatch"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The candidate `area` was built from, with its description (search only)."
           }
         },
         "type": "object",

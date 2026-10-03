@@ -205,7 +205,46 @@ def test_query_uses_geocoder_when_present(monkeypatch: pytest.MonkeyPatch) -> No
     body = res.json()
     assert body["source"] == "search"
     assert body["area"]["name"] == "Mong Kok"
-    assert body["matches"] == [{"name": "Mong Kok East", "lat": 22.322, "lon": 114.172}]
+    [east] = body["matches"]
+    assert (east["name"], east["lat"], east["lon"]) == ("Mong Kok East", 22.322, 114.172)
+    assert body["best"]["name"] == "Mong Kok"
+
+
+def test_search_describes_and_dedupes_hits(monkeypatch: pytest.MonkeyPatch) -> None:
+    hits = [
+        {
+            "name": "Paris",
+            "lat": 48.8589,
+            "lon": 2.32,
+            "kind": "boundary/administrative",
+            "display_name": "Paris, Île-de-France, Metropolitan France, France",
+            "country": "France",
+        },
+        {
+            "name": "Paris",
+            "lat": 33.66,
+            "lon": -95.55,
+            "kind": "place/city",
+            "display_name": "Paris, Lamar County, Texas, United States",
+            "country": "United States",
+        },
+        {
+            "name": "Paris",
+            "lat": 48.8589,
+            "lon": 2.3201,
+            "kind": "place/city",
+            "display_name": "Paris, Île-de-France, Metropolitan France, France",
+            "country": "France",
+        },
+    ]
+    monkeypatch.setattr(areas_service, "_geocoder", lambda: lambda q: hits)
+    body = _resolve(query="Paris").json()
+    assert body["best"]["description"] == "Metropolitan France, France"
+    assert body["best"]["kind"] == "administrative"
+    # The second French "Paris" is the same place twice (same name, same region): dropped.
+    assert [(m["name"], m["description"], m["kind"]) for m in body["matches"]] == [
+        ("Paris", "Texas, United States", "city")
+    ]
 
 
 def test_exactly_one_field() -> None:
@@ -249,3 +288,20 @@ def test_context_invalid_polygon_is_422_with_hint() -> None:
 
 def test_context_needs_exactly_one() -> None:
     assert client.post("/api/areas/context", json={}).status_code == 422
+
+
+def test_search_prefers_the_geocoder_region(monkeypatch: pytest.MonkeyPatch) -> None:
+    hits = [
+        {
+            "name": "Hyde Park",
+            "lat": 51.507,
+            "lon": -0.165,
+            "kind": "leisure/park",
+            "display_name": "Hyde Park, Balderton Street, Mayfair, London, W1K 7TN, United Kingdom",
+            "country": "United Kingdom",
+            "region": "London",
+        },
+    ]
+    monkeypatch.setattr(areas_service, "_geocoder", lambda: lambda q: hits)
+    best = _resolve(query="Hyde Park").json()["best"]
+    assert (best["description"], best["kind"]) == ("London, United Kingdom", "park")

@@ -11,22 +11,32 @@ import { useResource } from '../hooks/useResource';
 import type { MapImage, MapLayer, Place } from '../model';
 import { mapImagesFrom, toSearchHits } from '../model';
 import { sourceLabel } from '../data/presentation';
-import { DEFAULT_CENTER, DEFAULT_ZOOM, circlePts, parseLocation, ptsToRing, thumb, type Pt } from '../lib/geo';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, circleRing, distanceM, parseLocation, thumb } from '../lib/geo';
 import { useAskRun, type AskTurn } from '../ask/useAskRun';
 import { AnswerCard } from './AnswerCard';
 import { stagesFrom } from '../ask/stages';
+import { landCoverLine, suggestionsFor } from '../ask/suggest';
 import { AnswerBlocks } from '../components/blocks';
 import { Splash } from '../components/Splash';
 import { BANDS, type Band } from '../lib/scenes';
 import type { PlaceContext, ViewImage, ViewPass, ViewTarget } from '../api';
 
+/** An icon for what a search hit is. */
+const kindIcon = (kind: string | null) =>
+  !kind ? 'location_on'
+  : /park|garden|forest|wood|nature/.test(kind) ? 'park'
+  : /water|lake|river|reservoir|pond|bay|sea/.test(kind) ? 'water'
+  : /city|town|village|administrative|suburb|quarter|county|state|region/.test(kind) ? 'location_city'
+  : /farm|field|meadow/.test(kind) ? 'agriculture'
+  : 'location_on';
+
 /** What a drawn outline is, and the catalog category it is filed under. */
-const DRAFT_KINDS = { Field: 'agriculture', Pond: 'water', Plot: 'agriculture', 'Building site': 'urban', Forest: 'forests' } as const;
+// "Not sure" adds no tag, so suggestions come from the land cover measured there.
+const DRAFT_KINDS = { 'Not sure': 'society', Field: 'agriculture', Pond: 'water', Plot: 'agriculture', 'Building site': 'urban', Forest: 'forests' } as const;
 type DraftKind = keyof typeof DRAFT_KINDS;
 
 /** Radius of the circle a question about a dropped pin covers. */
 const SPOT_RADIUS_M = 350;
-const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 function useViewport() {
   const [v, setV] = useState({ W: window.innerWidth, H: window.innerHeight });
@@ -63,7 +73,13 @@ export function AskPage({ active }: { active: boolean }) {
   // Corners of an outline being drawn, on the live map (pan and zoom keep working).
   const [draft, setDraft] = useState<{ lat: number; lon: number }[]>([]);
   const [draftName, setDraftName] = useState('');
-  const [draftKind, setDraftKind] = useState<DraftKind>('Field');
+  const [draftKind, setDraftKind] = useState<DraftKind>('Not sure');
+  // Drawing a circle instead: click the centre, move to size it, click again to fix it (or
+  // pick or type a radius).
+  const [drawShape, setDrawShape] = useState<'polygon' | 'circle'>('polygon');
+  const [circ, setCirc] = useState<{ center: { lat: number; lon: number } | null; radiusM: number; sizing: boolean }>({ center: null, radiusM: 250, sizing: false });
+  // Set just before selecting a place made on the map: keep the current view, don't fly into it.
+  const skipFly = useRef(false);
   const [pass, setPass] = useState<string | null>(null);
   const [sheet, setSheet] = useState(false);
   const [cat, setCat] = useState(0);
@@ -98,17 +114,25 @@ export function AskPage({ active }: { active: boolean }) {
     [setAskPlace, setSplash],
   );
 
-  // What's under the pin, from the backend (land cover, size, recent clear passes).
+  // What is there, from the backend: land cover, size, recent clear passes. For a saved place
+  // it is measured inside its own outline; for a pin, inside the circle a question would cover.
+  // It drives the place card and which questions are suggested.
   useEffect(() => {
     setSpotInfo(null);
-    if (!spot) return;
+    const input = place
+      ? { geojson: place.geometry }
+      : spot
+        ? { point: { lat: spot.lat, lon: spot.lon, radius_m: SPOT_RADIUS_M } }
+        : null;
+    if (!input) return;
     const ac = new AbortController();
     api.areas
-      .context({ point: { lat: spot.lat, lon: spot.lon, radius_m: SPOT_RADIUS_M } }, ac.signal)
-      .then(setSpotInfo)
+      .context(input, ac.signal)
+      .then((c) => !ac.signal.aborted && setSpotInfo(c))
       .catch(() => undefined);
     return () => ac.abort();
-  }, [spot]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [place?.id, place?.geometry, spot]);
 
   // Recent clear Sentinel-2 passes over whatever is in focus (the pin, or the selected place).
   // A selected place replaces any pin.
@@ -177,6 +201,11 @@ export function AskPage({ active }: { active: boolean }) {
     if (lastPlace.current === askPlaceId) return;
     const first = lastPlace.current === undefined;
     lastPlace.current = askPlaceId;
+    if (skipFly.current) {
+      // A place just drawn on the map: the map is already showing it.
+      skipFly.current = false;
+      return;
+    }
     if (place) flyTo(place);
     else if (!first) setMode('globe');
   }, [askPlaceId, place, flyTo]);
@@ -280,8 +309,7 @@ export function AskPage({ active }: { active: boolean }) {
         name,
         categoryKey: 'agriculture',
         center: spot,
-        // A circle of SPOT_RADIUS_M, in the reference-zoom pixels `circlePts` works in.
-        geometry: { type: 'Polygon', coordinates: [ptsToRing(circlePts(SPOT_RADIUS_M / ((156543.03 * Math.cos((spot.lat * Math.PI) / 180)) / 65536), 48), spot)] },
+        geometry: { type: 'Polygon', coordinates: [circleRing(spot, SPOT_RADIUS_M)] },
         isCircle: true,
         project: 'My places',
         tags: [],
@@ -289,6 +317,7 @@ export function AskPage({ active }: { active: boolean }) {
         details: [{ label: 'Added via', value: 'Picked on the map' }],
       });
       setSpot(null);
+      skipFly.current = true;
       setAskPlace(created.id);
       notify(`${created.name} saved · ${created.areaHa} ha`, undefined, undefined, 'check_circle');
     } catch {
@@ -343,36 +372,16 @@ export function AskPage({ active }: { active: boolean }) {
   /* ---------------- map tools ---------------- */
 
 
-  /** Save a drawn or generated outline. Geometry goes up as GeoJSON; area comes back from the server. */
-  const savePlace = async (name: string, pts: Pt[], isCircle: boolean, source: 'drawn' | 'pin') => {
-    try {
-      const created = await addPlace({
-        name,
-        categoryKey: 'agriculture',
-        center,
-        geometry: { type: 'Polygon', coordinates: [ptsToRing(pts, center)] },
-        isCircle,
-        project: 'My Farm',
-        tags: [],
-        source,
-        details: [{ label: 'Added via', value: sourceLabel(source) }],
-      });
-      setAskPlace(created.id);
-      // The area shown is the server's, not the provisional figure used while drawing.
-      notify(`${created.name} saved \u00b7 ${created.areaHa} ha`, 'Rename', () => go('places'), 'check_circle');
-      return created;
-    } catch {
-      notify('Could not save the place', undefined, undefined, 'error');
-      return null;
-    }
-  };
 
   /** Start drawing on the map as it is; only fly there if we are still on the globe. */
-  const startDraw = () => {
+  const startDraw = (shape: 'polygon' | 'circle' = 'polygon') => {
     setPop(null);
     setPanel(null);
     setDraft([]);
     setDraftName('');
+    setDraftKind('Not sure');
+    setDrawShape(shape);
+    setCirc({ center: null, radiusM: 250, sizing: false });
     setDrawing(true);
     if (mode !== 'map') {
       const c = spot ?? (place ? { lat: place.lat, lon: place.lon } : center);
@@ -385,6 +394,46 @@ export function AskPage({ active }: { active: boolean }) {
   const cancelDraw = () => {
     setDrawing(false);
     setDraft([]);
+    setCirc({ center: null, radiusM: 250, sizing: false });
+  };
+
+  /** A click on the map while drawing: a corner, or the circle's centre / size. */
+  const drawTap = (lat: number, lon: number) => {
+    if (drawShape === 'polygon') return setDraft((d) => [...d, { lat, lon }]);
+    setCirc((c) =>
+      !c.center || !c.sizing
+        ? { center: { lat, lon }, radiusM: c.center ? c.radiusM : 250, sizing: !c.center } // first click: centre, then size by moving
+        : { ...c, sizing: false }, // second click: fix the size
+    );
+  };
+
+  /** Largest circle a place can be (the 25 km² limit), and the smallest worth measuring. */
+  const MAX_RADIUS_M = 2800, MIN_RADIUS_M = 30;
+  const setRadius = (m: number) =>
+    setCirc((c) => ({ ...c, sizing: false, radiusM: Math.round(Math.max(MIN_RADIUS_M, Math.min(MAX_RADIUS_M, m))) }));
+
+  const saveCircle = async () => {
+    if (!circ.center) return notify('Click the map to set the centre', undefined, undefined, 'info');
+    try {
+      const created = await addPlace({
+        name: draftName.trim() || `${draftKind === 'Not sure' ? 'Place' : draftKind} ${places.length + 1}`,
+        categoryKey: DRAFT_KINDS[draftKind],
+        center: circ.center,
+        geometry: { type: 'Polygon', coordinates: [circleRing(circ.center, circ.radiusM)] },
+        isCircle: true,
+        project: 'My places',
+        tags: draftKind === 'Not sure' ? [] : [draftKind.toLowerCase()],
+        source: 'pin',
+        details: [{ label: 'Added via', value: `Circle of ${circ.radiusM} m on the map` }],
+      });
+      cancelDraw();
+      setSpot(null);
+      skipFly.current = true;
+      setAskPlace(created.id);
+      notify(`${created.name} saved · ${created.areaHa} ha`, undefined, undefined, 'check_circle');
+    } catch (e) {
+      notify(toApiError(e).detail ?? 'Could not save the circle', undefined, undefined, 'error');
+    }
   };
 
   /** Save the drawn outline as a place. The area shown comes back from the server. */
@@ -394,19 +443,20 @@ export function AskPage({ active }: { active: boolean }) {
     const c = { lat: draft.reduce((a, p) => a + p.lat, 0) / draft.length, lon: draft.reduce((a, p) => a + p.lon, 0) / draft.length };
     try {
       const created = await addPlace({
-        name: draftName.trim() || `${draftKind} ${places.length + 1}`,
+        name: draftName.trim() || `${draftKind === 'Not sure' ? 'Place' : draftKind} ${places.length + 1}`,
         categoryKey: DRAFT_KINDS[draftKind],
         center: c,
         geometry: { type: 'Polygon', coordinates: [ring] },
         isCircle: false,
         project: 'My places',
-        tags: [draftKind.toLowerCase()],
+        tags: draftKind === 'Not sure' ? [] : [draftKind.toLowerCase()],
         source: 'drawn',
         details: [{ label: 'Added via', value: 'Drawn on the map' }],
       });
       setDrawing(false);
       setDraft([]);
       setSpot(null);
+      skipFly.current = true;
       setAskPlace(created.id);
       notify(`${created.name} saved · ${created.areaHa} ha`, undefined, undefined, 'check_circle');
     } catch (e) {
@@ -414,10 +464,6 @@ export function AskPage({ active }: { active: boolean }) {
     }
   };
 
-  const addCircle = async () => {
-    setPop(null);
-    await savePlace(`Circle ${places.length + 1}`, circlePts(150, 48), true, 'pin');
-  };
 
   const toolClick = (k: string) => {
     if (['draw', 'contours'].includes(k)) return setPop((p) => (p === k ? null : k));
@@ -437,20 +483,16 @@ export function AskPage({ active }: { active: boolean }) {
   // Questions the backend can actually answer today. The pond check is the one real skill;
   // the others are free-form questions the agent handles from the knowledge cards.
   const hasPondSkill = skills.some((x) => x.id === 'pond-filling-check');
-  const suggestions = spot && !place
-    ? [
-        { icon: 'history', text: 'What has changed here in the last year?', go: () => ask('What has changed here in the last year?', spotOptions()) },
-        { icon: 'apartment', text: 'Has this area been built on since 2022?', go: () => ask('Has this area been built on since 2022?', spotOptions()) },
-        { icon: 'water_drop', text: 'Is there less water here than last year?', go: () => ask('Is there less water here than last year?', spotOptions()) },
-      ]
-    : place
-    ? [
-        hasPondSkill
-          ? { icon: 'water', text: 'Have these ponds been filled in?', go: () => runSkill('pond-filling-check') }
-          : { icon: 'water', text: 'Have these ponds been filled in?', go: () => ask('Have these ponds been filled in?') },
-        { icon: 'apartment', text: 'Has this area been built on since 2022?', go: () => ask('Has this area been built on since 2022?') },
-        { icon: 'water_drop', text: 'Is there less water here than last year?', go: () => ask('Is there less water here than last year?') },
-      ]
+  // Questions that fit what is actually there (park, ponds, fields, city…), not a fixed list.
+  const fitted = place || spot
+    ? suggestionsFor({ name: place?.name, categoryKey: place?.categoryKey, tags: place?.tags, landCover: spotInfo?.land_cover ?? null })
+    : null;
+  const suggestions = fitted
+    ? fitted.map((sg) => ({
+        icon: sg.icon,
+        text: sg.text,
+        go: () => (sg.skillId && hasPondSkill && place ? runSkill(sg.skillId) : ask(sg.text, spotOptions())),
+      }))
     : [
         { icon: 'eco', text: 'What does the greenness index measure?', go: () => ask('What does the greenness index (NDVI) measure?') },
         { icon: 'satellite_alt', text: 'Which free satellites can see through clouds?', go: () => ask('Which free satellites can see through clouds?') },
@@ -458,48 +500,61 @@ export function AskPage({ active }: { active: boolean }) {
       ];
 
   const sq = searchQ.trim().toLowerCase();
+  // Wait for a pause in typing before asking the geocoder (it allows about one request a
+  // second, and half-typed words only return noise like "Par" for "Paris").
+  const [dq, setDq] = useState('');
+  useEffect(() => {
+    const t = window.setTimeout(() => setDq(sq), 350);
+    return () => window.clearTimeout(t);
+  }, [sq]);
 
   // Geocoder results come from the API; the user's own places are matched locally since they
   // are already loaded. Too-short queries are not sent (the backend rejects them with a 422).
   const geo = useResource(
     useCallback(
-      (signal: AbortSignal) => (sq.length >= 2 && !parseLocation(sq) ? api.areas.resolve({ query: sq }, signal).then(toSearchHits) : Promise.resolve([])),
-      [sq],
+      (signal: AbortSignal) => (dq.length >= 2 && !parseLocation(dq) ? api.areas.resolve({ query: dq }, signal).then(toSearchHits) : Promise.resolve([])),
+      [dq],
     ),
-    [sq],
+    [dq],
   );
+  const searching = sq.length >= 2 && !parseLocation(sq) && (sq !== dq || geo.isFetching);
 
   // A pasted map link or "lat, lon" goes straight to that spot.
   const pasted = parseLocation(searchQ);
-  const searchResults = useMemo(
-    () => [
-      ...(pasted
-        ? [{ key: 'pasted', n: 'Location from your link', d: 'Drop a pin there', icon: 'my_location', go: () => { lookAt(pasted.lat, pasted.lon); setPop(null); setSearchQ(''); } }]
-        : []),
-      ...places
-        .filter((p) => !sq || `${p.name} ${p.project}`.toLowerCase().includes(sq))
-        .map((p) => ({
-          key: `place:${p.id}`,
-          n: p.name,
-          d: `My place \u00b7 ${p.project}`,
-          icon: 'pentagon',
-          go: () => { setAskPlace(p.id); flyTo(p); setPop(null); setSearchQ(''); },
-        })),
-      ...(geo.data ?? []).map((r) => ({
-        key: `geo:${r.name}`,
-        n: r.name,
-        d: r.description,
-        icon: 'location_on',
-        go: () => {
-          lookAt(r.lat, r.lon, Math.min(16, r.zoom));
-          setPop(null);
-          setSearchQ('');
-        },
-      })),
-    ],
+  type SearchRow = { key: string; n: string; d: string; icon: string; go: () => void };
+  const searchSections = useMemo(() => {
+    const mine: SearchRow[] = places
+      .filter((p) => !sq || `${p.name} ${p.project}`.toLowerCase().includes(sq))
+      .slice(0, sq ? 3 : 5)
+      .map((p) => ({
+        key: `place:${p.id}`,
+        n: p.name,
+        d: `${p.areaHa} ha${p.project ? ` · ${p.project}` : ''}`,
+        icon: p.circle ? 'radio_button_unchecked' : 'pentagon',
+        go: () => { setAskPlace(p.id); flyTo(p); setPop(null); setSearchQ(''); },
+      }));
+    const found: SearchRow[] = (sq === dq ? geo.data ?? [] : []).slice(0, 6).map((r, i) => ({
+      key: `geo:${i}:${r.lat.toFixed(3)},${r.lon.toFixed(3)}`,
+      n: r.name,
+      d: r.description,
+      icon: kindIcon(r.kind),
+      go: () => {
+        lookAt(r.lat, r.lon, r.zoom);
+        setPop(null);
+        setSearchQ('');
+      },
+    }));
+    const link: SearchRow[] = pasted
+      ? [{ key: 'pasted', n: 'Location from your link', d: 'Drop a pin there', icon: 'my_location', go: () => { lookAt(pasted.lat, pasted.lon); setPop(null); setSearchQ(''); } }]
+      : [];
+    return [
+      { title: 'From your link', rows: link },
+      { title: 'My places', rows: mine },
+      { title: 'Places', rows: found },
+    ].filter((sec) => sec.rows.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [places, sq, geo.data, setAskPlace, flyTo, lookAt, pasted?.lat, pasted?.lon],
-  );
+  }, [places, sq, dq, geo.data, setAskPlace, flyTo, lookAt, pasted?.lat, pasted?.lon]);
+  const firstResult = searchSections[0]?.rows[0];
 
   const tools: { k: string; icon?: string; title?: string; caret?: boolean }[] = [
     { k: 'draw', icon: 'polyline', title: 'Draw an outline', caret: true },
@@ -523,12 +578,21 @@ export function AskPage({ active }: { active: boolean }) {
       {isMap && (
         <MapView
           W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} contour overlay={overlay ?? viewOverlay} pass={pass}
-          pin={spot && !place ? { ...spot, radiusM: SPOT_RADIUS_M } : null}
-          draft={drawing ? draft : null}
+          pin={
+            drawing && drawShape === 'circle'
+              ? circ.center ? { ...circ.center, radiusM: circ.radiusM } : null
+              : spot && !place && !drawing ? { ...spot, radiusM: SPOT_RADIUS_M } : null
+          }
+          draft={drawing && drawShape === 'polygon' ? draft : null}
+          onHover={
+            drawing && drawShape === 'circle' && circ.sizing && circ.center
+              ? (lat, lon) => setCirc((c) => (c.center && c.sizing ? { ...c, radiusM: Math.round(Math.max(MIN_RADIUS_M, Math.min(MAX_RADIUS_M, distanceM(c.center, { lat, lon })))) } : c))
+              : undefined
+          }
           onCenter={setCenter}
           onZoom={setZoom}
           onTap={(lat, lon) => {
-            if (drawing) return setDraft((d) => [...d, { lat, lon }]);
+            if (drawing) return drawTap(lat, lon);
             setAskPlace(null);
             setSpot({ lat, lon });
           }}
@@ -585,22 +649,59 @@ export function AskPage({ active }: { active: boolean }) {
       {drawing && isMap && (
         <div className="panel col fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : 20, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100% - 32px)', top: mobile ? 64 : 90, gap: 10, padding: 12, zIndex: 24 }}>
           <div className="row" style={{ gap: 8 }}>
-            <Ms n="polyline" size={18} />
-            <span style={{ font: '600 14px/1.4 var(--font)' }}>Draw an outline</span>
-            <span className="tiny muted">Click the map to add corners · drag to move · scroll to zoom</span>
+            <Ms n={drawShape === 'circle' ? 'radio_button_unchecked' : 'polyline'} size={18} />
+            <span style={{ font: '600 14px/1.4 var(--font)' }}>{drawShape === 'circle' ? 'Draw a circle' : 'Draw an outline'}</span>
+            <span className="tiny muted">
+              {drawShape === 'polygon'
+                ? 'Click the map to add corners · drag to move · scroll to zoom'
+                : !circ.center
+                  ? 'Click the centre of the circle'
+                  : circ.sizing
+                    ? 'Move to size it, click to fix it'
+                    : 'Click elsewhere to move it, or set the size below'}
+            </span>
           </div>
+          {drawShape === 'circle' && (
+            <div className="row wrap" style={{ gap: 6, alignItems: 'center' }}>
+              <span className="tiny muted">Radius</span>
+              {[100, 250, 500, 1000].map((m) => (
+                <button key={m} className={`chip ${circ.radiusM === m ? 'on' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setRadius(m)}>
+                  {m < 1000 ? `${m} m` : `${m / 1000} km`}
+                </button>
+              ))}
+              <input
+                className="input"
+                type="number"
+                min={MIN_RADIUS_M}
+                max={MAX_RADIUS_M}
+                step={10}
+                value={circ.radiusM}
+                onChange={(e) => setRadius(+e.target.value || MIN_RADIUS_M)}
+                aria-label="Radius in metres"
+                style={{ width: 84, height: 30 }}
+              />
+              <span className="tiny muted">m · {(Math.PI * circ.radiusM * circ.radiusM / 10_000).toFixed(1)} ha</span>
+            </div>
+          )}
           <div className="row wrap" style={{ gap: 8 }}>
-            <input className="input" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder={`${draftKind} ${places.length + 1}`} aria-label="Name" style={{ width: 180, height: 32 }} />
+            <input className="input" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder={`${draftKind === 'Not sure' ? 'Place' : draftKind} ${places.length + 1}`} aria-label="Name" style={{ width: 180, height: 32 }} />
             {(Object.keys(DRAFT_KINDS) as DraftKind[]).map((k) => (
               <button key={k} className={`chip ${draftKind === k ? 'on' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setDraftKind(k)} aria-pressed={draftKind === k}>{k}</button>
             ))}
           </div>
-          <div className="row" style={{ gap: 8 }}>
-            <span className="tiny muted grow">{draft.length} corner{draft.length === 1 ? '' : 's'}{draft.length < 3 ? ` · ${3 - draft.length} more to save` : ''}</span>
-            <Btn size="sm" onClick={() => setDraft((d) => d.slice(0, -1))} disabled={!draft.length}>Undo</Btn>
-            <Btn size="sm" onClick={cancelDraw}>Cancel</Btn>
-            <Btn size="sm" variant="primary" onClick={saveDraft} disabled={draft.length < 3}>Save</Btn>
-          </div>
+          {drawShape === 'polygon' ? (
+            <div className="row" style={{ gap: 8 }}>
+              <span className="tiny muted grow">{draft.length} corner{draft.length === 1 ? '' : 's'}{draft.length < 3 ? ` · ${3 - draft.length} more to save` : ''}</span>
+              <Btn size="sm" onClick={() => setDraft((d) => d.slice(0, -1))} disabled={!draft.length}>Undo</Btn>
+              <Btn size="sm" onClick={cancelDraw}>Cancel</Btn>
+              <Btn size="sm" variant="primary" onClick={saveDraft} disabled={draft.length < 3}>Save</Btn>
+            </div>
+          ) : (
+            <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
+              <Btn size="sm" onClick={cancelDraw}>Cancel</Btn>
+              <Btn size="sm" variant="primary" onClick={saveCircle} disabled={!circ.center}>Save</Btn>
+            </div>
+          )}
         </div>
       )}
 
@@ -670,9 +771,7 @@ export function AskPage({ active }: { active: boolean }) {
             </div>
             {spotInfo ? (
               <>
-                {Object.keys(spotInfo.land_cover).length > 0 && <div className="caption">
-                  {Object.entries(spotInfo.land_cover).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${pct(v)} ${k}`).join(' · ')}
-                </div>}
+                {landCoverLine(spotInfo.land_cover, 4) && <div className="caption">{landCoverLine(spotInfo.land_cover, 4)}</div>}
                 <div className="tiny muted">
                   {spotInfo.recent_scenes.clear} clear looks in 60 days · {spotInfo.recent_scenes.radar} radar passes
                   {spotInfo.elevation_m ? ` · ${Math.round(spotInfo.elevation_m.min)}–${Math.round(spotInfo.elevation_m.max)} m high` : ''}
@@ -684,7 +783,7 @@ export function AskPage({ active }: { active: boolean }) {
             )}
             <div className="row wrap" style={{ gap: 6 }}>
               <Btn size="sm" variant="primary" icon="bookmark_add" onClick={saveSpot}>Save this circle</Btn>
-              <Btn size="sm" icon="polyline" onClick={startDraw}>Draw an outline</Btn>
+              <Btn size="sm" icon="polyline" onClick={() => startDraw('polygon')}>Draw an outline</Btn>
             </div>
             <div className="tiny muted">Drag to look around · scroll to zoom · click to move the pin</div>
           </div>
@@ -698,6 +797,7 @@ export function AskPage({ active }: { active: boolean }) {
               <div className="col grow">
                 <span className="ink" style={{ font: '600 15px/1.35 var(--font)' }}>{place.name}</span>
                 <span className="tiny">{place.project} · {place.areaHa} ha</span>
+                {landCoverLine(spotInfo?.land_cover) && <span className="tiny muted">{landCoverLine(spotInfo?.land_cover)}</span>}
               </div>
               <Ms n={placeOpen ? 'expand_more' : 'expand_less'} size={20} className="muted" />
             </button>
@@ -739,18 +839,29 @@ export function AskPage({ active }: { active: boolean }) {
           <div style={{ position: 'relative' }}>
             <div className="row" style={{ gap: 8, width: compact ? 150 : 250, height: 40, padding: '0 12px', borderRadius: 8, background: '#000', border: '1px solid var(--hair-soft)' }}>
               <Ms n="search" size={20} className="muted" />
-              <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPop('search'); }} onFocus={() => setPop('search')} onKeyDown={(e) => e.key === 'Enter' && searchResults[0]?.go()} placeholder="Search a place" title="Search a town or place, or paste a Google Maps link" aria-label="Search a place" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 14px/1.5 var(--font)' }} />
+              <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPop('search'); }} onFocus={() => setPop('search')} onKeyDown={(e) => e.key === 'Enter' && firstResult?.go()} placeholder="Search a place" title="Search a town or place, or paste a Google Maps link" aria-label="Search a place" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 14px/1.5 var(--font)' }} />
             </div>
             {pop === 'search' && (
-              <div className="menu" style={{ left: -8, top: 52, width: 320, maxHeight: 420, overflowY: 'auto' }}>
-                <div className="menu-label eyebrow">Places</div>
-                {searchResults.map((r) => (
-                  <button key={r.key} className="menu-item" onClick={r.go}>
-                    <Ms n={r.icon} />
-                    <span className="col"><span style={{ font: '600 14px/1.4 var(--font)' }}>{r.n}</span><span className="tiny">{r.d}</span></span>
-                  </button>
+              <div className="menu" style={{ left: -8, top: 52, width: 340, maxHeight: 440, overflowY: 'auto' }}>
+                {searchSections.map((sec) => (
+                  <div key={sec.title}>
+                    <div className="menu-label eyebrow">{sec.title}</div>
+                    {sec.rows.map((r) => (
+                      <button key={r.key} className="menu-item" onClick={r.go} style={{ alignItems: 'flex-start' }}>
+                        <Ms n={r.icon} style={{ marginTop: 2 }} />
+                        <span className="col" style={{ minWidth: 0 }}>
+                          <span style={{ font: '600 14px/1.4 var(--font)' }}>{r.n}</span>
+                          {r.d && <span className="tiny" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.d}</span>}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 ))}
-                {!searchResults.length && <div className="caption" style={{ padding: 10 }}>No matches. Try coordinates instead.</div>}
+                {searching && <div className="caption muted row" style={{ padding: '8px 12px', gap: 8 }}><span className="spinner" />Searching…</div>}
+                {!searching && sq.length >= 2 && !searchSections.length && (
+                  <div className="caption" style={{ padding: 12 }}>Nothing found for "{searchQ.trim()}". Try a nearby town, or paste a Google Maps link.</div>
+                )}
+                {!sq && !searchSections.length && <div className="caption muted" style={{ padding: 12 }}>Type a town, a park, a lake… or paste a map link.</div>}
               </div>
             )}
           </div>
@@ -764,8 +875,8 @@ export function AskPage({ active }: { active: boolean }) {
                 {pop === 'draw' && tl.k === 'draw' && (
                   <div className="menu" style={{ left: -40, top: 52, width: 290 }}>
                     <div className="menu-label eyebrow">Add line or shape</div>
-                    <button className="menu-item on" onClick={startDraw}><Ms n="polyline" />Draw an outline<span className="tiny" style={{ marginLeft: 'auto' }}>field, pond, plot…</span></button>
-                    <button className="menu-item" onClick={addCircle}><Ms n="radio_button_unchecked" />Circle</button>
+                    <button className="menu-item on" onClick={() => startDraw('polygon')}><Ms n="polyline" />Draw an outline<span className="tiny" style={{ marginLeft: 'auto' }}>field, pond, plot…</span></button>
+                    <button className="menu-item" onClick={() => startDraw('circle')}><Ms n="radio_button_unchecked" />Draw a circle<span className="tiny" style={{ marginLeft: 'auto' }}>centre + size</span></button>
                     <button className="menu-item" onClick={() => { setPop(null); open({ kind: 'addPlace' }); }}><Ms n="upload_file" /><span className="col">Upload outline<span className="tiny">KML, GeoJSON or Shapefile</span></span></button>
                   </div>
                 )}

@@ -221,6 +221,8 @@ export interface Place {
   zoom: number;
   /** Outline as reference-zoom pixel offsets from the centre — for drawing only. */
   pts: Pt[];
+  /** The outline itself (GeoJSON, WGS84), as saved: sent back when asking what is there. */
+  geometry: PlaceDto['geometry'];
   circle: boolean;
   /** Authoritative, from the API. Never recomputed client-side for a saved place. */
   areaHa: number;
@@ -257,6 +259,7 @@ export const toPlace = (d: PlaceDto): Place => {
     lon: d.center.lon,
     zoom: fitZoom(pts, 600),
     pts,
+    geometry: d.geometry,
     circle: d.is_circle,
     // AUTHORITATIVE, from the server. Never recomputed for a saved place.
     // One decimal is honest at 10 m pixels (and readable); the server keeps the exact figure.
@@ -386,7 +389,10 @@ export const toWatchProof = (d: WatchProofWireDto): WatchProofDto => ({
  */
 export interface AreaSearchHit {
   name: string;
+  /** Where it is ('Ile-de-France, France'), to tell same-named places apart. */
   description: string;
+  /** What it is ('park', 'city', 'administrative'...), when the search knows. */
+  kind: string | null;
   lat: number;
   lon: number;
   zoom: number;
@@ -406,20 +412,25 @@ const SOURCE_LABEL: Record<AreaResolveResponseDto['source'], string> = {
 /** Zoom for a candidate with no outline to fit. */
 const MATCH_ZOOM = 14;
 
+/** How far to zoom for a search hit: towns and regions wide, parks and streets close. */
+const zoomForKind = (kind: string | null | undefined) =>
+  !kind ? MATCH_ZOOM : /city|town|administrative|state|county|region|country/.test(kind) ? 12 : /village|suburb|quarter|neighbourhood/.test(kind) ? 14 : 15;
+
 export function toSearchHits(res: AreaResolveResponseDto): AreaSearchHit[] {
   const ring = outerRing(res.area.geojson);
   const centre = ring && ring.length ? meanOf(ring) : null;
+  const top = res.best ?? null;
 
   const best: AreaSearchHit[] = centre
     ? [
         {
           name: res.area.name ?? 'Selected area',
-          description: SOURCE_LABEL[res.source],
-          lat: centre.lat,
-          lon: centre.lon,
-          // Reuse the same projection the rest of the app draws with, rather than a second
-          // implementation of "how far out should the camera sit".
-          zoom: ring ? fitZoom(ringToPts(ring, centre), 600) : MATCH_ZOOM,
+          description: top?.description ?? SOURCE_LABEL[res.source],
+          kind: top?.kind ?? null,
+          lat: top?.lat ?? centre.lat,
+          lon: top?.lon ?? centre.lon,
+          // Towns and regions open wide; a drawn or linked outline is fitted to the screen.
+          zoom: top ? zoomForKind(top.kind) : ring ? fitZoom(ringToPts(ring, centre), 600) : MATCH_ZOOM,
           area: res.area,
         },
       ]
@@ -429,10 +440,11 @@ export function toSearchHits(res: AreaResolveResponseDto): AreaSearchHit[] {
     ...best,
     ...(res.matches ?? []).map((m) => ({
       name: m.name,
-      description: 'Search result',
+      description: m.description ?? '',
+      kind: m.kind ?? null,
       lat: m.lat,
       lon: m.lon,
-      zoom: MATCH_ZOOM,
+      zoom: zoomForKind(m.kind),
       area: null,
     })),
   ];

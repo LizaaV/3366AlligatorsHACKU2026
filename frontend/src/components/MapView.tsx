@@ -27,6 +27,8 @@ interface Props {
   onCenter?: (c: { lat: number; lon: number }) => void;
   onZoom?: (z: number) => void;
   onTap?: (lat: number, lon: number) => void;
+  /** The point under the mouse while not dragging (e.g. to size a circle being drawn). */
+  onHover?: (lat: number, lon: number) => void;
 }
 
 /** Inverse of `txy`: fractional tile coordinates at zoom `z` -> lat/lon. */
@@ -36,10 +38,10 @@ const fromTxy = (x: number, y: number, z: number) => {
 };
 
 /** Basemap tiles, the place outline, and the run's own rendered layer on top. */
-export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, pass, pin, draft, onCenter, onZoom, onTap }: Props) {
+export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, pass, pin, draft, onCenter, onZoom, onTap, onHover }: Props) {
   const drag = useRef<{ x: number; y: number; moved: number; c: { x: number; y: number } } | null>(null);
   const lastWheel = useRef(0);
-  const interactive = !!(onCenter || onZoom || onTap);
+  const interactive = !!(onCenter || onZoom || onTap || onHover);
   const c = txy(center.lat, center.lon, zoom);
   const x0 = Math.floor(c.x - cx / 256) - 1, x1 = Math.floor(c.x + (W - cx) / 256) + 1;
   const y0 = Math.floor(c.y - cy / 256) - 1, y1 = Math.floor(c.y + (H - cy) / 256) + 1;
@@ -55,7 +57,12 @@ export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, p
         },
         onPointerMove: (e: React.PointerEvent) => {
           const d = drag.current;
-          if (!d) return;
+          if (!d) {
+            if (!onHover) return;
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            const p = fromTxy(c.x + (e.clientX - r.left - cx) / 256, c.y + (e.clientY - r.top - cy) / 256, zoom);
+            return onHover(p.lat, p.lon);
+          }
           const dx = e.clientX - d.x, dy = e.clientY - d.y;
           d.moved = Math.max(d.moved, Math.abs(dx) + Math.abs(dy));
           if (d.moved > 4 && onCenter) onCenter(fromTxy(d.c.x - dx / 256, d.c.y - dy / 256, zoom));

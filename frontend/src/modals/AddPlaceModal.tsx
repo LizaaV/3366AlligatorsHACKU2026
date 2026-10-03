@@ -54,6 +54,8 @@ export function AddPlaceModal() {
         lon: loc.lon,
         zoom: Math.max(12, Math.min(16, fitted)),
         pts,
+        // A preview is only drawn, never sent anywhere, so it needs no real outline.
+        geometry: {},
         circle: isCircle,
         areaHa: ha,
         project: form.finalProject,

@@ -211,3 +211,24 @@ export function parseLocation(s: string): { lat: number; lon: number } | null {
   }
   return null;
 }
+
+type LatLon = { lat: number; lon: number };
+
+/** Distance in metres between two points (equirectangular; fine at the scale of a field). */
+export const distanceM = (a: LatLon, b: LatLon): number => {
+  const k = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
+  return Math.hypot((b.lat - a.lat) * 110_574, (b.lon - a.lon) * 111_320 * k);
+};
+
+/** A closed GeoJSON ring ([lon, lat] pairs) for a circle of `radiusM` metres around `c`. */
+export const circleRing = (c: LatLon, radiusM: number, n = 64): Position[] => {
+  const dLat = radiusM / 110_574;
+  const dLon = radiusM / (111_320 * Math.cos((c.lat * Math.PI) / 180));
+  const ring: Position[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * 2 * Math.PI;
+    ring.push([+(c.lon + dLon * Math.cos(t)).toFixed(7), +(c.lat + dLat * Math.sin(t)).toFixed(7)] as Position);
+  }
+  ring.push(ring[0]);
+  return ring;
+};
