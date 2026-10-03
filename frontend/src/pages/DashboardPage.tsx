@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { api, toApiError } from '../api';
 import type { Dashboard, DashboardBlock, DashboardSummary } from '../api';
@@ -159,6 +159,15 @@ function DashboardDetail({ id }: { id: string }) {
   const patchBlocks = (fn: (b: DashboardBlock[]) => DashboardBlock[]) => setLocal({ ...dash, blocks: fn(dash.blocks) });
   const linked = watches.filter((w) => w.dashboardId === dash.id);
 
+  const rename = async (name: string) => {
+    try {
+      const next = await api.dashboards.rename(dash.id, name);
+      setLocal({ ...dash, name: next.name });
+    } catch (err) {
+      notify(toApiError(err).userMessage, undefined, undefined, 'error');
+    }
+  };
+
   const del = async () => {
     if (!window.confirm(`Delete “${dash.name}” and its blocks? Triggers on it keep running.`)) return;
     try {
@@ -174,7 +183,7 @@ function DashboardDetail({ id }: { id: string }) {
     <div className="col" style={{ gap: 28 }}>
       <div className="col" style={{ gap: 14, paddingBottom: 20, borderBottom: '1px solid var(--hair-soft)' }}>
         {back}
-        <div className="h1" style={{ fontSize: 'clamp(28px, 4vw, 48px)' }}>{dash.name}</div>
+        <DashboardTitle name={dash.name} onSave={rename} />
         <div className="row wrap">
           <span className="pill" style={{ background: 'var(--s2)' }}><Ms n="dashboard" size={14} />{dash.blocks.length} {dash.blocks.length === 1 ? 'block' : 'blocks'}</span>
           <span className="pill" style={{ background: 'var(--s2)' }}>Created {fmtDate(dash.createdAt)}</span>
@@ -236,6 +245,45 @@ function DashboardDetail({ id }: { id: string }) {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/** The dashboard's title; click it or the pencil to rename. Enter or blur saves, Esc cancels. */
+function DashboardTitle({ name, onSave }: { name: string; onSave: (name: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+  const done = useRef(false);
+
+  const start = () => { done.current = false; setDraft(name); setEditing(true); };
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    setEditing(false);
+    const n = draft.trim();
+    if (save && n && n !== name) void onSave(n);
+  };
+
+  if (editing) {
+    return (
+      <input
+        className="input"
+        autoFocus
+        aria-label="Dashboard name"
+        value={draft}
+        maxLength={80}
+        style={{ font: '600 clamp(24px, 3.5vw, 40px)/1.2 var(--font)', padding: '8px 12px' }}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onBlur={() => finish(true)}
+        onKeyDown={(e) => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); }}
+      />
+    );
+  }
+  return (
+    <div className="row" style={{ gap: 8 }}>
+      <div className="h1" style={{ fontSize: 'clamp(28px, 4vw, 48px)', cursor: 'text' }} title="Click to rename" onClick={start}>{name}</div>
+      <button className="btn btn-text btn-sm" aria-label="Rename dashboard" onClick={start}><Ms n="edit" size={18} /></button>
     </div>
   );
 }

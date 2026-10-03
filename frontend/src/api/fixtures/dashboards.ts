@@ -83,6 +83,12 @@ export const createDashboard = (name: string): Out => {
   return d;
 };
 
+export const renameDashboard = (id: string, name: string): Out => {
+  const d = { ...find(id), name };
+  state = state.map((x) => (x.id === id ? d : x));
+  return d;
+};
+
 export const deleteDashboard = (id: string): void => {
   find(id);
   state = state.filter((d) => d.id !== id);
