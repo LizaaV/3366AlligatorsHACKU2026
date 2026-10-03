@@ -55,3 +55,21 @@ S1_COLLECTION = "sentinel-1-rtc"
 S1_SEARCH_TTL_S = 6 * 3600  # new passes arrive daily; re-search a cached window after this long
 S1_READ_TIMEOUT_S = 60  # per pixel read (cold COG reads over a ~25 km² area)
 S1_MAX_READ_PIXELS = 2_000_000
+
+# Analysis (M2, earth.real describe / series / compare)
+DESCRIBE_LAST_DAYS = 60  # describe() counts optical scenes in this window
+SERIES_RESOLUTION_M = 20  # series reads SCL and both bands at 20 m (coarser for large areas)
+SERIES_MAX_CLOUD = 0.3  # a period's scene must have at most this unusable share over the area
+SERIES_GOOD_CLOUD = 0.1  # stop scanning a period once a scene this clear is found
+SERIES_SCAN_ROUNDS = (1, 2, 3)  # SCL reads per period per round, least tile-cloudy first
+SERIES_READ_THREADS = 24  # tiny windowed reads are latency-bound: more threads than READ_THREADS
+SERIES_NORMAL_MIN_YEARS = 2  # a calendar month needs this many earlier years to get a band
+COMPARE_WINDOW_DAYS = 20  # look for a clear scene within ± this many days of each date
+COMPARE_WIDE_WINDOW_DAYS = 45  # then widen to this if none
+COMPARE_MAX_CLOUD = 0.3  # same meaning as SERIES_MAX_CLOUD
+COMPARE_GOOD_CLOUD = 0.1  # the closest scene this clear wins over closer, cloudier ones
+COMPARE_FALLBACK_CLOUD = 0.5  # if nothing ≤ COMPARE_MAX_CLOUD: least cloudy scene up to this
+CHANGE_THRESHOLDS = {"greenness": 0.15, "water": 0.15, "burn": 0.15, "moisture": 0.10, "bare": 0.10}
+MIN_PATCH_HA = 0.1  # changed patches smaller than this are dropped as noise
+MAX_PATCHES = 20  # largest first; changed_ha still counts every patch >= MIN_PATCH_HA
+SEARCH_SETTLED_DAYS = 90  # STAC results for windows that ended this long ago are cached on disk
