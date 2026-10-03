@@ -22,10 +22,12 @@ const LOOKS: Record<string, LayerLook> = {
   lst: { label: 'Heat', icon: 'device_thermostat', legend: 'Cooler to hotter ground', ramp: ['#2b6cb0', '#f2d15b', '#d9381e'] },
   water: { label: 'Water', icon: 'waves', legend: 'Open water shown in blue', ramp: ['#d9e6f2', '#1d78c1'] },
   dry: { label: 'Dry spots', icon: 'grain', legend: 'Patches that stayed dry on several dates', ramp: ['#5a4a2a', '#e8a33a'] },
+  burn: { label: 'Burnt ground', icon: 'local_fire_department', legend: 'Recently burnt areas shown darker', ramp: ['#3a2a22', '#d9381e'] },
+  roughness: { label: 'Surface texture', icon: 'texture', legend: 'Smooth surfaces dark, rough ones bright (radar)', ramp: ['#22252b', '#d0d3d8'] },
   clouds: { label: 'Clouds', icon: 'cloud', legend: 'Where clouds or shadows hid the ground', ramp: ['#3a3f48', '#e6e8ec'] },
 };
 
-const ALIAS: Record<string, string> = { greenness: 'ndvi', moisture: 'ndmi', heat: 'lst', base: 'truecolour' };
+const ALIAS: Record<string, string> = { greenness: 'ndvi', moisture: 'ndmi', heat: 'lst', base: 'truecolour', rgb: 'truecolour', bare: 'dry' };
 
 const FALLBACK: LayerLook = { label: 'Layer', icon: 'layers', legend: '', ramp: ['#3a3f48', '#b2b6bd'] };
 

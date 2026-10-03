@@ -126,11 +126,13 @@ export function AskPage({ active }: { active: boolean }) {
       setLayers((ls) => ls.map((l) => (l.isAgentMade ? { ...l, ready: false, on: false } : l)));
       return;
     }
-    if (stage === 'locating') {
+    // Steps can finish in jumps, so 'locating' may be skipped: fly to the run's place on any
+    // later stage while still on the globe.
+    if (mode === 'globe' && stage !== 'error') {
       const p = places.find((x) => x.id === last?.placeId);
       if (p) flyTo(p);
-      return;
     }
+    if (stage === 'locating') return;
     if (stage === 'routing') {
       const skill = last?.skillId ? skills.find((x) => x.id === last.skillId) : undefined;
       setPass(skill?.sat.split(' · ')[0] ?? 'Sentinel-2');
@@ -263,7 +265,8 @@ export function AskPage({ active }: { active: boolean }) {
   /* ---------------- derived ---------------- */
 
   const on = (id: string) => { const l = layers.find((x) => x.id === id); return !!(l && l.on && l.ready); };
-  const mapLayers: MapLayers = { contour: on('contour'), ndmi: on('ndmi'), ndvi: on('ndvi'), lst: on('lst'), dry: on('dry'), clouds: on('clouds') };
+  // Backend layer ids are measure names; the map overlays still use the index names.
+  const mapLayers: MapLayers = { contour: on('contour'), ndmi: on('ndmi') || on('moisture'), ndvi: on('ndvi') || on('greenness'), lst: on('lst') || on('heat'), dry: on('dry') || on('bare'), clouds: on('clouds') };
   const isMap = mode === 'map';
   const showHero = !turns.length && !loadingThread;
   const focusPt = place ?? spot;
