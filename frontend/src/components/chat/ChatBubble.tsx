@@ -71,7 +71,7 @@ export function ChatBubble() {
       role="dialog"
       aria-label="Chat"
       className="panel chat-bubble-panel"
-      style={{ position: 'fixed', left: 16, bottom: 20, zIndex: 85, width: 'min(400px, calc(100vw - 32px))', height: 'min(560px, calc(100vh - 110px))', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 16px 48px rgba(0,0,0,.6)' }}
+      style={{ position: 'fixed', left: 16, bottom: 20, zIndex: 85, width: 'min(400px, calc(100vw - 32px))', height: 'min(560px, calc(100vh - 110px))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
     >
       <div className="row" style={{ padding: '10px 10px 10px 16px', borderBottom: '1px solid var(--hair-soft)', gap: 8 }}>
         <div className="col grow">

@@ -1,5 +1,6 @@
 /**
- * Collapsible chat history: "Projects" (folders that each list their chats) and "Chats"
+ * Chat history, opened from the "Chats" button in the composer as a floating panel so the
+ * conversation never shifts: "Projects" (folders that each list their chats) and "Chats"
  * (everything not in a project). Chats come from `api.threads`; folders and which chat is in
  * which are client-side (see useChatFolders).
  */
@@ -18,7 +19,6 @@ export interface CurrentChat {
 export function ChatSidebar({
   open,
   mobile,
-  navH,
   activeThreadId,
   current,
   refreshKey,
@@ -28,7 +28,6 @@ export function ChatSidebar({
 }: {
   open: boolean;
   mobile: boolean;
-  navH: number;
   activeThreadId: string | null;
   /** The conversation being had right now; listed even before the server knows about it. */
   current: CurrentChat | null;
@@ -44,7 +43,19 @@ export function ChatSidebar({
   const [menu, setMenu] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
-  const aside = useRef<HTMLElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+
+  // Close on a click outside the panel; the Chats button toggles it itself.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (panel.current?.contains(t) || t.closest?.('[data-chats-cta]')) return;
+      onClose();
+    };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!menu) return;
@@ -88,9 +99,9 @@ export function ChatSidebar({
     return (
       <div key={t.thread_id} className="row" style={{ position: 'relative', gap: 0 }} data-chat-menu>
         <button
-          onClick={() => { onOpen(t.thread_id); if (mobile) onClose(); }}
+          onClick={() => { onOpen(t.thread_id); onClose(); }}
           className="menu-item"
-          style={{ background: on ? 'var(--s2)' : undefined, padding: '7px 8px', gap: 8, minWidth: 0 }}
+          style={{ background: on ? 'var(--glass-fill-hover)' : undefined, padding: '7px 8px', gap: 8, minWidth: 0 }}
           title={t.title}
         >
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', font: '500 13px/1.4 var(--font)' }}>{t.title}</span>
@@ -129,17 +140,18 @@ export function ChatSidebar({
 
   return (
     <>
-      {mobile && <div onClick={onClose} style={{ position: 'fixed', inset: 0, top: navH, background: 'rgba(0,0,0,.5)', zIndex: 39 }} />}
-      <aside
-        ref={aside}
-        aria-label="Chat history"
-        style={{ position: 'fixed', top: navH, left: 0, bottom: mobile ? 64 : 0, width: mobile ? 'min(300px, 86vw)' : 280, zIndex: 40, background: '#000', borderRight: '1px solid var(--hair-soft)', display: 'flex', flexDirection: 'column', animation: 'fadeIn .2s ease both' }}
+      <div
+        ref={panel}
+        role="dialog"
+        aria-label="Chats"
+        className="menu"
+        style={{ left: 0, bottom: 'calc(100% + 12px)', width: mobile ? 'min(320px, calc(100vw - 40px))' : 340, maxHeight: 'min(480px, 60vh)', padding: 0, zIndex: 60, display: 'flex', flexDirection: 'column' }}
       >
         <div className="row" style={{ padding: 10, gap: 6 }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => { onNew(); if (mobile) onClose(); }} style={{ flex: 1, justifyContent: 'flex-start' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => { onNew(); onClose(); }} style={{ flex: 1, justifyContent: 'flex-start' }}>
             <Ms n="add_comment" />New chat
           </button>
-          <button className="icon-btn" onClick={onClose} aria-label="Hide chat history" title="Hide chat history"><Ms n="left_panel_close" /></button>
+          <button className="icon-btn sm" onClick={onClose} aria-label="Close chats" title="Close"><Ms n="close" /></button>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 6px 12px' }}>
@@ -194,7 +206,7 @@ export function ChatSidebar({
           {uncategorised.map(row)}
           {!threads.isLoading && !threads.error && !uncategorised.length && <div className="caption" style={{ padding: '4px 10px' }}>No chats yet. Ask something to start one.</div>}
         </div>
-      </aside>
+      </div>
     </>
   );
 }

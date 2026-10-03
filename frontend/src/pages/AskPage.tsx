@@ -29,7 +29,6 @@ function useViewport() {
   return v;
 }
 
-const SIDEBAR_W = 280;
 
 export function AskPage({ active }: { active: boolean }) {
   const store = useStore();
@@ -47,7 +46,7 @@ export function AskPage({ active }: { active: boolean }) {
   const [layers, setLayers] = useState<MapLayer[]>([]);
   const [dateIdx, setDateIdx] = useState(0);
   const [q, setQ] = useState('');
-  const [sidebar, setSidebar] = useState(() => window.innerWidth > 760);
+  const [sidebar, setSidebar] = useState(false);
   /** A temporary pinned point (geocoder result, coordinates or globe click) used as the chat's place. */
   const [spot, setSpot] = useState<Spot | null>(null);
   const [globePick, setGlobePick] = useState<{ lat: number; lon: number } | null>(null);
@@ -58,7 +57,8 @@ export function AskPage({ active }: { active: boolean }) {
   const spotRef = useRef<Spot | null>(null);
   spotRef.current = spot;
 
-  const sbW = sidebar && !mobile ? SIDEBAR_W : 0;
+  // History opens as an overlay from the composer, so the content never shifts sideways.
+  const sbW = 0;
 
   // Layer definitions come from the catalog endpoint; keep the local on/ready flags.
   useEffect(() => {
@@ -284,6 +284,7 @@ export function AskPage({ active }: { active: boolean }) {
       ];
 
   const canStep = !!timeline && timeline.dates.length > 1;
+  const closeChats = useCallback(() => setSidebar(false), []);
   const current = last?.threadId ? { threadId: last.threadId, title: turns[0]?.text ?? 'New chat' } : null;
 
   return (
@@ -297,24 +298,6 @@ export function AskPage({ active }: { active: boolean }) {
         />
       </Suspense>
       {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} layers={mapLayers} dateIdx={dateIdx} pass={pass} timeline={timeline} />}
-
-      {/* HISTORY SIDEBAR */}
-      <ChatSidebar
-        open={sidebar}
-        mobile={mobile}
-        navH={navH}
-        activeThreadId={last?.threadId ?? null}
-        current={current}
-        refreshKey={last?.phase === 'done' ? last.runId : null}
-        onClose={() => setSidebar(false)}
-        onNew={newChat}
-        onOpen={openThread}
-      />
-      {!sidebar && (
-        <button className="icon-btn" onClick={() => setSidebar(true)} aria-label="Show chat history" title="Chat history" style={{ position: 'absolute', left: 12, top: 12, zIndex: 41, background: 'var(--s1)', border: '1px solid var(--hair)' }}>
-          <Ms n="left_panel_open" />
-        </button>
-      )}
 
       {/* LAYER RAIL (place view). Wrapper sits at the content's left edge so the sidebar never covers it. */}
       {isMap && (
@@ -396,12 +379,12 @@ export function AskPage({ active }: { active: boolean }) {
 
           <div className="row wrap" style={{ pointerEvents: 'auto', gap: 8, justifyContent: 'center', flex: 'none' }}>
             {!turns.length && suggestions.map((sg) => (
-              <button key={sg.text} onClick={sg.go} className="chip" style={{ background: 'rgba(10,10,10,.85)', backdropFilter: 'blur(8px)' }}>
+              <button key={sg.text} onClick={sg.go} className="chip glass" style={{ color: '#fff' }}>
                 <Ms n={sg.icon} />{sg.text}
               </button>
             ))}
             {canStep && !showPasses && (
-              <button onClick={() => setShowPasses(true)} className="chip" style={{ background: 'rgba(10,10,10,.85)' }}>
+              <button onClick={() => setShowPasses(true)} className="chip glass" style={{ color: '#fff' }}>
                 <Ms n="timeline" />Step through satellite passes
               </button>
             )}
@@ -414,7 +397,34 @@ export function AskPage({ active }: { active: boolean }) {
               onSubmit={submit}
               busy={run.isBusy}
               placeholder={place ? `Ask about ${place.name}…` : spot ? `Ask about ${spot.name}…` : t('chat.placeholder')}
-              leading={<PlacePicker placeId={askPlaceId} spot={spot} onPlace={selectPlace} onSpot={pickSpot} />}
+              leading={
+                <div className="row" style={{ gap: 6, position: 'relative', minWidth: 0 }}>
+                  <button
+                    data-chats-cta
+                    className="pill"
+                    onClick={() => setSidebar((o) => !o)}
+                    aria-expanded={sidebar}
+                    aria-haspopup="dialog"
+                    title="Chats and projects"
+                    style={{ border: '1px solid var(--glass-border)', background: sidebar ? 'var(--glass-fill-hover)' : 'var(--glass-fill)', color: '#fff', maxWidth: 200 }}
+                  >
+                    <Ms n="forum" size={14} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{current ? current.title : 'Chats'}</span>
+                    <Ms n="expand_less" size={16} className="muted" />
+                  </button>
+                  <ChatSidebar
+                    open={sidebar}
+                    mobile={mobile}
+                    activeThreadId={last?.threadId ?? null}
+                    current={current}
+                    refreshKey={last?.phase === 'done' ? last.runId : null}
+                    onClose={closeChats}
+                    onNew={newChat}
+                    onOpen={openThread}
+                  />
+                  <PlacePicker placeId={askPlaceId} spot={spot} onPlace={selectPlace} onSpot={pickSpot} />
+                </div>
+              }
             />
           </div>
         </div>

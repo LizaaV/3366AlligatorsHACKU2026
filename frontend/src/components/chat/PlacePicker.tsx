@@ -152,7 +152,7 @@ export function PlacePicker({
             </div>
           ) : (
             <>
-              <div className="row" style={{ gap: 8, margin: 8, padding: '0 12px', height: 40, borderRadius: 8, background: '#000', border: '1px solid var(--hair-soft)', flex: 'none' }}>
+              <div className="row" style={{ gap: 8, margin: 8, padding: '0 12px', height: 40, borderRadius: 8, background: 'var(--glass-fill)', border: '1px solid var(--hair-soft)', flex: 'none' }}>
                 <Ms n="search" size={20} className="muted" />
                 <input
                   ref={input}

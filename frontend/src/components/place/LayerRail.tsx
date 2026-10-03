@@ -53,9 +53,11 @@ export function LayerRail({
           gap: 8,
           padding: 6,
           borderRadius: 999,
-          background: 'rgba(12,14,18,.72)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid var(--hair)',
+          background: 'var(--glass-bg)',
+          WebkitBackdropFilter: 'var(--glass-blur)',
+          backdropFilter: 'var(--glass-blur)',
+          border: '1px solid var(--glass-border)',
+          boxShadow: 'var(--glass-shadow)',
         }}
       >
         {layers.map((l) => {
@@ -86,7 +88,7 @@ export function LayerRail({
                   justifyContent: 'center',
                   cursor: dim ? 'default' : 'pointer',
                   opacity: dim ? 0.4 : 1,
-                  background: active ? '#fff' : 'var(--s2)',
+                  background: active ? '#fff' : 'var(--glass-fill)',
                   color: active ? '#000' : 'var(--muted)',
                   border: `1px solid ${active ? '#fff' : 'var(--hair)'}`,
                 }}
@@ -104,8 +106,10 @@ export function LayerRail({
                     whiteSpace: 'nowrap',
                     padding: '5px 9px',
                     borderRadius: 6,
-                    background: 'var(--s1)',
-                    border: '1px solid var(--hair)',
+                    background: 'var(--glass-bg-strong)',
+                    WebkitBackdropFilter: 'var(--glass-blur)',
+                    backdropFilter: 'var(--glass-blur)',
+                    border: '1px solid var(--glass-border)',
                     zIndex: 2,
                   }}
                 >

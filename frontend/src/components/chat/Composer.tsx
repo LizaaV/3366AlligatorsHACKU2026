@@ -55,8 +55,8 @@ export function Composer({
 
   return (
     <div
-      className="chat-composer"
-      style={{ background: 'var(--s1)', border: '1px solid var(--hair)', borderRadius: compact ? 18 : 24, padding: compact ? '10px 10px 8px 14px' : '14px 14px 10px 18px', boxShadow: '0 12px 40px rgba(0,0,0,.45)' }}
+      className="chat-composer glass"
+      style={{ borderRadius: compact ? 18 : 24, padding: compact ? '10px 10px 8px 14px' : '14px 14px 10px 18px' }}
     >
       <textarea
         ref={ta}

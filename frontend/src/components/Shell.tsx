@@ -107,11 +107,11 @@ export function ToastHost() {
   const { toast, dismissToast } = useStore();
   if (!toast) return null;
   return (
-    <div role="status" style={{ position: 'fixed', left: 0, right: 0, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100vw - 32px)', top: 72, zIndex: 120, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 10px 10px 16px', borderRadius: 12, background: '#fff', color: '#000', font: '600 14px/1.4 var(--font)', animation: 'fadeUp .25s ease both' }}>
+    <div role="status" className="glass glass-strong" style={{ position: 'fixed', left: 0, right: 0, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100vw - 32px)', top: 72, zIndex: 120, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 10px 10px 16px', borderRadius: 12, color: '#fff', font: '600 14px/1.4 var(--font)', animation: 'fadeUp .25s ease both' }}>
       <Ms n={toast.icon || 'check_circle'} size={18} />
       <span>{toast.text}</span>
       {toast.action && (
-        <button onClick={() => { toast.fn?.(); dismissToast(); }} style={{ padding: '6px 12px', borderRadius: 8, background: '#000', color: '#fff', border: 0, font: '600 13px/1.29 var(--font)' }}>
+        <button onClick={() => { toast.fn?.(); dismissToast(); }} style={{ padding: '6px 12px', borderRadius: 8, background: '#fff', color: '#000', border: 0, font: '600 13px/1.29 var(--font)' }}>
           {toast.action}
         </button>
       )}

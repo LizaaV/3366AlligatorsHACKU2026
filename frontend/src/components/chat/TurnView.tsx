@@ -53,7 +53,7 @@ export function TurnView({
   return (
     <div className="col" style={{ gap: 14 }}>
       <div className="col" style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '85%', gap: 4 }}>
-        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--s2)', font: '500 14px/1.5 var(--font)' }}>{turn.text}</div>
+        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--glass-fill)', font: '500 14px/1.5 var(--font)' }}>{turn.text}</div>
         <span className="tiny">{place ? <>about <span className="muted">{place.name}</span></> : 'general question'}</span>
       </div>
 
@@ -118,7 +118,7 @@ export function TurnView({
             {/* The agent asks for details itself now, rather than the frontend guessing which
                 questions to ask. Answers are prefilled from the place's memory where it has any. */}
             {turn.clarification && isLast && (
-              <div className="col" style={{ marginTop: 4, padding: 14, borderRadius: 12, background: 'var(--s2)', border: '1px solid var(--hair)', gap: 12 }}>
+              <div className="col" style={{ marginTop: 4, padding: 14, borderRadius: 12, background: 'var(--glass-fill)', border: '1px solid var(--glass-border)', gap: 12 }}>
                 <div className="caption">A few details make the answer much better.</div>
                 {turn.clarification.questions.map((g) => (
                   <div key={g.key} className="col" style={{ gap: 6 }}>
@@ -157,7 +157,7 @@ export function TurnView({
 
       {/* A refusal or a narrowed scope is the agent's decision, so it is shown as such. */}
       {turn.guard && (
-        <div className="col" style={{ padding: 12, borderRadius: 10, background: 'var(--s2)', border: '1px solid var(--hair)', gap: 4 }}>
+        <div className="col" style={{ padding: 12, borderRadius: 10, background: 'var(--glass-fill)', border: '1px solid var(--glass-border)', gap: 4 }}>
           <div className="row" style={{ gap: 6 }}>
             <Ms n="shield" size={16} className="muted" />
             <span style={{ font: '600 13px/1.38 var(--font)' }}>
@@ -172,7 +172,7 @@ export function TurnView({
           followed by done{status: "failed"}, and its message becomes the error card's — showing
           the server's own explanation instead of a generic "something went wrong". */}
       {turn.streamError?.recoverable && turn.phase !== 'error' && (
-        <div className="caption" style={{ padding: 10, borderRadius: 8, background: 'var(--s2)', border: '1px solid var(--hair-soft)' }}>
+        <div className="caption" style={{ padding: 10, borderRadius: 8, background: 'var(--glass-fill)', border: '1px solid var(--hair-soft)' }}>
           {turn.streamError.message}
         </div>
       )}
