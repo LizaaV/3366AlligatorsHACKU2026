@@ -1223,6 +1223,309 @@
           }
         }
       }
+    },
+    "/api/runs/{run_id}/share": {
+      "post": {
+        "tags": [
+          "shares"
+        ],
+        "summary": "Share a run as a public link",
+        "description": "Snapshot the run behind an unguessable link that needs no login and expires.",
+        "operationId": "create_share_api_runs__run_id__share_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareCreated"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found (or not yours)."
+          },
+          "409": {
+            "description": "The run is not finished yet."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run_id}/shares": {
+      "get": {
+        "tags": [
+          "shares"
+        ],
+        "summary": "Your share links for a run",
+        "operationId": "list_shares_api_runs__run_id__shares_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShareInfo"
+                  },
+                  "title": "Response List Shares Api Runs  Run Id  Shares Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found (or not yours)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/{slug}": {
+      "get": {
+        "tags": [
+          "shares"
+        ],
+        "summary": "Read a shared run (no login)",
+        "description": "The snapshot taken at share time: no user id, memory, event log or code.",
+        "operationId": "get_shared_run_api_shares__slug__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedRun"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown link."
+          },
+          "410": {
+            "description": "The link expired or was revoked."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "shares"
+        ],
+        "summary": "Revoke a share link",
+        "operationId": "revoke_share_api_shares__slug__delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown link (or not yours)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/{slug}/layers/{measure}/{scene}.png": {
+      "get": {
+        "tags": [
+          "shares"
+        ],
+        "summary": "A layer image of a shared run (no login)",
+        "description": "Map images inside a shared snapshot point here, so the run id is never public.",
+        "operationId": "get_shared_layer_api_shares__slug__layers__measure___scene__png_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "measure",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Measure"
+            }
+          },
+          {
+            "name": "scene",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scene"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The layer as a PNG.",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "400": {
+            "description": "Invalid measure or scene id."
+          },
+          "404": {
+            "description": "Unknown link, or no such layer in that run."
+          },
+          "410": {
+            "description": "The link expired or was revoked."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4007,6 +4310,193 @@
           "scenes"
         ],
         "title": "SceneStripBlock"
+      },
+      "ShareCreated": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "description": "Unguessable id of the link."
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Public page, `<PUBLIC_BASE_URL>/proof/<slug>`."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "description": "UTC. After this the link answers 410."
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "url",
+          "expires_at"
+        ],
+        "title": "ShareCreated",
+        "description": "A new share link."
+      },
+      "ShareInfo": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug",
+            "description": "Unguessable id of the link."
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Public page, `<PUBLIC_BASE_URL>/proof/<slug>`."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "description": "UTC. After this the link answers 410."
+          },
+          "shared_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Shared At"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "url",
+          "expires_at",
+          "shared_at"
+        ],
+        "title": "ShareInfo",
+        "description": "A share link as listed to its owner."
+      },
+      "SharedRun": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "lang": {
+            "type": "string",
+            "title": "Lang",
+            "default": "en"
+          },
+          "area": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Area"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What was asked about (outline)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "When the run was made. UTC."
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Answer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blocks": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ThenNowBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/TimelineBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/SceneStripBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/HighlightBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/HypothesesBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/StatBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/LimitsBlock"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "highlight": "#/components/schemas/HighlightBlock",
+                  "hypotheses": "#/components/schemas/HypothesesBlock",
+                  "limits": "#/components/schemas/LimitsBlock",
+                  "scene_strip": "#/components/schemas/SceneStripBlock",
+                  "stat": "#/components/schemas/StatBlock",
+                  "then_now": "#/components/schemas/ThenNowBlock",
+                  "timeline": "#/components/schemas/TimelineBlock"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Blocks"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array",
+            "title": "Provenance"
+          },
+          "method": {
+            "$ref": "#/components/schemas/Method",
+            "description": "Cards and skill with versions."
+          },
+          "shared_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Shared At",
+            "description": "When the snapshot was taken. UTC."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "description": "UTC."
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "created_at",
+          "shared_at",
+          "expires_at"
+        ],
+        "title": "SharedRun",
+        "description": "What a share link shows: a copy of the run taken when it was shared.\n\nDeliberately left out: user id, thread id, the event log, params (they hold clarification\nanswers, which may come from place memory), the script, and any place memory."
       },
       "SkillRef": {
         "properties": {

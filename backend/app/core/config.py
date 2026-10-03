@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,6 +7,8 @@ class Settings(BaseSettings):
 
     app_name: str = "Earth Agent API"
     cors_origins: list[str] = ["http://localhost:5173"]
+    public_base_url: str = "http://localhost:5173"  # share links: <this>/proof/<slug>
+    share_ttl_days: int = Field(30, ge=1, le=3650)  # 1 day to 10 years
 
 
 settings = Settings()
