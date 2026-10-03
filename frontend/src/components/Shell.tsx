@@ -57,6 +57,9 @@ function AccountMenu() {
             <Ms n="hub" />Connectors
             <span className="tiny" style={{ marginLeft: 'auto' }}>{Object.values(connectors).filter((c) => c.connected).length} on</span>
           </button>
+          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'aboutYou' }); }}>
+            <Ms n="person" />About you
+          </button>
         </div>
       )}
     </div>
