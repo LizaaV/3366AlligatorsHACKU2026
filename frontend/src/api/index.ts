@@ -20,6 +20,7 @@ import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
 import { watchesApi } from './endpoints/watches';
 import { threadsApi } from './endpoints/threads';
+import { memoryApi } from './endpoints/memory';
 
 export const api = {
   catalog: catalogApi,
@@ -32,6 +33,7 @@ export const api = {
   knowledge: knowledgeApi,
   shares: sharesApi,
   threads: threadsApi,
+  memory: memoryApi,
 };
 
 export { ApiError, toApiError } from './http';

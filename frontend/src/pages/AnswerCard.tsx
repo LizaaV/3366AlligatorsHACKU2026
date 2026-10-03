@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
-import { api } from '../api';
+import { api, toApiError } from '../api';
 import { Btn, ConfidenceBadge, Ms } from '../components/ui';
 import type { Answer } from '../model';
 import { cloudFromPercent } from '../lib/format';
@@ -64,11 +64,25 @@ function Routing({ route }: { route: RouteOption[] }) {
 }
 
 export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunSkill, onAskFollowup }: { answer: Answer; turnId: string; question: string; placeId: string | null; runId?: string | null; onRunSkill: (id: string) => void; onAskFollowup?: (q: string) => void }) {
-  const { open, go, places, skills } = useStore();
+  const { open, go, places, skills, notify } = useStore();
+  const [remembered, setRemembered] = useState(false);
+  const [remembering, setRemembering] = useState(false);
   const used = a.proof.filter((p) => p.used).length;
   const place = places.find((p) => p.id === placeId);
   // The backend sends the accent colour; it has no notion of our category list.
   const color = a.color ?? 'var(--subtle)';
+  const canRemember = a.kind === 'place' && !!place && !!runId && !!a.sentence;
+  const remember = () => {
+    if (!canRemember || !place || !runId) return;
+    setRemembering(true);
+    api.memory.saveInsight(runId, { place_id: place.id, text: a.sentence, confidence: a.confidence.level }).then(
+      () => {
+        setRemembered(true);
+        notify(`Saved to ${place.name}'s memory`, 'View', () => open({ kind: 'editPlace', placeId: place.id, tab: 'memory' }), 'psychology');
+      },
+      (err: unknown) => notify(`Could not save: ${toApiError(err).userMessage}`, undefined, undefined, 'error'),
+    ).finally(() => setRemembering(false));
+  };
   return (
     <div className="col" style={{ padding: 18, borderRadius: 12, background: 'var(--s2)', border: '1px solid var(--hair)', gap: 14, animation: 'fadeUp .4s ease both' }}>
       <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
@@ -217,6 +231,11 @@ export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunS
         )}
         <Btn variant="secondary" icon="ios_share" onClick={() => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: a.eyebrow, id: runId ?? undefined } })}>Export</Btn>
         <Btn icon="support_agent" onClick={() => open({ kind: 'expert', context: a.title, placeId })}>Ask an expert</Btn>
+        {canRemember && place && (
+          <Btn variant="text" icon={remembered ? 'check' : 'psychology'} disabled={remembered || remembering} onClick={remember}>
+            {remembered ? `Saved to ${place.name}` : `Remember this for ${place.name}`}
+          </Btn>
+        )}
       </div>
     </div>
   );

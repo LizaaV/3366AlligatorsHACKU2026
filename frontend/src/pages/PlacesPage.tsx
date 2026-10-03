@@ -70,6 +70,8 @@ function CardMenu({ place, onClose }: { place: Place; onClose: () => void }) {
   );
   return (
     <div ref={ref} className="menu" role="menu" style={{ right: 0, top: 'calc(100% + 4px)', minWidth: 220 }} onClick={(e) => e.stopPropagation()}>
+      {item('edit', 'Edit details', () => open({ kind: 'editPlace', placeId: place.id }))}
+      {item('psychology', 'What the agent knows', () => open({ kind: 'editPlace', placeId: place.id, tab: 'memory' }))}
       {item('add_alert', 'Add a watch', () => open({ kind: 'watchBuilder', placeId: place.id }))}
       {item('ios_share', 'Export place', () => open({ kind: 'export', target: { kind: 'place', title: place.name, id: place.id } }))}
       {item('support_agent', 'Ask an expert', () => open({ kind: 'expert', context: place.name, placeId: place.id }))}
