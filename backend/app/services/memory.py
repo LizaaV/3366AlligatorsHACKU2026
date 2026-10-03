@@ -251,7 +251,10 @@ def _upsert_profile(lines: list[str], values: dict[str, str]) -> None:
     for raw_k, raw_v in values.items():
         key = _clean(raw_k, MAX_KEY).replace(":", " ").strip()
         value = _clean(raw_v, MAX_VALUE)
-        if not key or not value:
+        if not key:
+            continue
+        if not value:  # a blank value forgets the fact
+            lines[:] = [ln for ln in lines if not ln.startswith(f"- {key}: ")]
             continue
         entry = f"- {key}: {value}{SEP}{date.today().isoformat()}"
         for i, ln in enumerate(lines):

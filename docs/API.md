@@ -410,7 +410,7 @@ Saved places (the Places page) and the private notes the agent reads. Everything
 | `PATCH /api/places/{id}` | Change any field; sending an outline replaces it | `PlaceDto` |
 | `DELETE /api/places/{id}` | Remove it (its memory goes unreachable; ids are never reused) | **204** |
 | `GET /api/places/{id}/memory` | Profile, notes and saved insights for the timeline | `PlaceMemory` |
-| `PATCH /api/places/{id}/memory` | `{profile?: {k: v}, note?: str}`: profile keys merge, a note is appended | `PlaceMemory` |
+| `PATCH /api/places/{id}/memory` | `{profile?: {k: v}, note?: str}`: profile keys merge (a blank value forgets that key), a note is appended | `PlaceMemory` |
 | `GET /api/me/memory`, `PATCH /api/me/memory` | The user's own profile (`{profile: {k: v}}`) | `{profile}` |
 | `POST /api/runs/{run_id}/insight` | "Save to place": `{place_id, text, confidence?}` | `{run_id, place_id, saved}` (**201**) |
 
