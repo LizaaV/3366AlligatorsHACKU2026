@@ -28,7 +28,7 @@ import re
 import threading
 import time
 import unicodedata
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -209,19 +209,30 @@ class SlidingWindow:
 
     def hit(self, key: str, limit: int, window_s: float, scope: str) -> None:
         """Record one event for `key`, or raise RateLimited (a refused hit is not recorded)."""
-        if limit <= 0:
-            return
+        self.hit_many([(key, limit, window_s, scope)])
+
+    def hit_many(self, checks: Sequence[tuple[str, int, float, str]]) -> None:
+        """Atomically: check every `(key, limit, window_s, scope)` and, only when all allow
+        it, record one event for each. A refusal (RateLimited, from the first full window)
+        records nothing anywhere."""
         now = self._clock()
         with self._lock:
-            recent = [t for t in self._events.get(key, []) if now - t < window_s]
-            if len(recent) >= limit:
+            pending: list[tuple[str, list[float]]] = []
+            for key, limit, window_s, scope in checks:
+                if limit <= 0:
+                    continue
+                recent = [t for t in self._events.get(key, []) if now - t < window_s]
+                if len(recent) >= limit:
+                    self._events[key] = recent
+                    raise RateLimited(retry_after=window_s - (now - recent[0]), scope=scope)
+                pending.append((key, recent))
+            for key, recent in pending:
+                recent.append(now)
                 self._events[key] = recent
-                raise RateLimited(retry_after=window_s - (now - recent[0]), scope=scope)
-            recent.append(now)
-            self._events[key] = recent
             if len(self._events) > self._PRUNE_AT:
+                longest = max((c[2] for c in checks), default=0.0)
                 self._events = {
-                    k: v for k, v in self._events.items() if v and now - v[-1] < window_s
+                    k: v for k, v in self._events.items() if v and now - v[-1] < longest
                 }
 
     def reset(self) -> None:
@@ -234,10 +245,11 @@ _HOUR = 3600.0
 
 
 def client_address(host: str | None, headers: Mapping[str, str]) -> str:
-    """The caller's address: the socket peer, or the proxy's `X-Real-IP` / first
-    `X-Forwarded-For` hop when `settings.trust_proxy_headers` (only behind our nginx)."""
+    """The caller's address: the socket peer, or our nginx's `X-Real-IP` when
+    `settings.trust_proxy_headers`. `X-Forwarded-For` is never read: its first hop is
+    whatever the client sent, so it would let anyone pick their own rate-limit key."""
     if settings.trust_proxy_headers:
-        real = headers.get("x-real-ip") or headers.get("x-forwarded-for", "").split(",")[0]
+        real = headers.get("x-real-ip", "")
         if real.strip():
             return real.strip()[:64]
     return (host or "unknown")[:64]
@@ -246,8 +258,12 @@ def client_address(host: str | None, headers: Mapping[str, str]) -> str:
 def check_rates(user_id: str, address: str) -> None:
     """Hourly caps on runs started (new questions and clarification replies) per user and
     per address. Raises RateLimited; nothing is recorded for a refused start."""
-    _RATES.hit(f"addr:{address}", settings.runs_per_hour_per_ip, _HOUR, "address")
-    _RATES.hit(f"user:{user_id}", settings.runs_per_hour_per_user, _HOUR, "user")
+    _RATES.hit_many(
+        [
+            (f"addr:{address}", settings.runs_per_hour_per_ip, _HOUR, "address"),
+            (f"user:{user_id}", settings.runs_per_hour_per_user, _HOUR, "user"),
+        ]
+    )
 
 
 def reset_rates() -> None:

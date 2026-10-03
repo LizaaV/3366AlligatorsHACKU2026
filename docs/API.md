@@ -440,8 +440,8 @@ Create/patch rules:
 
 | Method + path | What it does | Returns |
 |---|---|---|
-| `GET /api/runs/{run_id}/report.pdf` | The finished run as an A4 PDF. Owner only: **404** if not yours, **409** if the run is not `done`, **400** for a bad id | `application/pdf`, `Content-Disposition: attachment; filename="earth-agent-<run_id>.pdf"` |
-| `GET /api/shares/{slug}/report.pdf` | The same PDF for a share link, no login. **404** unknown link, **410** expired or revoked | `application/pdf`, filename `earth-agent-<first 8 of slug>.pdf` |
+| `GET /api/runs/{run_id}/report.pdf` | The finished run as an A4 PDF. Owner only: **404** if not yours, **409** if the run is not `done`, **400** for a bad id | `application/pdf`, `Content-Disposition: attachment; filename="constellation-<run_id>.pdf"` |
+| `GET /api/shares/{slug}/report.pdf` | The same PDF for a share link, no login. **404** unknown link, **410** expired or revoked | `application/pdf`, filename `constellation-<first 8 of slug>.pdf` |
 
 Use a plain link or `fetch` + blob; the owner route needs the `X-User-Id` header, so fetch it if you use a non-demo user. On a share page, link to the share route.
 

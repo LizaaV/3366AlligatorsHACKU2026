@@ -236,9 +236,11 @@ async def start_run(
                 status_code=409,
                 detail="This conversation is full; start a new one (omit thread_id).",
             )
-    _rate_gate(request, user_id)
+    # The hourly quota is charged last, once nothing else can refuse the request (an
+    # unconfigured provider, a busy server or the cooldown must not use up the quota).
     provider = await asyncio.to_thread(_agent_provider, req)
     if isinstance(provider, _NoAgent):
+        _rate_gate(request, user_id)
         if await asyncio.to_thread(_preset_fits, req, user_id):
             return EventSourceResponse(_sse(stream_preset_run(req, user_id)))
         events = stream_unavailable(req, user_id, kind=provider.kind, message=provider.message)
@@ -252,10 +254,19 @@ async def start_run(
             detail=exc.message,
             headers={"Retry-After": str(max(1, math.ceil(exc.retry_after)))},
         ) from exc
+    _rate_gate(request, user_id)
     return EventSourceResponse(_sse(stream_agent_run(req, user_id, provider)))
 
 
-@router.get("/runs/{run_id}", response_model=RunRecord, summary="Read a stored run")
+@router.get(
+    "/runs/{run_id}",
+    response_model=RunRecord,
+    summary="Read a stored run",
+    responses={
+        400: {"description": "Invalid run id or X-User-Id."},
+        404: {"description": "Run not found for this user."},
+    },
+)
 def get_run(run_id: str, user_id: str = Depends(current_user)) -> RunRecord:
     """The full stored run (answer, blocks, steps and the event log for replay)."""
     return _public(_own_run(run_id, user_id))
@@ -287,7 +298,6 @@ async def reply(
     record = await asyncio.to_thread(_own_run, run_id, user_id)
     if record.status != "waiting_user":
         raise HTTPException(status_code=409, detail=f"Run is {record.status}, not waiting_user.")
-    _rate_gate(request, user_id)
     if any(len(k) > MAX_KEY or len(v) > MAX_VALUE for k, v in body.answers.items()):
         raise HTTPException(
             status_code=400, detail=f"Keys up to {MAX_KEY} and answers up to {MAX_VALUE} chars."
@@ -313,6 +323,8 @@ async def reply(
                 detail=exc.message,
                 headers={"Retry-After": str(max(1, math.ceil(exc.retry_after)))},
             ) from exc
+    # Charged once every check above passed, before anything is written.
+    _rate_gate(request, user_id)
     asked = run_store.asked_keys(record)
     accepted = {k: v for k, v in body.answers.items() if not asked or k in asked}
     # Memory first: if it refuses, nothing about the run has changed yet.

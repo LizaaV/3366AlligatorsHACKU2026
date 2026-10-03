@@ -3,7 +3,7 @@
 ```bash
 uv sync                               # install deps into .venv (Python 3.12, uv downloads it if missing)
 cp .env.example .env                  # local settings, git-ignored
-uv run uvicorn app.main:app --reload  # http://localhost:8000 — docs at /docs
+uv run uvicorn app.main:app --reload --no-proxy-headers  # http://localhost:8000 — docs at /docs
 uv run pytest                         # tests
 uv run ruff check . && uv run ruff format .   # lint + format
 uv run python -m app.export_openapi   # regenerate ../contracts/openapi.json after API changes

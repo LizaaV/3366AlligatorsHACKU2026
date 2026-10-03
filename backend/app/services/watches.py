@@ -190,6 +190,27 @@ RULES: tuple[Rule, ...] = (
         ),
     ),
     Rule(
+        pattern=_rx(
+            r"(?:fish ?)?ponds?\b",
+            r"water ?level",
+            r"fill(?:ed|ing)? in\b",
+            r"reclaim",
+            r"(?:losing|lost|less) water",
+        ),
+        title="Ponds filled in or drying out",
+        skill_id="pond-filling-check",
+        category_key="water",
+        metric="Open-water area",
+        condition="Pond area without open water above 0.5 ha",
+        satellites="Sentinel-2",
+        cadence="Every Sentinel-2 pass (~5 days)",
+        confidence="Medium",
+        notes=(
+            "Cloudy passes are skipped; in a wet week you may wait 10+ days for an update.",
+            "Seasonal draining for harvest looks like filling at first; it refills within months.",
+        ),
+    ),
+    Rule(
         pattern=_rx(r"flood", r"inundat", r"submerge", r"under water"),
         title="Flooding on my place",
         skill_id="flood-extent",

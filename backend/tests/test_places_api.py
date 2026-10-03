@@ -54,8 +54,33 @@ def test_demo_seed_and_list(client: TestClient) -> None:
     assert client.get("/api/places").json() == places  # seeded once
 
 
-def test_seed_only_for_demo(client: TestClient) -> None:
-    assert client.get("/api/places", headers={"X-User-Id": "alice"}).json() == []
+def test_every_new_user_gets_the_demo_place(client: TestClient) -> None:
+    for user in ("alice", "u-7f3a9c1e"):
+        ids = [x["id"] for x in client.get("/api/places", headers={"X-User-Id": user}).json()]
+        assert ids == ["pl_hhw"]
+
+
+def test_demo_place_seeded_once_per_user_and_not_after_delete(client: TestClient) -> None:
+    a = {"X-User-Id": "alice"}
+    b = {"X-User-Id": "bob"}
+    client.get("/api/places", headers=a)
+    assert [x["id"] for x in client.get("/api/places", headers=a).json()] == ["pl_hhw"]
+    assert client.delete("/api/places/pl_hhw", headers=a).status_code == 204
+    assert client.get("/api/places", headers=a).json() == []  # never reseeded
+    assert client.get("/api/places/pl_hhw", headers=a).status_code == 404
+    assert [x["id"] for x in client.get("/api/places", headers=b).json()] == ["pl_hhw"]
+
+
+def test_existing_user_without_marker_gets_the_demo_place_once(
+    client: TestClient, tmp_path: Path
+) -> None:
+    a = {"X-User-Id": "alice"}
+    p = client.post("/api/places", json={"name": "Mine", "geometry": SQUARE}, headers=a).json()
+    ids = [x["id"] for x in client.get("/api/places", headers=a).json()]
+    assert sorted(ids) == sorted([p["id"], "pl_hhw"])
+    (tmp_path / "places" / "alice.seeded").unlink()  # a file from before the marker existed
+    ids = [x["id"] for x in client.get("/api/places", headers=a).json()]
+    assert ids.count("pl_hhw") == 1
 
 
 def test_create_polygon_and_get(client: TestClient) -> None:
@@ -209,7 +234,7 @@ def test_corrupt_file_is_moved_aside_not_500(client: TestClient, tmp_path: Path)
     f.parent.mkdir(parents=True)
     f.write_text("{not json")
     a = {"X-User-Id": "alice"}
-    assert client.get("/api/places", headers=a).json() == []
+    assert [x["id"] for x in client.get("/api/places", headers=a).json()] == ["pl_hhw"]
     assert (tmp_path / "places" / "alice.json.corrupt").read_text() == "{not json"
     new = {"name": "n", "geometry": SQUARE}
     assert client.post("/api/places", json=new, headers=a).status_code == 201
@@ -230,8 +255,8 @@ def test_user_isolation(client: TestClient) -> None:
     a = {"X-User-Id": "alice"}
     b = {"X-User-Id": "bob"}
     p = client.post("/api/places", json={"name": "Mine", "geometry": SQUARE}, headers=a).json()
-    assert [x["id"] for x in client.get("/api/places", headers=a).json()] == [p["id"]]
-    assert client.get("/api/places", headers=b).json() == []
+    assert [x["id"] for x in client.get("/api/places", headers=a).json()] == [p["id"], "pl_hhw"]
+    assert [x["id"] for x in client.get("/api/places", headers=b).json()] == ["pl_hhw"]
     assert client.get(f"/api/places/{p['id']}", headers=b).status_code == 404
     assert client.delete(f"/api/places/{p['id']}", headers=b).status_code == 404
     assert all(x["id"] != p["id"] for x in client.get("/api/places").json())  # demo

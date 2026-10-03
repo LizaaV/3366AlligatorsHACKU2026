@@ -27,6 +27,9 @@ log = logging.getLogger(__name__)
 _locks: dict[str, threading.Lock] = {}
 _guard = threading.Lock()
 
+#: The demo place every user starts with (the preset's outline).
+DEMO_PLACE_ID = "pl_hhw"
+
 
 def _path(user_id: str) -> Path:
     if not ID_RE.fullmatch(user_id):
@@ -40,25 +43,44 @@ def _lock(path: Path) -> threading.Lock:
 
 
 def _load(path: Path, user_id: str | None = None) -> list[dict]:
-    """Read the user's places. Seeds the demo user's first visit; a corrupt file is moved
-    aside to `.corrupt` and treated as empty. Callers must hold `_lock(path)`."""
+    """Read the user's places, seeding the demo place on the user's first visit (see
+    `_seed_once`). A corrupt file is moved aside to `.corrupt` and treated as empty.
+    Callers must hold `_lock(path)`."""
     try:
         text = path.read_text(encoding="utf-8")
     except (FileNotFoundError, NotADirectoryError):
-        if user_id == "demo":
-            rows = _seed()
-            _save(path, rows)
-            return rows
-        return []
-    try:
-        rows = json.loads(text)
-        if not isinstance(rows, list):
-            raise ValueError("places file is not a list")
+        rows: list[dict] = []
+    else:
+        try:
+            rows = json.loads(text)
+            if not isinstance(rows, list):
+                raise ValueError("places file is not a list")
+        except ValueError:  # JSONDecodeError is a ValueError
+            log.warning("corrupt places file %s: moved to .corrupt, starting empty", path)
+            os.replace(path, path.with_name(path.name + ".corrupt"))
+            rows = []
+    if user_id is not None:
+        rows = _seed_once(path, rows)
+    return rows
+
+
+def _seed_marker(path: Path) -> Path:
+    return path.with_name(path.stem + ".seeded")
+
+
+def _seed_once(path: Path, rows: list[dict]) -> list[dict]:
+    """Every user's first visit gets the demo place (Hoo Hok Wai), so the Places page is not
+    empty. A marker file records that it was offered: once deleted, it never comes back.
+    Callers must hold `_lock(path)`."""
+    marker = _seed_marker(path)
+    if marker.exists():
         return rows
-    except ValueError:  # JSONDecodeError is a ValueError
-        log.warning("corrupt places file %s: moved to .corrupt, starting empty", path)
-        os.replace(path, path.with_name(path.name + ".corrupt"))
-        return []
+    if not any(r.get("id") == DEMO_PLACE_ID for r in rows):
+        rows = [*rows, *_seed()]
+        _save(path, rows)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.touch()
+    return rows
 
 
 def _save(path: Path, rows: list[dict]) -> None:
@@ -119,11 +141,11 @@ def _dto(row: dict, user_id: str) -> PlaceDto:
 
 
 def _seed() -> list[dict]:
-    """Demo user's first visit: the Hoo Hok Wai preset, so the Places page is not empty."""
+    """The demo place: the Hoo Hok Wai preset."""
     now = _now()
     return [
         {
-            "id": "pl_hhw",
+            "id": DEMO_PLACE_ID,
             "name": "Hoo Hok Wai ponds",
             "category_key": "water",
             "center": _center(HOO_HOK_WAI),

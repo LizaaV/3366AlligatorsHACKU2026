@@ -33,4 +33,6 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
 
 # One worker on purpose: the place-memory, run-store and earth locks are in-process,
 # so a second worker would not share them.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --no-proxy-headers: uvicorn must not rewrite the client address from X-Forwarded-For;
+# TRUST_PROXY_HEADERS (X-Real-IP from our nginx) is the only switch.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers"]

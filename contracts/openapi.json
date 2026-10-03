@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Earth Agent API",
+    "title": "Constellation API",
     "version": "0.1.0"
   },
   "paths": {
@@ -197,6 +197,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid run id or X-User-Id."
+          },
+          "404": {
+            "description": "Run not found for this user."
           },
           "422": {
             "description": "Validation Error",
@@ -2783,7 +2789,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
               "title": "Skill Id"
             }
           },
@@ -2848,7 +2854,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
               "title": "Skill Id"
             }
           },

@@ -218,6 +218,26 @@ def test_hourly_limit_per_user(client: TestClient, monkeypatch: pytest.MonkeyPat
     assert int(res.headers["Retry-After"]) >= 1
 
 
+def test_refused_starts_do_not_use_the_hourly_quota(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.agent.llm.fake import tool_turn
+
+    monkeypatch.setattr(settings, "runs_per_hour_per_user", 1)
+    monkeypatch.setattr(settings, "runs_per_hour_per_ip", 1)
+    for _ in range(3):  # an unconfigured provider is refused before the quota is charged
+        res = client.post(
+            "/api/runs",
+            json={"question": "Hi", "provider": "claude"},
+            headers={"X-User-Id": USER},
+        )
+        assert res.status_code == 400
+    pin([tool_turn(explain())], json_answers=[dict(_GUARD)])
+    start(client, question="What is greenness?")  # the one allowed run is still there
+    res = client.post("/api/runs", json={"question": "Again?"}, headers={"X-User-Id": USER})
+    assert res.status_code == 429
+
+
 def test_changing_user_header_does_not_escape_the_address_limit(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -239,10 +259,35 @@ def test_client_address_trusts_proxy_headers_only_when_configured(
     assert policy.client_address("10.0.0.5", headers) == "10.0.0.5"
     monkeypatch.setattr(settings, "trust_proxy_headers", True)
     assert policy.client_address("10.0.0.5", headers) == "203.0.113.9"
-    assert policy.client_address("10.0.0.5", {"x-forwarded-for": "198.51.100.1, x"}) == (
-        "198.51.100.1"
-    )
+    # X-Forwarded-For is client-controlled: never used, even when proxy headers are trusted.
+    assert policy.client_address("10.0.0.5", {"x-forwarded-for": "198.51.100.1, x"}) == ("10.0.0.5")
     assert policy.client_address(None, {}) == "unknown"
+
+
+def test_check_rates_refused_by_user_records_nothing_for_the_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "runs_per_hour_per_user", 1)
+    monkeypatch.setattr(settings, "runs_per_hour_per_ip", 2)
+    policy.reset_rates()
+    policy.check_rates("alice", "1.2.3.4")  # alice: 1/1, address: 1/2
+    for _ in range(3):  # alice is over her own limit: the address budget must not drain
+        with pytest.raises(policy.RateLimited) as exc:
+            policy.check_rates("alice", "1.2.3.4")
+        assert exc.value.scope == "user"
+    policy.check_rates("bob", "1.2.3.4")  # address: 2/2, still had room
+    with pytest.raises(policy.RateLimited) as exc:
+        policy.check_rates("carol", "1.2.3.4")
+    assert exc.value.scope == "address"
+    policy.reset_rates()
+
+
+def test_hit_many_is_all_or_nothing() -> None:
+    window = policy.SlidingWindow(clock=lambda: 0.0)
+    window.hit("full", 1, 60, "user")
+    with pytest.raises(policy.RateLimited):
+        window.hit_many([("fresh", 5, 60, "address"), ("full", 1, 60, "user")])
+    assert "fresh" not in window._events
 
 
 def test_refused_hits_are_not_counted() -> None:

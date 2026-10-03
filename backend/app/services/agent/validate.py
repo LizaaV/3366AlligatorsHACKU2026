@@ -871,6 +871,19 @@ def _regex_hit(text: str, rxs: Sequence[re.Pattern[str]]) -> str | None:
     return None
 
 
+def _own_wording(phrase: str, card: Any) -> bool:
+    """True when `phrase` (another card's name or alias) is part of `card`'s own allowed
+    wording: its name, an alias or a `wording.use` phrase. Using the supported card's own
+    words ("consistent with new bare ground or a built surface") must never count as
+    claiming another card's cause ("built" is also a construction alias)."""
+    rx = _phrase_re(phrase, placeholders=False)
+    if rx is None:
+        return False
+    allowed = [card.name, *card.aliases, *(card.wording.use if card.wording else [])]
+    allowed += [card.id, card.id.replace("_", " ")]
+    return any(rx.search(text) for text in allowed)
+
+
 def _headline_fields(args: FinishArgs) -> list[tuple[str, str]]:
     out = [("title", args.title), ("sentence", args.sentence)]
     return [*out, ("todo", args.todo)] if args.todo else out
@@ -921,11 +934,10 @@ def check_cause_wording(args: FinishArgs, state: AgentState, kb: KnowledgeBase) 
         problems.append(
             f"cause: describe the '{card.id}' cause with its card's wording, e.g. {examples}."
         )
-    mine = {p.casefold() for p in own}
     for other in kb.events.values():
         if other.id == card.id:
             continue
-        phrases = [p for p in [*_name_phrases(other), *other.aliases] if p.casefold() not in mine]
+        phrases = [p for p in [*_name_phrases(other), *other.aliases] if not _own_wording(p, card)]
         hit = _phrase_hits(args.cause, phrases)
         if hit:
             problems.append(
