@@ -3,6 +3,7 @@
  *
  *   GET /api/threads?limit=   -> ThreadSummary[], newest first
  *   GET /api/threads/{id}     -> ThreadDetail, oldest run first, to reload it exactly
+ *   PATCH /api/threads/{id} {project_id} -> ThreadSummary, files the chat in a project (null unfiles)
  *
  * Shapes mirror `backend/app/schemas/threads.py` from PR #49 (`be/threads`). That PR is not
  * merged and `contracts/openapi.json` has no threads yet, so the types are written by hand here
@@ -10,9 +11,10 @@
  * delete the `fixture` properties.
  */
 
-import { request } from '../http';
+import { ApiError, request } from '../http';
 import type { RunRecord } from './runs';
 import { FIXTURE_RUN_ANSWER } from '../fixtures/run';
+import { fixtureAssignments } from '../fixtures/projects';
 
 export interface ThreadSummary {
   thread_id: string;
@@ -27,6 +29,8 @@ export interface ThreadSummary {
   run_count: number;
   started_at: string;
   updated_at: string;
+  /** The chat project it is filed in, if any. */
+  project_id?: string | null;
 }
 
 export interface ThreadDetail {
@@ -43,6 +47,22 @@ export const threadsApi = {
       query: { limit },
       signal,
       fixture: () => FIXTURE_THREADS.slice(0, limit).map(summaryOf),
+    }),
+
+  /** PATCH /api/threads/{id} — move a chat into a project, or out of it with `null`. 404 for an unknown chat or project. */
+  setProject: (threadId: string, projectId: string | null, signal?: AbortSignal): Promise<ThreadSummary> =>
+    request<ThreadSummary>({
+      method: 'PATCH',
+      path: `/threads/${encodeURIComponent(threadId)}`,
+      body: { project_id: projectId },
+      signal,
+      fixture: () => {
+        if (projectId) fixtureAssignments.set(threadId, projectId);
+        else fixtureAssignments.delete(threadId);
+        const t = FIXTURE_THREADS.find((x) => x.id === threadId);
+        if (!t) throw new ApiError('Thread not found', 'http', 404);
+        return summaryOf(t);
+      },
     }),
 
   /** TODO(api): GET /api/threads/{id} (PR #49) */
@@ -114,5 +134,6 @@ function summaryOf(t: (typeof FIXTURE_THREADS)[number]): ThreadSummary {
     run_count: t.runs.length,
     started_at: first.created_at ?? ago(0),
     updated_at: last.created_at ?? ago(0),
+    project_id: fixtureAssignments.get(t.id) ?? null,
   };
 }

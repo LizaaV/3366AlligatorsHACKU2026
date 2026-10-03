@@ -21,6 +21,7 @@ class ThreadSummary(BaseModel):
     run_count: int
     started_at: datetime = Field(description="UTC, first run.")
     updated_at: datetime = Field(description="UTC, latest run.")
+    project_id: str | None = Field(None, description="The chat project it is filed in, if any.")
 
 
 class ThreadDetail(BaseModel):
@@ -28,3 +29,4 @@ class ThreadDetail(BaseModel):
 
     thread_id: str
     runs: list[RunRecord] = Field(description="Without the agent's private state.")
+    project_id: str | None = Field(None, description="The chat project it is filed in, if any.")

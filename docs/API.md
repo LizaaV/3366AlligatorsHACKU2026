@@ -497,3 +497,19 @@ polygon of the file); `name` comes from the feature / placemark, else the file n
 Errors use `detail: {kind, message, hint}`: **413** (`too_large`, `too_many_points` above
 `MAX_VERTICES` = 10 000), **415** (`unsupported_type`), **422** (`unreadable_file`, no outline in the
 file, fewer than 3 points).
+
+## 14. Chat projects (folders of conversations)
+
+Per-user folders that group chats, stored on the server (so they survive a cleared browser and
+follow the user to another device). All routes are scoped by `X-User-Id`.
+
+| Route | Body | Result |
+| --- | --- | --- |
+| `GET /api/projects` | | `[{id, name, created_at, updated_at}]`, oldest first |
+| `POST /api/projects` | `{name}` (1-60 chars, trimmed) | **201** project; **422** for a bad name or when 50 projects exist |
+| `PATCH /api/projects/{project_id}` | `{name}` | project; **404** unknown |
+| `DELETE /api/projects/{project_id}` | | **204**; its chats are kept and become unfiled; **404** unknown |
+| `PATCH /api/threads/{thread_id}` | `{project_id: string \| null}` | `ThreadSummary`; `null` unfiles; **404** for an unknown thread (or not yours) or unknown project |
+
+`ThreadSummary` and `ThreadDetail` carry `project_id: string | null`, so the history list shows
+which project each chat is in without a second call.

@@ -7,8 +7,10 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.schemas.projects import ThreadProjectUpdate
 from app.schemas.runs import ID_PATTERN
 from app.schemas.threads import ThreadDetail, ThreadSummary
+from app.services import projects as project_store
 from app.services import threads
 from app.services.user import current_user
 
@@ -41,3 +43,29 @@ async def get_thread(thread_id: str, user_id: str = Depends(current_user)) -> Th
     if detail is None:
         raise HTTPException(status_code=404, detail="Thread not found.")
     return detail
+
+
+@router.patch(
+    "/threads/{thread_id}",
+    response_model=ThreadSummary,
+    summary="File a conversation in a project (or unfile it)",
+    responses={
+        400: {"description": "Invalid thread or project id."},
+        404: {"description": "Thread or project not found."},
+    },
+)
+async def patch_thread(
+    thread_id: str, body: ThreadProjectUpdate, user_id: str = Depends(current_user)
+) -> ThreadSummary:
+    """Move the conversation into a project, or out of it with `project_id: null`."""
+    if not _ID_RE.fullmatch(thread_id):
+        raise HTTPException(status_code=400, detail=f"Invalid thread id: use {ID_PATTERN}.")
+    if body.project_id is not None and not _ID_RE.fullmatch(body.project_id):
+        raise HTTPException(status_code=400, detail=f"Invalid project id: use {ID_PATTERN}.")
+    try:
+        summary = await asyncio.to_thread(threads.set_project, user_id, thread_id, body.project_id)
+    except project_store.ProjectNotFound as exc:
+        raise HTTPException(status_code=404, detail="Project not found.") from exc
+    if summary is None:
+        raise HTTPException(status_code=404, detail="Thread not found.")
+    return summary
