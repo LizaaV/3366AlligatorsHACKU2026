@@ -136,7 +136,7 @@ export function ChatSidebar({
         style={{ position: 'fixed', top: navH, left: 0, bottom: mobile ? 64 : 0, width: mobile ? 'min(300px, 86vw)' : 280, zIndex: 40, background: '#000', borderRight: '1px solid var(--hair-soft)', display: 'flex', flexDirection: 'column', animation: 'fadeIn .2s ease both' }}
       >
         <div className="row" style={{ padding: 10, gap: 6 }}>
-          <button className="btn btn-sm" onClick={() => { onNew(); if (mobile) onClose(); }} style={{ flex: 1, justifyContent: 'flex-start' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => { onNew(); if (mobile) onClose(); }} style={{ flex: 1, justifyContent: 'flex-start' }}>
             <Ms n="add_comment" />New chat
           </button>
           <button className="icon-btn" onClick={onClose} aria-label="Hide chat history" title="Hide chat history"><Ms n="left_panel_close" /></button>
