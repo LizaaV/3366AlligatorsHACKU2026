@@ -2,7 +2,6 @@
 
 import { ErrorState } from '../async';
 import { Btn, Ms } from '../ui';
-import { AnswerBlocks } from '../blocks';
 import { SaveToDashboard } from './SaveToDashboard';
 import { AnswerCard } from '../../pages/AnswerCard';
 import type { AskTurn } from '../../ask/useAskRun';
@@ -19,8 +18,6 @@ export function TurnView({
   onRetry,
   onRunSkill,
   onAskFollowup,
-  onPickScene,
-  onCompare,
 }: {
   turn: AskTurn;
   isLast: boolean;
@@ -32,10 +29,6 @@ export function TurnView({
   onRetry: () => void;
   onRunSkill: (id: string) => void;
   onAskFollowup: (q: string) => void;
-  /** Move the map's pass cursor to the scene a timeline point names. */
-  onPickScene?: (scene: string) => void;
-  /** Open the satellite comparison for this turn's blocks. */
-  onCompare?: () => void;
 }) {
   const place = places.find((x) => x.id === turn.placeId);
   const steps = turn.steps;
@@ -178,10 +171,8 @@ export function TurnView({
         </div>
       )}
 
-      {/* Rendered from the turn, not the answer, so each block appears the moment its
-          `block_ready` event arrives rather than all at once when the run finishes. The answer
-          carries the same objects, so a reloaded run shows exactly the same visuals. */}
-      <AnswerBlocks blocks={turn.blocks} onPickScene={onPickScene} />
+      {/* The chat is words only: the turn's visuals are artifacts, shown on the right and
+          referenced from the answer. */}
 
       {turn.phase === 'error' && (
         <ErrorState
@@ -196,15 +187,10 @@ export function TurnView({
         <SaveToDashboard runId={turn.runId} blockIds={turn.blocks.map((b) => b.id)} />
       )}
 
-      {onCompare && turn.phase === 'done' && turn.blocks.length > 0 && (
-        <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start' }} onClick={onCompare}>
-          <Ms n="compare" />What each satellite saw
-        </button>
-      )}
-
       {turn.answer && turn.phase !== 'running' && (
         <AnswerCard
           answer={turn.answer}
+          turnId={turn.id}
           question={turn.text}
           placeId={turn.placeId}
           runId={turn.runId}

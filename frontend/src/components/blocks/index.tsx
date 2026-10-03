@@ -39,7 +39,7 @@ export function AnswerBlocks({
   );
 }
 
-function Block({ block, onPickScene }: { block: AnswerBlock; onPickScene?: (scene: string) => void }) {
+export function Block({ block, onPickScene }: { block: AnswerBlock; onPickScene?: (scene: string) => void }) {
   switch (block.type) {
     case 'then_now':
       return <ThenNowBlock block={block} />;
