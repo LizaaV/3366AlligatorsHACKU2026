@@ -6,19 +6,22 @@ const Globe = lazy(() => import('../components/Globe').then((m) => ({ default: m
 import { MapView } from '../components/MapView';
 import { Btn, CatPill, Check, IconBtn, Ms, hideBroken } from '../components/ui';
 import { ErrorState } from '../components/async';
-import { api } from '../api';
+import { api, toApiError } from '../api';
 import { useResource } from '../hooks/useResource';
-import type { MapLayer, Place } from '../model';
+import type { MapImage, MapLayer, Place } from '../model';
 import { mapImagesFrom, passTimelineFrom, toSearchHits } from '../model';
 import { sourceLabel } from '../data/presentation';
-import { DEFAULT_CENTER, DEFAULT_ZOOM, circlePts, fmtC, parseLocation, ptsToRing, thumb, type Pt } from '../lib/geo';
-import { LANGS } from '../data/i18n';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, circlePts, parseLocation, ptsToRing, thumb, type Pt } from '../lib/geo';
 import { useAskRun, type AskTurn } from '../ask/useAskRun';
 import { AnswerCard } from './AnswerCard';
 import { AnswerBlocks } from '../components/blocks';
 import { Splash } from '../components/Splash';
-import { BANDS, bandTiles, recentScenes, type Band, type Scene } from '../lib/scenes';
-import type { PlaceContext } from '../api';
+import { BANDS, type Band } from '../lib/scenes';
+import type { PlaceContext, ViewImage, ViewPass } from '../api';
+
+/** What a drawn outline is, and the catalog category it is filed under. */
+const DRAFT_KINDS = { Field: 'agriculture', Pond: 'water', Plot: 'agriculture', 'Building site': 'urban', Forest: 'forests' } as const;
+type DraftKind = keyof typeof DRAFT_KINDS;
 
 /** Radius of the circle a question about a dropped pin covers. */
 const SPOT_RADIUS_M = 350;
@@ -57,9 +60,11 @@ export function AskPage({ active }: { active: boolean }) {
   const [pop, setPop] = useState<string | null>(null);
   const [panel, setPanel] = useState<'layers' | null>(null);
   const [searchQ, setSearchQ] = useState('');
-  const [coord, setCoord] = useState({ lat: String(DEFAULT_CENTER.lat), lon: String(DEFAULT_CENTER.lon) });
   const [drawing, setDrawing] = useState(false);
-  const [drawPts, setDrawPts] = useState<Pt[]>([]);
+  // Corners of an outline being drawn, on the live map (pan and zoom keep working).
+  const [draft, setDraft] = useState<{ lat: number; lon: number }[]>([]);
+  const [draftName, setDraftName] = useState('');
+  const [draftKind, setDraftKind] = useState<DraftKind>('Field');
   const [pass, setPass] = useState<string | null>(null);
   const [sheet, setSheet] = useState(false);
   const [cat, setCat] = useState(0);
@@ -74,9 +79,12 @@ export function AskPage({ active }: { active: boolean }) {
   const [spot, setSpot] = useState<{ lat: number; lon: number } | null>(null);
   const [spotInfo, setSpotInfo] = useState<PlaceContext | null>(null);
   const [band, setBand] = useState<Band | 'map'>('map');
-  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [scenes, setScenes] = useState<ViewPass[]>([]);
   const [sceneIdx, setSceneIdx] = useState(0);
   const [scenesLoading, setScenesLoading] = useState(false);
+  const [viewNote, setViewNote] = useState<string | null>(null);
+  const [view, setView] = useState<ViewImage | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
 
   /** Look at a spot: drop the pin, fly the map there and start showing the latest photo. */
   const lookAt = useCallback(
@@ -113,17 +121,35 @@ export function AskPage({ active }: { active: boolean }) {
   useEffect(() => {
     setScenes([]);
     setSceneIdx(0);
+    setViewNote(null);
     if (focusLat === undefined || focusLon === undefined || mode !== 'map') return;
     const ac = new AbortController();
     setScenesLoading(true);
-    recentScenes(focusLat, focusLon, ac.signal)
+    api.views
+      .passes(focusLat, focusLon, ac.signal)
       .then((sc) => !ac.signal.aborted && setScenes(sc))
-      .catch(() => undefined)
+      .catch((e) => !ac.signal.aborted && setViewNote(toApiError(e).detail ?? 'Live views are not available here.'))
       .finally(() => !ac.signal.aborted && setScenesLoading(false));
     return () => ac.abort();
   }, [focusLat, focusLon, mode]);
   const scene = scenes[sceneIdx] ?? null;
-  const liveTiles = scene && band !== 'map' ? bandTiles(scene.id, band) : null;
+
+  // One rendered square (about 2 km) around the spot, in the chosen band and pass. Rendered
+  // and cached by the backend, then laid on the map by its bounds.
+  useEffect(() => {
+    setView(null);
+    if (!scene || band === 'map' || focusLat === undefined || focusLon === undefined) return;
+    const ac = new AbortController();
+    setViewLoading(true);
+    api.views
+      .image(focusLat, focusLon, band, scene.scene, ac.signal)
+      .then((v) => !ac.signal.aborted && setView(v))
+      .catch((e) => !ac.signal.aborted && setViewNote(toApiError(e).detail ?? 'Could not render this view.'))
+      .finally(() => !ac.signal.aborted && setViewLoading(false));
+    return () => ac.abort();
+  }, [scene, band, focusLat, focusLon]);
+  const viewOverlay: MapImage | null =
+    view && band !== 'map' ? { layerId: band, url: view.url, bounds: view.bounds, date: view.date, label: band, when: 'after' } : null;
 
   // Layer definitions come from the catalog endpoint; keep the local on/ready flags.
   useEffect(() => {
@@ -336,13 +362,51 @@ export function AskPage({ active }: { active: boolean }) {
     }
   };
 
-  const finishDraw = async () => {
-    if (drawPts.length < 3) return notify('Add at least 3 points', undefined, undefined, 'info');
-    const sc = Math.pow(2, zoom - 16);
-    const pts = drawPts.map((p) => [+((p[0] - cx) / sc).toFixed(1), +((p[1] - navH - cy) / sc).toFixed(1)] as Pt);
+  /** Start drawing on the map as it is; only fly there if we are still on the globe. */
+  const startDraw = () => {
+    setPop(null);
+    setPanel(null);
+    setDraft([]);
+    setDraftName('');
+    setDrawing(true);
+    if (mode !== 'map') {
+      const c = spot ?? (place ? { lat: place.lat, lon: place.lon } : center);
+      setMode('map');
+      setCenter(c);
+      setZoom(16);
+    }
+  };
+
+  const cancelDraw = () => {
     setDrawing(false);
-    setDrawPts([]);
-    await savePlace(`Field ${places.length + 1}`, pts, false, 'drawn');
+    setDraft([]);
+  };
+
+  /** Save the drawn outline as a place. The area shown comes back from the server. */
+  const saveDraft = async () => {
+    if (draft.length < 3) return notify('Add at least 3 corners', undefined, undefined, 'info');
+    const ring = [...draft, draft[0]].map((p) => [+p.lon.toFixed(7), +p.lat.toFixed(7)]);
+    const c = { lat: draft.reduce((a, p) => a + p.lat, 0) / draft.length, lon: draft.reduce((a, p) => a + p.lon, 0) / draft.length };
+    try {
+      const created = await addPlace({
+        name: draftName.trim() || `${draftKind} ${places.length + 1}`,
+        categoryKey: DRAFT_KINDS[draftKind],
+        center: c,
+        geometry: { type: 'Polygon', coordinates: [ring] },
+        isCircle: false,
+        project: 'My places',
+        tags: [draftKind.toLowerCase()],
+        source: 'drawn',
+        details: [{ label: 'Added via', value: 'Drawn on the map' }],
+      });
+      setDrawing(false);
+      setDraft([]);
+      setSpot(null);
+      setAskPlace(created.id);
+      notify(`${created.name} saved · ${created.areaHa} ha`, undefined, undefined, 'check_circle');
+    } catch (e) {
+      notify(toApiError(e).detail ?? 'Could not save the outline', undefined, undefined, 'error');
+    }
   };
 
   const addCircle = async () => {
@@ -351,7 +415,7 @@ export function AskPage({ active }: { active: boolean }) {
   };
 
   const toolClick = (k: string) => {
-    if (['draw', 'contours', 'coords'].includes(k)) return setPop((p) => (p === k ? null : k));
+    if (['draw', 'contours'].includes(k)) return setPop((p) => (p === k ? null : k));
     if (k === 'layers') { setPop(null); return setPanel((p) => (p === 'layers' ? null : 'layers')); }
   };
 
@@ -362,10 +426,9 @@ export function AskPage({ active }: { active: boolean }) {
   const overlayName = overlayId ? layers.find((l) => l.id === overlayId)?.name ?? overlayId : '';
   const isMap = mode === 'map';
   const showHero = !splash && !isMap && !turns.length && !sheet && H >= 560 && !mobile;
-  const spotName = spotInfo?.name ?? (spot ? fmtC(spot.lat, spot.lon) : '');
+  const spotName = spotInfo?.name ?? 'Dropped pin';
   const cloudy = timeline?.cloudyIndices.includes(dateIdx) ?? false;
   const placeWatches = place ? watches.filter((w) => w.placeId === place.id) : [];
-  const L = LANGS.find((l) => l.code === lang)!;
 
   // Questions the backend can actually answer today. The pond check is the one real skill;
   // the others are free-form questions the agent handles from the knowledge cards.
@@ -407,7 +470,7 @@ export function AskPage({ active }: { active: boolean }) {
   const searchResults = useMemo(
     () => [
       ...(pasted
-        ? [{ key: 'pasted', n: fmtC(pasted.lat, pasted.lon), d: 'Location from the link or coordinates', icon: 'my_location', go: () => { lookAt(pasted.lat, pasted.lon); setPop(null); setSearchQ(''); } }]
+        ? [{ key: 'pasted', n: 'Location from your link', d: 'Drop a pin there', icon: 'my_location', go: () => { lookAt(pasted.lat, pasted.lon); setPop(null); setSearchQ(''); } }]
         : []),
       ...places
         .filter((p) => !sq || `${p.name} ${p.project}`.toLowerCase().includes(sq))
@@ -435,7 +498,6 @@ export function AskPage({ active }: { active: boolean }) {
   );
 
   const tools: { k: string; icon?: string; title?: string; caret?: boolean }[] = [
-    { k: 'coords', icon: 'my_location', title: 'Go to coordinates' },
     { k: 'draw', icon: 'polyline', title: 'Draw an outline', caret: true },
     { k: 'contours', icon: 'pentagon', title: 'My places', caret: true },
     { k: '|' },
@@ -454,12 +516,16 @@ export function AskPage({ active }: { active: boolean }) {
       </Suspense>
       {isMap && (
         <MapView
-          W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} contour overlay={overlay} pass={pass}
+          W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} contour overlay={overlay ?? viewOverlay} pass={pass}
           pin={spot && !place ? { ...spot, radiusM: SPOT_RADIUS_M } : null}
-          bandTiles={overlay ? null : liveTiles}
-          onCenter={drawing ? undefined : setCenter}
-          onZoom={drawing ? undefined : setZoom}
-          onTap={drawing ? undefined : (lat, lon) => { setAskPlace(null); setSpot({ lat, lon }); }}
+          draft={drawing ? draft : null}
+          onCenter={setCenter}
+          onZoom={setZoom}
+          onTap={(lat, lon) => {
+            if (drawing) return setDraft((d) => [...d, { lat, lon }]);
+            setAskPlace(null);
+            setSpot({ lat, lon });
+          }}
         />
       )}
 
@@ -479,14 +545,18 @@ export function AskPage({ active }: { active: boolean }) {
           </div>
           <div className="row" style={{ gap: 6, overflowX: 'auto' }}>
             {scenesLoading && <span className="tiny muted">Finding recent clear passes…</span>}
-            {!scenesLoading && !scenes.length && <span className="tiny muted">No clear Sentinel-2 pass in the last 4 months here.</span>}
+            {!scenesLoading && !scenes.length && <span className="tiny muted">{viewNote ?? 'No clear Sentinel-2 pass in the last 4 months here.'}</span>}
             {scenes.slice(0, 6).map((sc, i) => (
-              <button key={sc.id} onClick={() => { setSceneIdx(i); if (band === 'map') setBand('photo'); }} className="tiny" title={`${sc.satellite} · ${sc.cloud}% cloud in the tile`} style={{ flex: 'none', padding: '3px 8px', borderRadius: 9999, border: `1px solid ${i === sceneIdx && band !== 'map' ? '#fff' : 'var(--hair)'}`, background: 'transparent', color: i === sceneIdx && band !== 'map' ? '#fff' : 'var(--muted)' }}>
-                {new Date(sc.date + 'T00:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' })}
+              <button key={sc.scene} onClick={() => { setSceneIdx(i); if (band === 'map') setBand('photo'); }} className="tiny" title={`${sc.satellite} · ${sc.cloud}% cloud in the tile`} style={{ flex: 'none', padding: '3px 8px', borderRadius: 9999, border: `1px solid ${i === sceneIdx && band !== 'map' ? '#fff' : 'var(--hair)'}`, background: 'transparent', color: i === sceneIdx && band !== 'map' ? '#fff' : 'var(--muted)' }}>
+                {new Date(String(sc.date) + 'T00:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' })}
               </button>
             ))}
           </div>
-          {scene && band !== 'map' && <span className="tiny muted">{scene.satellite} · {scene.date} · {scene.cloud}% cloud · {BANDS.find((b) => b.id === band)?.hint}</span>}
+          {scene && band !== 'map' && (
+            <span className="tiny muted">
+              {viewLoading ? `Rendering ${BANDS.find((b) => b.id === band)?.label.toLowerCase()}…` : `${scene.satellite} · ${scene.date} · ${scene.cloud}% cloud · ${BANDS.find((b) => b.id === band)?.hint}`}
+            </span>
+          )}
         </div>
       )}
 
@@ -505,35 +575,37 @@ export function AskPage({ active }: { active: boolean }) {
         </div>
       )}
 
-      {/* DRAW CAPTURE */}
-      {drawing && (
-        <>
-          <div onClick={(e) => setDrawPts((d) => [...d, [e.clientX, e.clientY]])} style={{ position: 'fixed', inset: 0, top: navH, cursor: 'crosshair', zIndex: 8 }}>
-            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, top: -navH, height: `calc(100% + ${navH}px)` }}>
-              <polygon points={drawPts.map((p) => p.join(',')).join(' ')} style={{ fill: 'rgba(255,255,255,.1)', stroke: '#fff', strokeWidth: 2, strokeDasharray: '6 4' }} />
-            </svg>
-            {drawPts.map((d, i) => (
-              <div key={i} style={{ position: 'fixed', left: d[0], top: d[1], width: 10, height: 10, margin: '-7px 0 0 -7px', borderRadius: '50%', background: '#000', border: '2px solid #fff' }} />
+      {/* DRAWING: corners are added by clicking the live map; drag and scroll still move it */}
+      {drawing && isMap && (
+        <div className="panel col fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : 20, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100% - 32px)', top: mobile ? 64 : 90, gap: 10, padding: 12, zIndex: 24 }}>
+          <div className="row" style={{ gap: 8 }}>
+            <Ms n="polyline" size={18} />
+            <span style={{ font: '600 14px/1.4 var(--font)' }}>Draw an outline</span>
+            <span className="tiny muted">Click the map to add corners · drag to move · scroll to zoom</span>
+          </div>
+          <div className="row wrap" style={{ gap: 8 }}>
+            <input className="input" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder={`${draftKind} ${places.length + 1}`} aria-label="Name" style={{ width: 180, height: 32 }} />
+            {(Object.keys(DRAFT_KINDS) as DraftKind[]).map((k) => (
+              <button key={k} className={`chip ${draftKind === k ? 'on' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setDraftKind(k)} aria-pressed={draftKind === k}>{k}</button>
             ))}
           </div>
-          <div className="panel row" style={{ position: 'absolute', left: 0, right: 0, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100% - 32px)', flexWrap: 'wrap', top: 88, zIndex: 9, gap: 12, padding: '8px 8px 8px 16px' }}>
-            <span className="body-sm">Click on the map to add points · <span className="ink">{drawPts.length} points</span></span>
-            <Btn size="sm" onClick={() => setDrawPts((d) => d.slice(0, -1))}>Undo point</Btn>
-            <Btn size="sm" onClick={() => { setDrawing(false); setDrawPts([]); }}>Cancel</Btn>
-            <Btn size="sm" variant="primary" onClick={finishDraw}>Save place</Btn>
+          <div className="row" style={{ gap: 8 }}>
+            <span className="tiny muted grow">{draft.length} corner{draft.length === 1 ? '' : 's'}{draft.length < 3 ? ` · ${3 - draft.length} more to save` : ''}</span>
+            <Btn size="sm" onClick={() => setDraft((d) => d.slice(0, -1))} disabled={!draft.length}>Undo</Btn>
+            <Btn size="sm" onClick={cancelDraw}>Cancel</Btn>
+            <Btn size="sm" variant="primary" onClick={saveDraft} disabled={draft.length < 3}>Save</Btn>
           </div>
-        </>
+        </div>
       )}
 
       {/* HERO — after the opening screen, just the one instruction that matters */}
       {showHero && (
         <div style={{ position: 'absolute', left: 48, bottom: 40, maxWidth: 560, pointerEvents: 'none', animation: 'fadeUp .6s ease both' }}>
           <div className="h3" style={{ letterSpacing: -0.5 }}>Tap the globe to look at any place.</div>
-          <div className="body-sm muted" style={{ marginTop: 8 }}>Or search a town, paste coordinates, or pick one of your places. Then try its bands and ask what changed.</div>
+          <div className="body-sm muted" style={{ marginTop: 8 }}>Or search a town, paste a map link, or pick one of your places. Then try its bands and ask what changed.</div>
           <div className="row wrap" style={{ marginTop: 16, gap: 8 }}>
             <span className="pill" style={{ background: 'var(--s1)' }}><Ms n="satellite_alt" size={14} />Sentinel-1/2 · Landsat</span>
             <span className="pill" style={{ background: 'var(--s1)' }}><span className="dot" style={{ background: 'var(--green)' }} />Free, open data</span>
-            <span className="pill" style={{ background: 'var(--s1)' }}><Ms n="translate" size={14} />{LANGS.length} languages</span>
           </div>
         </div>
       )}
@@ -549,9 +621,6 @@ export function AskPage({ active }: { active: boolean }) {
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place ? place.name : spot ? `Pin · ${spotName}` : t('chat.noPlace')}</span>
               {place && <span className="tiny">{place.areaHa} ha</span>}
               <Ms n="arrow_drop_down" size={18} className="muted" />
-            </button>
-            <button className="pill" onClick={() => open({ kind: 'lang' })} title="Answer language" style={{ marginLeft: 'auto', border: 0, background: 'transparent' }}>
-              <Ms n="translate" size={14} />{L.code.toUpperCase()}
             </button>
             {pop === 'place' && (
               <div className="menu" role="menu" style={{ left: 8, top: 40, width: Math.min(320, chatW - 16) }}>
@@ -618,15 +687,15 @@ export function AskPage({ active }: { active: boolean }) {
               <Ms n="location_on" size={20} />
               <div className="col grow" style={{ minWidth: 0 }}>
                 <span className="ink" style={{ font: '600 15px/1.35 var(--font)' }}>{spotName}{spotInfo?.country ? <span className="tiny"> · {spotInfo.country}</span> : null}</span>
-                <span className="tiny">{fmtC(spot.lat, spot.lon)} · circle of {SPOT_RADIUS_M} m{spotInfo ? ` · ${spotInfo.area_ha.toFixed(1)} ha` : ''}</span>
+                <span className="tiny">Circle of {SPOT_RADIUS_M} m{spotInfo ? ` · ${spotInfo.area_ha.toFixed(1)} ha` : ''}</span>
               </div>
               <IconBtn icon="close" className="sm" onClick={() => setSpot(null)} aria-label="Remove pin" />
             </div>
             {spotInfo ? (
               <>
-                <div className="caption">
+                {Object.keys(spotInfo.land_cover).length > 0 && <div className="caption">
                   {Object.entries(spotInfo.land_cover).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${pct(v)} ${k}`).join(' · ')}
-                </div>
+                </div>}
                 <div className="tiny muted">
                   {spotInfo.recent_scenes.clear} clear looks in 60 days · {spotInfo.recent_scenes.radar} radar passes
                   {spotInfo.elevation_m ? ` · ${Math.round(spotInfo.elevation_m.min)}–${Math.round(spotInfo.elevation_m.max)} m high` : ''}
@@ -637,9 +706,10 @@ export function AskPage({ active }: { active: boolean }) {
               <div className="tiny muted">Reading what is here…</div>
             )}
             <div className="row wrap" style={{ gap: 6 }}>
-              <Btn size="sm" variant="primary" icon="bookmark_add" onClick={saveSpot}>Save as place</Btn>
-              <span className="tiny muted">Drag to look around · scroll to zoom · click to move the pin</span>
+              <Btn size="sm" variant="primary" icon="bookmark_add" onClick={saveSpot}>Save this circle</Btn>
+              <Btn size="sm" icon="polyline" onClick={startDraw}>Draw an outline</Btn>
             </div>
+            <div className="tiny muted">Drag to look around · scroll to zoom · click to move the pin</div>
           </div>
         )}
 
@@ -650,7 +720,7 @@ export function AskPage({ active }: { active: boolean }) {
               <div style={{ width: 44, height: 44, borderRadius: 8, flex: 'none', background: `#000 url(${thumb(place.lat, place.lon, Math.min(place.zoom, 16))}) center/cover`, border: '1px solid var(--hair-soft)' }} />
               <div className="col grow">
                 <span className="ink" style={{ font: '600 15px/1.35 var(--font)' }}>{place.name}</span>
-                <span className="tiny">{place.project} · {place.areaHa} ha · {fmtC(place.lat, place.lon)}</span>
+                <span className="tiny">{place.project} · {place.areaHa} ha</span>
               </div>
               <Ms n={placeOpen ? 'expand_more' : 'expand_less'} size={20} className="muted" />
             </button>
@@ -716,7 +786,7 @@ export function AskPage({ active }: { active: boolean }) {
                 {pop === 'draw' && tl.k === 'draw' && (
                   <div className="menu" style={{ left: -40, top: 52, width: 290 }}>
                     <div className="menu-label eyebrow">Add line or shape</div>
-                    <button className="menu-item on" onClick={() => { const c = place; setPop(null); setDrawing(true); setDrawPts([]); setMode('map'); if (c) { setCenter({ lat: c.lat, lon: c.lon }); setZoom(16); } }}><Ms n="polyline" />Path or polygon</button>
+                    <button className="menu-item on" onClick={startDraw}><Ms n="polyline" />Draw an outline<span className="tiny" style={{ marginLeft: 'auto' }}>field, pond, plot…</span></button>
                     <button className="menu-item" onClick={addCircle}><Ms n="radio_button_unchecked" />Circle</button>
                     <button className="menu-item" onClick={() => { setPop(null); open({ kind: 'addPlace' }); }}><Ms n="upload_file" /><span className="col">Upload outline<span className="tiny">KML, GeoJSON or Shapefile</span></span></button>
                   </div>
@@ -733,14 +803,6 @@ export function AskPage({ active }: { active: boolean }) {
                     ))}
                     <div className="divider" style={{ margin: '6px 4px' }} />
                     <button className="menu-item" style={{ color: 'var(--muted)' }} onClick={() => { setPop(null); open({ kind: 'addPlace' }); }}><Ms n="add" />Add a new place</button>
-                  </div>
-                )}
-                {pop === 'coords' && tl.k === 'coords' && (
-                  <div className="menu col" style={{ left: -40, top: 52, width: 280, padding: 16, gap: 10 }}>
-                    <div className="eyebrow">Go to coordinates</div>
-                    <label className="field">Latitude<input className="input" value={coord.lat} onChange={(e) => setCoord({ ...coord, lat: e.target.value })} /></label>
-                    <label className="field">Longitude<input className="input" value={coord.lon} onChange={(e) => setCoord({ ...coord, lon: e.target.value })} /></label>
-                    <Btn variant="primary" onClick={() => { const la = parseFloat(coord.lat), lo = parseFloat(coord.lon); if (isNaN(la) || isNaN(lo) || Math.abs(la) > 85 || Math.abs(lo) > 180) return notify('Enter a valid latitude and longitude', undefined, undefined, 'error'); lookAt(la, lo); setPop(null); }}>Fly there</Btn>
                   </div>
                 )}
               </div>
@@ -804,7 +866,7 @@ export function AskPage({ active }: { active: boolean }) {
             {t('nav.triggers')}<span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999, background: '#fff', color: '#000', font: '600 11px/18px var(--font)', textAlign: 'center' }}>{watches.filter((w) => w.enabled).length}</span>
           </Btn>
         )}
-        {isMap && !mobile && <IconBtn icon="public" title="Back to globe" aria-label="Back to globe" onClick={() => { setMode('globe'); setPlaying(false); setDrawing(false); setSpot(null); }} />}
+        {isMap && !mobile && <IconBtn icon="public" title="Back to globe" aria-label="Back to globe" onClick={() => { setMode('globe'); setPlaying(false); cancelDraw(); setSpot(null); }} />}
       </div>
 
       {/* ZOOM */}

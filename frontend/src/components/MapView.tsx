@@ -21,8 +21,8 @@ interface Props {
   pass?: string | null; // satellite name to draw a ground-track for while the agent routes
   /** A picked spot: pin plus the circle a question about it covers. */
   pin?: { lat: number; lon: number; radiusM: number } | null;
-  /** `{z}/{x}/{y}` tiles of a live satellite band drawn over the basemap. */
-  bandTiles?: string | null;
+  /** An outline being drawn: its corners so far. */
+  draft?: { lat: number; lon: number }[] | null;
   /** Drag to pan, wheel to zoom, click to tap. Without these the map is static. */
   onCenter?: (c: { lat: number; lon: number }) => void;
   onZoom?: (z: number) => void;
@@ -36,7 +36,7 @@ const fromTxy = (x: number, y: number, z: number) => {
 };
 
 /** Basemap tiles, the place outline, and the run's own rendered layer on top. */
-export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, pass, pin, bandTiles, onCenter, onZoom, onTap }: Props) {
+export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, pass, pin, draft, onCenter, onZoom, onTap }: Props) {
   const drag = useRef<{ x: number; y: number; moved: number; c: { x: number; y: number } } | null>(null);
   const lastWheel = useRef(0);
   const interactive = !!(onCenter || onZoom || onTap);
@@ -44,14 +44,8 @@ export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, p
   const x0 = Math.floor(c.x - cx / 256) - 1, x1 = Math.floor(c.x + (W - cx) / 256) + 1;
   const y0 = Math.floor(c.y - cy / 256) - 1, y1 = Math.floor(c.y + (H - cy) / 256) + 1;
   const tiles: { url: string; left: number; top: number }[] = [];
-  const band: typeof tiles = [];
   for (let x = x0; x <= x1; x++)
-    for (let y = y0; y <= y1; y++) {
-      const left = Math.round(cx + (x - c.x) * 256), top = Math.round(cy + (y - c.y) * 256);
-      tiles.push({ url: TILE(zoom, x, y), left, top });
-      // Sentinel-2 is 10 m, so above zoom 17 its tiles are just upsampled; titiler handles it.
-      if (bandTiles) band.push({ url: bandTiles.replace('{z}', String(zoom)).replace('{x}', String(x)).replace('{y}', String(y)), left, top });
-    }
+    for (let y = y0; y <= y1; y++) tiles.push({ url: TILE(zoom, x, y), left: Math.round(cx + (x - c.x) * 256), top: Math.round(cy + (y - c.y) * 256) });
 
   const pointer = interactive
     ? {
@@ -117,9 +111,6 @@ export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, p
       {tiles.map((t) => (
         <img onError={hideBroken} key={t.url} src={t.url} alt="" draggable={false} style={{ position: 'absolute', left: t.left, top: t.top, width: 256, height: 256, userSelect: 'none', pointerEvents: 'none' }} />
       ))}
-      {band.map((t) => (
-        <img onError={hideBroken} key={t.url} src={t.url} alt="" draggable={false} style={{ position: 'absolute', left: t.left, top: t.top, width: 256, height: 256, userSelect: 'none', pointerEvents: 'none', opacity: 0.92 }} />
-      ))}
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.12)', pointerEvents: 'none' }} />
       {overlay && img && (
         <img
@@ -150,6 +141,15 @@ export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, p
           <div style={{ position: 'absolute', left: -7, top: -7, width: 14, height: 14, borderRadius: '50%', background: '#fff', boxShadow: '0 0 0 3px #000, 0 0 0 5px rgba(255,255,255,.5)' }} />
         </div>
       )}
+      {draft && draft.length > 0 && (() => {
+        const pts = draft.map((p) => screen(p.lat, p.lon));
+        return (
+          <svg width={W} height={H} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible' }}>
+            <polygon points={pts.map((p) => `${p.x},${p.y}`).join(' ')} style={{ fill: 'rgba(255,207,37,.18)', stroke: '#ffcf25', strokeWidth: 2, strokeDasharray: '7 5' }} />
+            {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={5} style={{ fill: '#000', stroke: '#ffcf25', strokeWidth: 2 }} />)}
+          </svg>
+        );
+      })()}
       {pass && (
         <div style={{ position: 'absolute', left: cx - 90, top: 24, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 9999, background: '#000', border: '1px solid #2b89ff', font: '600 12px/1.38 var(--font)', animation: 'fadeUp .3s ease both' }}>
           <Ms n="satellite_alt" size={16} style={{ color: '#2b89ff' }} />

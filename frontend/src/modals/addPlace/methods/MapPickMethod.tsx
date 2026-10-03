@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../../../state/store';
 import { Btn } from '../../../components/ui';
-import { DEFAULT_CENTER, approxAreaHa, fmtC, shift, type Pt } from '../../../lib/geo';
+import { DEFAULT_CENTER, approxAreaHa, shift, type Pt } from '../../../lib/geo';
 import { MapFrame } from '../MapFrame';
 import { NO_LAYERS, type Loc, type MethodProps } from '../types';
 
@@ -48,7 +48,7 @@ export function MapPickMethod({ mode, onChange }: MethodProps & { mode: 'draw' |
     }
     if (!pin) return null;
     const c = shift(centre.lat, centre.lon, pin[0], pin[1]);
-    return { ...c, label: 'Pinned site', source: 'pin', via: fmtC(c.lat, c.lon) };
+    return { ...c, label: 'Pinned site', source: 'pin', via: 'Pin on the map' };
   }, [isDraw, verts, pin, centre]);
 
   useEffect(() => onChange(loc), [loc, onChange]);
@@ -92,7 +92,7 @@ export function MapPickMethod({ mode, onChange }: MethodProps & { mode: 'draw' |
           ? verts.length < 3
             ? `Click the corners of your area on the map (${verts.length}/3 minimum). You can refine the outline in the next step.`
             : `${verts.length} points · about ${approxAreaHa(verts, centre.lat)} ha. Keep clicking to add corners.`
-          : loc ? `Pin at ${fmtC(loc.lat, loc.lon)}. You'll set the radius next.` : 'Click once on the map to drop a pin.'}
+          : loc ? `Pin dropped. You'll set the radius next.` : 'Click once on the map to drop a pin.'}
       </div>
     </div>
   );

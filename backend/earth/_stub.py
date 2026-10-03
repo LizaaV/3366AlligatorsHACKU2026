@@ -195,16 +195,24 @@ def describe(area: Area) -> PlaceContext:
     lat, lon = area.centroid()
     near_preset = abs(lat - 22.534) < 0.1 and abs(lon - 114.09) < 0.1
     if not near_preset:
-        warnings.append("offline sample data: land cover is the Hoo Hok Wai preset, not this spot")
+        warnings.append(
+            "offline sample data covers Hoo Hok Wai only; "
+            "run with EARTH_IMPL=real to describe other places"
+        )
     return PlaceContext(
         name=area.name or ("Hoo Hok Wai" if near_preset else None),
         country="Hong Kong" if near_preset else None,
         area_ha=area.area_ha,
         pixels_10m=area.pixels(10),
-        land_cover={"water": 0.34, "grassland": 0.26, "bare": 0.2, "trees": 0.12, "built": 0.08},
-        elevation_m=Range(min=1, max=6),
-        slope_deg=SlopeStats(mean=1.2, p90=3.1),
-        rain_mm_30d=212.4,
+        # Away from the preset there is no offline data: say nothing rather than show its numbers.
+        land_cover=(
+            {"water": 0.34, "grassland": 0.26, "bare": 0.2, "trees": 0.12, "built": 0.08}
+            if near_preset
+            else {}
+        ),
+        elevation_m=Range(min=1, max=6) if near_preset else None,
+        slope_deg=SlopeStats(mean=1.2, p90=3.1) if near_preset else None,
+        rain_mm_30d=212.4 if near_preset else None,
         recent_scenes=SceneCounts(
             optical=len(optical.scenes), clear=len(optical.clear()), radar=len(radar.scenes)
         ),

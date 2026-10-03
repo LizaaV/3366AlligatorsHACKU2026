@@ -10,7 +10,7 @@ import { api } from '../../../api';
 import { useResource } from '../../../hooks/useResource';
 import { ErrorState } from '../../../components/async';
 import { Ms } from '../../../components/ui';
-import { fmtC, outerRing, ringToPts } from '../../../lib/geo';
+import { outerRing, ringToPts } from '../../../lib/geo';
 import { toSearchHits, type AreaSearchHit } from '../../../model';
 import type { Loc, MethodProps } from '../types';
 
@@ -72,7 +72,6 @@ export function SearchMethod({ onChange }: MethodProps) {
             <button key={`${r.name}-${i}`} className={`menu-item ${picked === r ? 'on' : ''}`} onClick={() => setPicked(r)}>
               <Ms n="location_on" />
               <span className="grow">{r.name} <span className="caption">· {r.description}</span></span>
-              <span className="tiny hide-mobile">{fmtC(r.lat, r.lon)}</span>
               {picked === r && <Ms n="check" style={{ color: '#fff' }} />}
             </button>
           ))}

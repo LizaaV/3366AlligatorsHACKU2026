@@ -3,7 +3,6 @@
 import type { ReactNode } from 'react';
 import { MapView, type MapLayers } from '../../components/MapView';
 import { IconBtn } from '../../components/ui';
-import { fmtC } from '../../lib/geo';
 import type { Place } from '../../model';
 
 export function MapFrame({ H, center, zoom, setZoom, place, layers, onPick, children }: {
@@ -33,7 +32,7 @@ export function MapFrame({ H, center, zoom, setZoom, place, layers, onPick, chil
         <IconBtn icon="remove" className="sm boxed" aria-label="Zoom out" onClick={() => setZoom(Math.max(3, zoom - 1))} />
       </div>
       <span className="tiny" style={{ position: 'absolute', left: 8, bottom: 6, color: 'var(--muted)', textShadow: '0 1px 2px #000' }}>
-        Sentinel-2 cloudless · {fmtC(center.lat, center.lon)} · z{zoom}
+        Sentinel-2 cloudless basemap
       </span>
     </div>
   );

@@ -3,7 +3,6 @@
 import { useStore } from '../../state/store';
 import { Check } from '../../components/ui';
 import { skillRunnable, sourceLabel } from '../../data/presentation';
-import { fmtC } from '../../lib/geo';
 import type { Loc } from './types';
 import type { DetailsForm } from './useDetailsForm';
 
@@ -76,7 +75,6 @@ export function DetailsStep({ loc, ha, form }: { loc: Loc; ha: number; form: Det
       <div className="well row wrap" style={{ padding: '10px 14px', gap: 12 }}>
         <span className="caption">{sourceLabel(loc.source)}</span>
         <span className="caption">·</span>
-        <span className="caption">{fmtC(loc.lat, loc.lon)}</span>
         <span className="caption">·</span>
         <span className="caption">{ha} ha</span>
       </div>

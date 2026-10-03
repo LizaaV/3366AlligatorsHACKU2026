@@ -222,13 +222,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     'algae-red-tide-alert',
   ]);
   const [askPlaceId, setAskPlaceId] = useState<string | null>(null);
-  const [lang, setLangState] = useState<string>(() => {
-    try {
-      return localStorage.getItem('gt.lang') || 'en';
-    } catch {
-      return 'en';
-    }
-  });
+  // One language for now (English); answers and UI both use it.
+  const [lang, setLangState] = useState<string>('en');
   const [connectors, setConnectors] = useState<Connectors>({
     email: { connected: true, address: 'you@farm.example' },
     whatsapp: { connected: false, number: '' },

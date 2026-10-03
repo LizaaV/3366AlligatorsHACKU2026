@@ -33,3 +33,7 @@ api_router.include_router(watches.router)
 api_router.include_router(skills_routes.router)
 api_router.include_router(catalog_routes.router)
 api_router.include_router(threads.router)
+
+from app.api.routes import views as views_routes  # noqa: E402
+
+api_router.include_router(views_routes.router)

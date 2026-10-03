@@ -259,7 +259,8 @@ export const toPlace = (d: PlaceDto): Place => {
     pts,
     circle: d.is_circle,
     // AUTHORITATIVE, from the server. Never recomputed for a saved place.
-    areaHa: d.area_ha,
+    // One decimal is honest at 10 m pixels (and readable); the server keeps the exact figure.
+    areaHa: Math.round(d.area_ha * 10) / 10,
     project: d.project ?? '',
     tags: d.tags ?? [],
     source: d.source as PlaceSource,

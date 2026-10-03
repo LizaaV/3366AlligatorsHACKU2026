@@ -3,7 +3,7 @@ import { useStore } from '../state/store';
 import { api } from '../api';
 import { useResource } from '../hooks/useResource';
 import type { Skill } from '../model';
-import { DEFAULT_CENTER, fmtC, quad } from '../lib/geo';
+import { DEFAULT_CENTER, quad } from '../lib/geo';
 import { fmtDate } from '../lib/format';
 import { Btn, CatPill, Empty, Ms, hideBroken } from '../components/ui';
 import { skillStatus } from '../data/presentation';
@@ -59,9 +59,9 @@ function Detail({ s }: { s: Skill }) {
 
   return (
     <div className="lib-detail">
-      <div className="lib-media" aria-label={`Reference imagery near ${fmtC(ref.lat, ref.lon)}`}>
+      <div className="lib-media" aria-label="Reference imagery">
         {quad(ref.lat, ref.lon, s.categoryKey === 'agriculture' ? 15 : 13).map((src: string, i: number) => <img onError={hideBroken} key={i} src={src} alt="" />)}
-        <div className="lib-media-pill"><Ms n="image" />Reference image · {fmtC(ref.lat, ref.lon)}</div>
+        <div className="lib-media-pill"><Ms n="image" />Reference image</div>
       </div>
 
       <div className="lib-detail-col">

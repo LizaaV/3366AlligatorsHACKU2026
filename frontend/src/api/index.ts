@@ -22,6 +22,7 @@ import { skillsApi } from './endpoints/skills';
 import { watchesApi } from './endpoints/watches';
 import { threadsApi } from './endpoints/threads';
 import { sharesApi } from './endpoints/shares';
+import { viewsApi } from './endpoints/views';
 
 export const api = {
   catalog: catalogApi,
@@ -35,6 +36,7 @@ export const api = {
   exports: exportsApi,
   threads: threadsApi,
   shares: sharesApi,
+  views: viewsApi,
 };
 
 export { ApiError, toApiError } from './http';
@@ -45,6 +47,7 @@ export { API_BASE, API_SOURCE, usingFixtures } from './config';
 export type { RunRequest, ReplyRequest, RunRecord, BackendAnswer, ShareCreated, InsightSaved } from './endpoints/runs';
 export type { ThreadSummary, ThreadDetail } from './endpoints/threads';
 export type { SharedRun } from './endpoints/shares';
+export type { ViewPass, ViewImage, ViewBand } from './endpoints/views';
 export type { WatchPatch } from './endpoints/watches';
 export type { AreaResolveRequest, AreaResolveResponse, Area, AreaMatch, PlaceContext } from './endpoints/areas';
 export { DEFAULT_PIN_RADIUS_M } from './endpoints/areas';

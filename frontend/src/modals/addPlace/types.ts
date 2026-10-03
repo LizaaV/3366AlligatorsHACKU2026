@@ -20,7 +20,6 @@ export type Method = 'search' | 'coords' | 'draw' | 'upload' | 'parcel' | 'whats
  */
 export const METHODS: { id: Method; icon: string; title: string; hint: string }[] = [
   { id: 'search', icon: 'search', title: 'Search a place name', hint: 'Town, farm, lake, port or region' },
-  { id: 'coords', icon: 'my_location', title: 'Coordinates', hint: 'Latitude / longitude or your location' },
   { id: 'draw', icon: 'draw', title: 'Draw on map', hint: 'Click the corners of your field' },
   { id: 'pin', icon: 'location_on', title: 'Drop pin + radius', hint: 'One tap, then set a radius' },
   { id: 'project', icon: 'folder_open', title: 'Copy from a project', hint: 'Reuse a place another project has' },

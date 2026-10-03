@@ -739,6 +739,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/views/passes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recent clear passes over a spot
+         * @description The latest clear Sentinel-2 passes over a 2 km square around the point, newest first.
+         */
+        get: operations["view_passes_api_views_passes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Render one band of a spot
+         * @description One band (photo, greenness, water, bare) of a 2 km square around the point, from the
+         *     given pass or the latest clear one. Rendered once, then cached. No agent, no cost.
+         */
+        get: operations["view_image_api_views_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3153,6 +3194,63 @@ export interface components {
             saved?: string | null;
         };
         /**
+         * ViewImage
+         * @description One band of one pass, rendered as a PNG pinned to WGS84 bounds.
+         */
+        ViewImage: {
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "photo" | "greenness" | "water" | "bare";
+            /**
+             * Url
+             * @description Served by GET /api/layers/...; relative to the API origin.
+             */
+            url: string;
+            /**
+             * Bounds
+             * @description [west, south, east, north]
+             */
+            bounds: [
+                number,
+                number,
+                number,
+                number
+            ];
+            /** Scene */
+            scene: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Satellite */
+            satellite: string;
+            /** Cloud */
+            cloud: number;
+        };
+        /**
+         * ViewPass
+         * @description A recent clear Sentinel-2 pass over the spot.
+         */
+        ViewPass: {
+            /** Scene */
+            scene: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Satellite */
+            satellite: string;
+            /**
+             * Cloud
+             * @description Cloud over the square, percent.
+             */
+            cloud: number;
+        };
+        /**
          * WatchDto
          * @description A saved watch.
          *
@@ -3464,6 +3562,20 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RunRecord"];
                 };
+            };
+            /** @description Invalid run id or X-User-Id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Run not found for this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -5344,6 +5456,86 @@ export interface operations {
                 content?: never;
             };
             /** @description Not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    view_passes_api_views_passes_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewPass"][];
+                };
+            };
+            /** @description No imagery for this spot (offline data or no clear pass). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    view_image_api_views_get: {
+        parameters: {
+            query: {
+                band: "photo" | "greenness" | "water" | "bare";
+                lat: number;
+                lon: number;
+                scene?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewImage"];
+                };
+            };
+            /** @description No imagery for this spot (offline data or no clear pass). */
             404: {
                 headers: {
                     [name: string]: unknown;
