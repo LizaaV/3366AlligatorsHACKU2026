@@ -18,6 +18,7 @@ import { exportsApi } from './endpoints/exports';
 import { insightsApi } from './endpoints/insights';
 import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
+import { satellitesApi } from './endpoints/satellites';
 import { watchesApi } from './endpoints/watches';
 import { threadsApi } from './endpoints/threads';
 
@@ -32,6 +33,7 @@ export const api = {
   insights: insightsApi,
   exports: exportsApi,
   threads: threadsApi,
+  satellites: satellitesApi,
 };
 
 export { ApiError, toApiError } from './http';
@@ -43,3 +45,4 @@ export { isEvent } from './stream';
 export type { StreamEvent, StreamEventName } from './stream';
 export type { SkillQuery } from './endpoints/skills';
 export type { ThreadSummary, ThreadDetail } from './endpoints/threads';
+export type { SatelliteDto, SatellitePoint } from './endpoints/satellites';
