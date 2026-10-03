@@ -4,6 +4,7 @@ import { ApiError, api, toApiError } from '../api';
 import { useResource } from '../hooks/useResource';
 import type { ParcelLookupResponse, ParseBoundaryFileResponse, PlaceSource } from '../api/types';
 import type { Place } from '../model';
+import { toSearchHits } from '../model';
 import { sourceLabel } from '../data/presentation';
 import { DEFAULT_CENTER, approxAreaHa, circlePts, fitZoom, fmtC, ptsToRing, rectPts, ringToPts, shift, type Pt } from '../lib/geo';
 import { MapView, type MapLayers } from '../components/MapView';
@@ -178,13 +179,19 @@ export function AddPlaceModal() {
   const [tags, setTags] = useState('');
   const [startWatch, setStartWatch] = useState<string[]>([]);
 
-  // Geocoder results for the search step and the "jump to" list, from the API.
-  const geo = useResource(useCallback((signal) => api.places.search(query.trim(), signal), [query]), [query]);
+  // POST /api/areas/resolve handles the search step: it reads a place name, coordinates or a
+  // map link, and returns the best area plus "did you mean" candidates.
+  const geo = useResource(
+    useCallback((signal) => api.areas.resolve({ query: query.trim() }, signal).then(toSearchHits), [query]),
+    [query],
+  );
   const hits = geo.data ?? [];
-  const jumpsRes = useResource(useCallback((signal) => api.places.search('', signal), []), []);
+  // The "jump to" list is where the map starts when drawing. It used to be geocoder results for
+  // an empty query, which a real geocoder cannot answer — the user's own saved places are both
+  // available already and a better starting point.
   const jumps = [
     { n: 'My Farm, Garden City', lat: DEFAULT_CENTER.lat, lon: DEFAULT_CENTER.lon },
-    ...(jumpsRes.data ?? []).map((r) => ({ n: r.name, lat: r.lat, lon: r.lon })),
+    ...places.map((p) => ({ n: p.name, lat: p.lat, lon: p.lon })),
   ];
   const drawCenter = jumps[Math.min(drawAt, jumps.length - 1)] ?? jumps[0];
   const parcel = PARCEL_SYS.find((p) => p.id === parcelSys)!;
