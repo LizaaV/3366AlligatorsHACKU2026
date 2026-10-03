@@ -19,6 +19,7 @@ import { exportsApi } from './endpoints/exports';
 import { insightsApi } from './endpoints/insights';
 import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
+import { satellitesApi } from './endpoints/satellites';
 import { watchesApi } from './endpoints/watches';
 
 export const api = {
@@ -32,6 +33,7 @@ export const api = {
   knowledge: knowledgeApi,
   insights: insightsApi,
   exports: exportsApi,
+  satellites: satellitesApi,
 };
 
 export { ApiError, toApiError } from './http';
@@ -43,3 +45,4 @@ export { isEvent } from './stream';
 export type { StreamEvent, StreamEventName } from './stream';
 export type { SkillQuery } from './endpoints/skills';
 export type { Dashboard, DashboardBlock, DashboardSummary } from './endpoints/dashboards';
+export type { SatelliteDto, SatellitePoint } from './endpoints/satellites';

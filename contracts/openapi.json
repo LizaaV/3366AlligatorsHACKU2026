@@ -2255,7 +2255,7 @@
             }
           },
           "404": {
-            "description": "`place_id` is not one of this user's places"
+            "description": "`place_id` or `dashboard_id` is not one of this user's"
           },
           "422": {
             "description": "Invalid body, a refused question (`detail` is a `FeasibilityDto`), or too many watches"
@@ -2312,7 +2312,7 @@
             }
           },
           "404": {
-            "description": "`place_id` is not one of this user's places"
+            "description": "`place_id` or `dashboard_id` is not one of this user's"
           },
           "422": {
             "description": "Validation Error",
@@ -2386,7 +2386,7 @@
             }
           },
           "404": {
-            "description": "No such watch for this user"
+            "description": "`place_id` or `dashboard_id` is not one of this user's"
           },
           "422": {
             "description": "Validation Error",
@@ -2910,6 +2910,63 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CatalogDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/satellites": {
+      "get": {
+        "tags": [
+          "satellites"
+        ],
+        "summary": "List Satellites",
+        "description": "Current positions of the free Earth-observation satellites, each with a ~90 min\nground track (2-min steps) starting at `at`.",
+        "operationId": "list_satellites_api_satellites_get",
+        "parameters": [
+          {
+            "name": "at",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO instant to propagate to; default now.",
+              "title": "At"
+            },
+            "description": "ISO instant to propagate to; default now."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/app__schemas__satellites__SatelliteDto"
+                  },
+                  "title": "Response List Satellites Api Satellites Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3561,7 +3618,7 @@
           },
           "satellites": {
             "items": {
-              "$ref": "#/components/schemas/SatelliteDto"
+              "$ref": "#/components/schemas/app__schemas__catalog__SatelliteDto"
             },
             "type": "array",
             "title": "Satellites"
@@ -4054,6 +4111,27 @@
             "maxLength": 300,
             "title": "Cadence",
             "default": ""
+          },
+          "recurrence": {
+            "type": "string",
+            "enum": [
+              "recurring",
+              "once"
+            ],
+            "title": "Recurrence",
+            "default": "recurring"
+          },
+          "dashboard_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dashboard Id"
           }
         },
         "additionalProperties": false,
@@ -5716,6 +5794,33 @@
               }
             ],
             "title": "Cadence"
+          },
+          "recurrence": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "recurring",
+                  "once"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence"
+          },
+          "dashboard_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dashboard Id"
           }
         },
         "additionalProperties": false,
@@ -6575,77 +6680,6 @@
         ],
         "title": "RunStarted",
         "description": "The run has been accepted and started."
-      },
-      "SatelliteDto": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "res": {
-            "type": "string",
-            "title": "Res"
-          },
-          "revisit": {
-            "type": "string",
-            "title": "Revisit"
-          },
-          "tier": {
-            "type": "string",
-            "enum": [
-              "free",
-              "paid"
-            ],
-            "title": "Tier"
-          },
-          "price": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Price"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "optical",
-              "radar",
-              "thermal",
-              "atmos",
-              "lights"
-            ],
-            "title": "Kind"
-          },
-          "note": {
-            "type": "string",
-            "title": "Note"
-          },
-          "connected": {
-            "type": "boolean",
-            "title": "Connected",
-            "description": "True when the backend actually fetches scenes from this source today (Sentinel-2 via Earth Search, Sentinel-1 and Landsat via Planetary Computer, VIIRS fire hotspots via NASA FIRMS). The rest are listed for routing and pricing but are not wired up yet."
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "res",
-          "revisit",
-          "tier",
-          "kind",
-          "note",
-          "connected"
-        ],
-        "title": "SatelliteDto"
       },
       "SaveBlockRequest": {
         "properties": {
@@ -8268,6 +8302,26 @@
         "title": "TimelineSeries",
         "description": "An extra line, e.g. the surroundings for local-vs-regional."
       },
+      "TrackPoint": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "title": "Lat",
+            "description": "Geodetic latitude, degrees."
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon",
+            "description": "Longitude, degrees east, -180..180."
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "TrackPoint"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -8476,6 +8530,28 @@
             "title": "Enabled",
             "default": true
           },
+          "recurrence": {
+            "type": "string",
+            "enum": [
+              "recurring",
+              "once"
+            ],
+            "title": "Recurrence",
+            "description": "'once' triggers disable themselves (`enabled: false`) after their first alert-level event; 'recurring' keeps firing.",
+            "default": "recurring"
+          },
+          "dashboard_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dashboard Id",
+            "description": "Optional linked dashboard."
+          },
           "series": {
             "$ref": "#/components/schemas/WatchSeries"
           },
@@ -8672,6 +8748,145 @@
         "type": "object",
         "title": "WatchSeries",
         "description": "History of the watched metric, one point per pass, in **real units** (`unit`).\n\nThe chart normalises for drawing; the API never sends 0..1-scaled values. All arrays have\nthe same length as `labels`. Empty until the watch has real runs."
+      },
+      "app__schemas__catalog__SatelliteDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "res": {
+            "type": "string",
+            "title": "Res"
+          },
+          "revisit": {
+            "type": "string",
+            "title": "Revisit"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "paid"
+            ],
+            "title": "Tier"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "optical",
+              "radar",
+              "thermal",
+              "atmos",
+              "lights"
+            ],
+            "title": "Kind"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected",
+            "description": "True when the backend actually fetches scenes from this source today (Sentinel-2 via Earth Search, Sentinel-1 and Landsat via Planetary Computer, VIIRS fire hotspots via NASA FIRMS). The rest are listed for routing and pricing but are not wired up yet."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "res",
+          "revisit",
+          "tier",
+          "kind",
+          "note",
+          "connected"
+        ],
+        "title": "SatelliteDto"
+      },
+      "app__schemas__satellites__SatelliteDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Stable slug, e.g. 'sentinel-2a'."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "norad_id": {
+            "type": "integer",
+            "title": "Norad Id"
+          },
+          "mission": {
+            "type": "string",
+            "title": "Mission",
+            "description": "Programme, e.g. 'Sentinel-2'."
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "alt_km": {
+            "type": "number",
+            "title": "Alt Km",
+            "description": "Height above the WGS84 ellipsoid."
+          },
+          "velocity_kms": {
+            "type": "number",
+            "title": "Velocity Kms",
+            "description": "Speed in km/s."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At",
+            "description": "Instant (UTC) the position is for."
+          },
+          "track": {
+            "items": {
+              "$ref": "#/components/schemas/TrackPoint"
+            },
+            "type": "array",
+            "title": "Track",
+            "description": "Sub-satellite points for the next ~90 min at 2-min steps (45 points)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "norad_id",
+          "mission",
+          "lat",
+          "lon",
+          "alt_km",
+          "velocity_kms",
+          "at",
+          "track"
+        ],
+        "title": "SatelliteDto"
       }
     }
   }
