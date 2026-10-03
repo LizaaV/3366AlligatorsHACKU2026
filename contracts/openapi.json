@@ -691,6 +691,9 @@
               }
             }
           },
+          "400": {
+            "description": "Unusable outline: `{kind, message, hint}`"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -718,6 +721,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
               "title": "Place Id"
             }
           },
@@ -751,6 +755,9 @@
               }
             }
           },
+          "404": {
+            "description": "No such place for this user"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -776,6 +783,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
               "title": "Place Id"
             }
           },
@@ -819,6 +827,12 @@
               }
             }
           },
+          "400": {
+            "description": "Unusable outline: `{kind, message, hint}`"
+          },
+          "404": {
+            "description": "No such place for this user"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -844,6 +858,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
               "title": "Place Id"
             }
           },
@@ -869,6 +884,9 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such place for this user"
           },
           "422": {
             "description": "Validation Error",
@@ -897,6 +915,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
               "title": "Place Id"
             }
           },
@@ -929,6 +948,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such place for this user"
           },
           "422": {
             "description": "Validation Error",
@@ -997,6 +1019,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such place for this user"
           },
           "422": {
             "description": "Validation Error",
@@ -1179,6 +1204,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "place_id is not one of the run's places"
+          },
+          "404": {
+            "description": "Run or place not found"
           },
           "422": {
             "description": "Validation Error",
@@ -1943,12 +1974,6 @@
       },
       "CreatePlaceRequest": {
         "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Name"
-          },
           "geometry": {
             "anyOf": [
               {
@@ -1971,24 +1996,31 @@
               }
             ]
           },
-          "radiusM": {
+          "radius_m": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "number",
+                "exclusiveMinimum": 0.0
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Radiusm"
+            "title": "Radius M"
           },
-          "categoryKey": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "category_key": {
             "type": "string",
             "maxLength": 40,
-            "title": "Categorykey",
+            "title": "Category Key",
             "default": ""
           },
-          "isCircle": {
+          "is_circle": {
             "anyOf": [
               {
                 "type": "boolean"
@@ -1997,7 +2029,7 @@
                 "type": "null"
               }
             ],
-            "title": "Iscircle"
+            "title": "Is Circle"
           },
           "project": {
             "anyOf": [
@@ -2013,7 +2045,8 @@
           },
           "tags": {
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 40
             },
             "type": "array",
             "maxItems": 20,
@@ -2039,7 +2072,8 @@
                 "items": {
                   "$ref": "#/components/schemas/DetailRow"
                 },
-                "type": "array"
+                "type": "array",
+                "maxItems": 30
               },
               {
                 "type": "null"
@@ -2053,16 +2087,18 @@
           "name"
         ],
         "title": "CreatePlaceRequest",
-        "description": "Send `geometry` (a GeoJSON polygon) or `center` + `radiusM`."
+        "description": "Send `geometry` (a GeoJSON polygon; `center` is then ignored and recomputed),\nor `center` + `radius_m` for a dropped pin."
       },
       "DetailRow": {
         "properties": {
           "label": {
             "type": "string",
+            "maxLength": 40,
             "title": "Label"
           },
           "value": {
             "type": "string",
+            "maxLength": 300,
             "title": "Value"
           }
         },
@@ -3005,19 +3041,6 @@
       },
       "PatchPlaceRequest": {
         "properties": {
-          "name": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 120,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
           "geometry": {
             "anyOf": [
               {
@@ -3040,18 +3063,32 @@
               }
             ]
           },
-          "radiusM": {
+          "radius_m": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "number",
+                "exclusiveMinimum": 0.0
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Radiusm"
+            "title": "Radius M"
           },
-          "categoryKey": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "category_key": {
             "anyOf": [
               {
                 "type": "string",
@@ -3061,7 +3098,18 @@
                 "type": "null"
               }
             ],
-            "title": "Categorykey"
+            "title": "Category Key"
+          },
+          "is_circle": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Circle"
           },
           "project": {
             "anyOf": [
@@ -3079,7 +3127,8 @@
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 40
                 },
                 "type": "array",
                 "maxItems": 20
@@ -3093,7 +3142,7 @@
         },
         "type": "object",
         "title": "PatchPlaceRequest",
-        "description": "Every field optional. Sending `geometry` or `center` + `radiusM` replaces the outline."
+        "description": "Every field optional. Sending `geometry` (wins over `center`) or `center` + `radius_m`\nreplaces the outline."
       },
       "PlaceContext": {
         "properties": {
@@ -3202,9 +3251,9 @@
             "type": "string",
             "title": "Name"
           },
-          "categoryKey": {
+          "category_key": {
             "type": "string",
-            "title": "Categorykey",
+            "title": "Category Key",
             "default": ""
           },
           "center": {
@@ -3215,13 +3264,13 @@
             "type": "object",
             "title": "Geometry"
           },
-          "areaHa": {
+          "area_ha": {
             "type": "number",
-            "title": "Areaha"
+            "title": "Area Ha"
           },
-          "isCircle": {
+          "is_circle": {
             "type": "boolean",
-            "title": "Iscircle",
+            "title": "Is Circle",
             "default": false
           },
           "project": {
@@ -3256,13 +3305,13 @@
             "title": "Source",
             "default": "drawn"
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
-            "title": "Createdat"
+            "title": "Created At"
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
-            "title": "Updatedat"
+            "title": "Updated At"
           },
           "details": {
             "items": {
@@ -3278,9 +3327,9 @@
           "name",
           "center",
           "geometry",
-          "areaHa",
-          "createdAt",
-          "updatedAt"
+          "area_ha",
+          "created_at",
+          "updated_at"
         ],
         "title": "PlaceDto"
       },

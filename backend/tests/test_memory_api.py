@@ -50,7 +50,7 @@ def test_patch_memory_updates_existing_key(client: TestClient) -> None:
 def test_place_memory_404(client: TestClient) -> None:
     assert client.get("/api/places/pl_nope/memory").status_code == 404
     assert client.patch("/api/places/pl_nope/memory", json={"note": "x"}).status_code == 404
-    assert client.get("/api/places/BAD..ID/memory").status_code == 404
+    assert client.get("/api/places/BAD..ID/memory").status_code == 422
 
 
 def test_patch_memory_validation(client: TestClient) -> None:
@@ -151,3 +151,24 @@ def test_save_insight_errors(client: TestClient) -> None:
     # someone else's run is invisible
     other = {"X-User-Id": "bob"}
     assert client.post("/api/runs/r1/insight", json=ok, headers=other).status_code == 404
+
+
+def test_profile_caps(client: TestClient) -> None:
+    client.get("/api/places")
+    url = "/api/places/pl_hhw/memory"
+    assert client.patch(url, json={"profile": {"k" * 41: "v"}}).status_code == 422
+    assert client.patch(url, json={"profile": {"k": "v" * 301}}).status_code == 422
+    assert client.patch(url, json={"profile": {f"k{i}": "v" for i in range(31)}}).status_code == 422
+    for lo, hi in ((0, 30), (30, 50)):  # 50 keys in total is fine
+        body = {"profile": {f"k{i}": "v" for i in range(lo, hi)}}
+        assert client.patch(url, json=body).status_code == 200
+    assert client.patch(url, json={"profile": {"one_more": "v"}}).status_code == 422
+    assert client.patch(url, json={"profile": {"k0": "changed"}}).status_code == 200  # existing
+    assert len(client.get(url).json()["profile"]) == 50
+
+
+def test_me_profile_caps(client: TestClient) -> None:
+    body = {"profile": {f"k{i}": "v" for i in range(30)}}
+    assert client.patch("/api/me/memory", json=body).status_code == 200
+    more = {"profile": {f"m{i}": "v" for i in range(21)}}
+    assert client.patch("/api/me/memory", json=more).status_code == 422

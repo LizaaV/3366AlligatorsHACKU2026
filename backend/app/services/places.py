@@ -6,6 +6,7 @@ Geometry is validated and measured by `earth.Area`; memory lives in `memory.py`.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import tempfile
@@ -22,6 +23,7 @@ from earth import settings as earth_settings
 from earth.errors import BudgetExceeded
 from earth.presets import HOO_HOK_WAI
 
+log = logging.getLogger(__name__)
 _locks: dict[str, threading.Lock] = {}
 _guard = threading.Lock()
 
@@ -37,10 +39,25 @@ def _lock(path: Path) -> threading.Lock:
         return _locks.setdefault(str(path), threading.Lock())
 
 
-def _load(path: Path) -> list[dict]:
+def _load(path: Path, user_id: str | None = None) -> list[dict]:
+    """Read the user's places. Seeds the demo user's first visit; a corrupt file is moved
+    aside to `.corrupt` and treated as empty. Callers must hold `_lock(path)`."""
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
     except (FileNotFoundError, NotADirectoryError):
+        if user_id == "demo":
+            rows = _seed()
+            _save(path, rows)
+            return rows
+        return []
+    try:
+        rows = json.loads(text)
+        if not isinstance(rows, list):
+            raise ValueError("places file is not a list")
+        return rows
+    except ValueError:  # JSONDecodeError is a ValueError
+        log.warning("corrupt places file %s: moved to .corrupt, starting empty", path)
+        os.replace(path, path.with_name(path.name + ".corrupt"))
         return []
 
 
@@ -65,12 +82,10 @@ def _slug(name: str) -> str:
     return f"pl_{s or 'place'}"
 
 
-def _unique_id(name: str, taken: set[str]) -> str:
-    base = _slug(name)
-    if base not in taken:
-        return base
+def _new_id(name: str, taken: set[str]) -> str:
+    """Always randomised, so a deleted place's memory file is never inherited by a new one."""
     while True:
-        cand = f"{base}_{uuid.uuid4().hex[:4]}"
+        cand = f"{_slug(name)}_{uuid.uuid4().hex[:6]}"
         if cand not in taken:
             return cand
 
@@ -110,16 +125,16 @@ def _seed() -> list[dict]:
         {
             "id": "pl_hhw",
             "name": "Hoo Hok Wai ponds",
-            "categoryKey": "water",
+            "category_key": "water",
             "center": _center(HOO_HOK_WAI),
             "geometry": HOO_HOK_WAI.geojson,
-            "areaHa": HOO_HOK_WAI.area_ha,
-            "isCircle": True,
+            "area_ha": HOO_HOK_WAI.area_ha,
+            "is_circle": True,
             "project": None,
             "tags": ["Wetland", "NGO"],
             "source": "search",
-            "createdAt": now,
-            "updatedAt": now,
+            "created_at": now,
+            "updated_at": now,
         }
     ]
 
@@ -127,17 +142,19 @@ def _seed() -> list[dict]:
 def list_places(user_id: str) -> list[PlaceDto]:
     path = _path(user_id)
     with _lock(path):
-        if not path.exists() and user_id == "demo":
-            _save(path, _seed())
-        rows = _load(path)
-    rows.sort(key=lambda r: r["createdAt"], reverse=True)
+        rows = _load(path, user_id)
+    rows.reverse()  # ties (same second): later insertion first
+    rows.sort(key=lambda r: r["created_at"], reverse=True)
     return [_dto(r, user_id) for r in rows]
 
 
 def get_place(user_id: str, place_id: str) -> PlaceDto | None:
     if not ID_RE.fullmatch(place_id):
         return None
-    for row in _load(_path(user_id)):
+    path = _path(user_id)
+    with _lock(path):
+        rows = _load(path, user_id)
+    for row in rows:
         if row["id"] == place_id:
             return _dto(row, user_id)
     return None
@@ -145,24 +162,24 @@ def get_place(user_id: str, place_id: str) -> PlaceDto | None:
 
 def create_place(user_id: str, req: CreatePlaceRequest) -> PlaceDto:
     center = req.center.model_dump() if req.center else None
-    area = _area(req.geometry, center, req.radiusM, req.name)
+    area = _area(req.geometry, center, req.radius_m, req.name)
     path = _path(user_id)
     with _lock(path):
-        rows = _load(path)
+        rows = _load(path, user_id)
         now = _now()
         row = {
-            "id": _unique_id(req.name, {r["id"] for r in rows}),
+            "id": _new_id(req.name, {r["id"] for r in rows}),
             "name": req.name,
-            "categoryKey": req.categoryKey,
+            "category_key": req.category_key,
             "center": _center(area),
             "geometry": area.geojson,
-            "areaHa": area.area_ha,
-            "isCircle": req.isCircle if req.isCircle is not None else req.geometry is None,
+            "area_ha": area.area_ha,
+            "is_circle": req.is_circle if req.is_circle is not None else req.geometry is None,
             "project": req.project,
             "tags": req.tags,
             "source": req.source,
-            "createdAt": now,
-            "updatedAt": now,
+            "created_at": now,
+            "updated_at": now,
         }
         rows.append(row)
         _save(path, rows)
@@ -176,39 +193,41 @@ def update_place(user_id: str, place_id: str, req: PatchPlaceRequest) -> PlaceDt
         return None
     path = _path(user_id)
     with _lock(path):
-        rows = _load(path)
+        rows = _load(path, user_id)
         row = next((r for r in rows if r["id"] == place_id), None)
         if row is None:
             return None
         name = req.name if req.name is not None else row["name"]
         if req.geometry is not None or req.center is not None:
             center = req.center.model_dump() if req.center else None
-            area = _area(req.geometry, center, req.radiusM, name)
+            area = _area(req.geometry, center, req.radius_m, name)
             row.update(
                 geometry=area.geojson,
-                areaHa=area.area_ha,
+                area_ha=area.area_ha,
                 center=_center(area),
-                isCircle=req.geometry is None,
+                is_circle=req.geometry is None,
             )
+        if req.is_circle is not None:
+            row["is_circle"] = req.is_circle
         row["name"] = name
-        if req.categoryKey is not None:
-            row["categoryKey"] = req.categoryKey
+        if req.category_key is not None:
+            row["category_key"] = req.category_key
         if "project" in req.model_fields_set:  # explicit null clears it
             row["project"] = req.project
         if req.tags is not None:
             row["tags"] = req.tags
-        row["updatedAt"] = _now()
+        row["updated_at"] = _now()
         _save(path, rows)
     return _dto(row, user_id)
 
 
 def delete_place(user_id: str, place_id: str) -> bool:
-    """Removes the record. The place's memory file is kept on purpose."""
+    """Removes the record. Ids are never reused, so the orphaned memory file is unreachable."""
     if not ID_RE.fullmatch(place_id):
         return False
     path = _path(user_id)
     with _lock(path):
-        rows = _load(path)
+        rows = _load(path, user_id)
         kept = [r for r in rows if r["id"] != place_id]
         if len(kept) == len(rows):
             return False

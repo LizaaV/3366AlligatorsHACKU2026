@@ -1,10 +1,10 @@
+import re
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import memory
 from app.services.memory import ID_RE
 
 SQUARE = {  # ~11 ha near Hoo Hok Wai, [lon, lat]
@@ -50,7 +50,7 @@ def test_demo_seed_and_list(client: TestClient) -> None:
     assert [p["id"] for p in places] == ["pl_hhw"]
     assert places[0]["tags"] == ["Wetland", "NGO"]
     assert places[0]["source"] == "search"
-    assert 30 < places[0]["areaHa"] < 45
+    assert 30 < places[0]["area_ha"] < 45
     assert client.get("/api/places").json() == places  # seeded once
 
 
@@ -66,19 +66,19 @@ def test_create_polygon_and_get(client: TestClient) -> None:
     assert res.status_code == 201
     p = res.json()
     assert ID_RE.fullmatch(p["id"]) and p["id"].startswith("pl_north_pond")
-    assert p["areaHa"] > 0 and p["isCircle"] is False
+    assert p["area_ha"] > 0 and p["is_circle"] is False
     assert 22.53 < p["center"]["lat"] < 22.532 and 114.09 < p["center"]["lon"] < 114.092
     assert client.get(f"/api/places/{p['id']}").json() == p
     # newest first
     ids = [x["id"] for x in client.get("/api/places").json()]
-    assert ids[0] == p["id"] and len(ids) == 1  # demo seed only on first list with no file
+    assert ids[0] == p["id"] and ids[1:] == ["pl_hhw"]  # demo seeded on first load of any call
 
 
 def test_create_point_radius_and_unique_ids(client: TestClient) -> None:
-    body = {"name": "Pin", "center": {"lat": 22.5, "lon": 114.0}, "radiusM": 200, "source": "pin"}
+    body = {"name": "Pin", "center": {"lat": 22.5, "lon": 114.0}, "radius_m": 200, "source": "pin"}
     a = client.post("/api/places", json=body).json()
     b = client.post("/api/places", json=body).json()
-    assert a["isCircle"] is True and a["source"] == "pin"
+    assert a["is_circle"] is True and a["source"] == "pin"
     assert a["id"] != b["id"]
 
 
@@ -91,8 +91,6 @@ def test_create_with_details_goes_to_memory(client: TestClient) -> None:
 
 
 def test_create_validation(client: TestClient) -> None:
-    both = {"name": "x", "geometry": SQUARE, "center": {"lat": 1, "lon": 1}, "radiusM": 5}
-    assert client.post("/api/places", json=both).status_code == 422
     assert client.post("/api/places", json={"name": "x"}).status_code == 422
     nor = {"name": "x", "center": {"lat": 1, "lon": 1}}
     assert client.post("/api/places", json=nor).status_code == 422
@@ -109,7 +107,7 @@ def test_too_big_is_400_budget(client: TestClient) -> None:
     res = client.post("/api/places", json={"name": "big", "geometry": HUGE})
     assert res.status_code == 400
     assert res.json()["detail"]["kind"] == "budget_exceeded"
-    pt = {"name": "big", "center": {"lat": 22.5, "lon": 114.0}, "radiusM": 5000}
+    pt = {"name": "big", "center": {"lat": 22.5, "lon": 114.0}, "radius_m": 5000}
     assert client.post("/api/places", json=pt).json()["detail"]["kind"] == "budget_exceeded"
 
 
@@ -125,31 +123,105 @@ def test_patch(client: TestClient) -> None:
     assert res.status_code == 200
     q = res.json()
     assert q["name"] == "B" and q["tags"] == ["t"] and q["project"] is None
-    assert q["id"] == p["id"] and q["areaHa"] == p["areaHa"]
+    assert q["id"] == p["id"] and q["area_ha"] == p["area_ha"]
     # geometry change recomputes area
     r2 = client.patch(
-        f"/api/places/{p['id']}", json={"center": {"lat": 22.5, "lon": 114.0}, "radiusM": 100}
+        f"/api/places/{p['id']}", json={"center": {"lat": 22.5, "lon": 114.0}, "radius_m": 100}
     )
-    assert r2.json()["areaHa"] != p["areaHa"] and r2.json()["isCircle"] is True
+    assert r2.json()["area_ha"] != p["area_ha"] and r2.json()["is_circle"] is True
     # invalid geometry rejected, record unchanged
     assert client.patch(f"/api/places/{p['id']}", json={"geometry": SWAPPED}).status_code == 400
-    assert client.get(f"/api/places/{p['id']}").json()["areaHa"] == r2.json()["areaHa"]
+    assert client.get(f"/api/places/{p['id']}").json()["area_ha"] == r2.json()["area_ha"]
     assert client.patch(f"/api/places/{p['id']}", json={"geometry": HUGE}).status_code == 400
 
 
-def test_delete_keeps_memory(client: TestClient) -> None:
-    p = client.post("/api/places", json={"name": "A", "geometry": SQUARE}).json()
+def test_delete_then_recreate_does_not_resurrect_memory(client: TestClient) -> None:
+    p = client.post("/api/places", json={"name": "Farm A", "geometry": SQUARE}).json()
+    assert re.fullmatch(r"pl_farm_a_[0-9a-f]{6}", p["id"])
     client.patch(f"/api/places/{p['id']}/memory", json={"note": "hello"})
     assert client.delete(f"/api/places/{p['id']}").status_code == 204
     assert client.get(f"/api/places/{p['id']}").status_code == 404
     assert client.delete(f"/api/places/{p['id']}").status_code == 404
-    got = memory.get_place("demo", p["id"])
-    assert got is not None and got.notes[0].text == "hello"
+    q = client.post("/api/places", json={"name": "Farm A", "geometry": SQUARE}).json()
+    assert q["id"] != p["id"]
+    mem = client.get(f"/api/places/{q['id']}/memory").json()
+    assert mem["notes"] == [] and mem["profile"] == {}
+
+
+def test_frontend_create_payload_with_center_and_geometry(client: TestClient) -> None:
+    """The frontend's CreatePlaceRequest sends center AND geometry (snake_case), plus `project`."""
+    payload = {
+        "name": "Pond 7",
+        "category_key": "water",
+        "center": {"lat": 22.5307, "lon": 114.0907},
+        "geometry": SQUARE,
+        "is_circle": False,
+        "project": "NGO",
+        "tags": ["Wetland"],
+        "source": "drawn",
+        "details": [{"label": "Owner", "value": "Co-op"}],
+    }
+    res = client.post("/api/places", json=payload)
+    assert res.status_code == 201, res.text
+    p = res.json()
+    assert p["details"] == [{"label": "Owner", "value": "Co-op"}]
+    # PATCH may carry both too: geometry wins, center is ignored
+    r2 = client.patch(
+        f"/api/places/{p['id']}", json={"center": {"lat": 1, "lon": 1}, "geometry": SQUARE}
+    )
+    assert r2.status_code == 200 and r2.json()["center"] == p["center"]
+
+
+def test_patch_sets_is_circle_explicitly(client: TestClient) -> None:
+    p = client.post("/api/places", json={"name": "A", "geometry": SQUARE}).json()
+    assert p["is_circle"] is False
+    assert client.patch(f"/api/places/{p['id']}", json={"is_circle": True}).json()["is_circle"]
+
+
+def test_snake_case_only(client: TestClient) -> None:
+    p = client.post("/api/places", json={"name": "A", "geometry": SQUARE}).json()
+    assert {"category_key", "area_ha", "is_circle", "created_at", "updated_at"} <= set(p)
+    assert not any(k in p for k in ("categoryKey", "areaHa", "isCircle", "createdAt"))
+
+
+def test_geometry_size_limit(client: TestClient) -> None:
+    ring = [[114.09 + i * 1e-9, 22.53] for i in range(60_000)]
+    big = {"type": "Polygon", "coordinates": [ring + [ring[0]]]}
+    assert client.post("/api/places", json={"name": "big", "geometry": big}).status_code == 422
+    p = client.post("/api/places", json={"name": "ok", "geometry": SQUARE}).json()
+    assert client.patch(f"/api/places/{p['id']}", json={"geometry": big}).status_code == 422
+
+
+def test_field_limits(client: TestClient) -> None:
+    base = {"name": "x", "geometry": SQUARE}
+    row = {"label": "k", "value": "v"}
+    assert client.post("/api/places", json={**base, "tags": ["t" * 41]}).status_code == 422
+    assert client.post("/api/places", json={**base, "tags": ["t"] * 21}).status_code == 422
+    assert client.post("/api/places", json={**base, "details": [row] * 31}).status_code == 422
+    bad_label = [{"label": "l" * 41, "value": "v"}]
+    assert client.post("/api/places", json={**base, "details": bad_label}).status_code == 422
+    bad_value = [{"label": "l", "value": "v" * 301}]
+    assert client.post("/api/places", json={**base, "details": bad_value}).status_code == 422
+
+
+def test_corrupt_file_is_moved_aside_not_500(client: TestClient, tmp_path: Path) -> None:
+    f = tmp_path / "places" / "alice.json"
+    f.parent.mkdir(parents=True)
+    f.write_text("{not json")
+    a = {"X-User-Id": "alice"}
+    assert client.get("/api/places", headers=a).json() == []
+    assert (tmp_path / "places" / "alice.json.corrupt").read_text() == "{not json"
+    new = {"name": "n", "geometry": SQUARE}
+    assert client.post("/api/places", json=new, headers=a).status_code == 201
+
+
+def test_get_by_id_seeds_demo_first(client: TestClient) -> None:
+    assert client.get("/api/places/pl_hhw").status_code == 200
 
 
 def test_404s_and_bad_ids(client: TestClient) -> None:
     assert client.get("/api/places/pl_nope").status_code == 404
-    assert client.get("/api/places/Bad..Id").status_code == 404
+    assert client.get("/api/places/Bad..Id").status_code == 422  # path pattern
     assert client.patch("/api/places/pl_nope", json={"name": "x"}).status_code == 404
     assert client.delete("/api/places/pl_nope").status_code == 404
 
