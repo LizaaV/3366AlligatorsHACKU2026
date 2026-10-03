@@ -13,19 +13,18 @@ const EXPERTS = [
 
 /** "Ask an expert" — a human reviews the agent's answer (replaces bare proof export as the next step). */
 export function ExpertModal({ context }: { context: string; placeId?: string | null }) {
-  const { close, notify, lang } = useStore();
+  const { close, lang } = useStore();
   const [pick, setPick] = useState('agro');
   const [msg, setMsg] = useState(`Can you check this result and tell me what to do next?\n\n“${context}”`);
   const [attach, setAttach] = useState({ answer: true, proof: true, layers: false });
   const [l, setL] = useState(lang);
-  const e = EXPERTS.find((x) => x.id === pick)!;
-  const send = () => {
-    close();
-    notify(e.tier === 'free' ? 'Posted to the community forum' : `Request sent · ${e.name} replies ${e.time.toLowerCase()}`, undefined, undefined, 'support_agent');
-  };
   return (
     <Modal onClose={close} size="wide" label="Ask an expert">
       <ModalHead eyebrow="Ask an expert" title="Get a human to check this" sub="A specialist reviews the answer, the satellite scenes and the caveats, then replies in your language." onClose={close} />
+      <div className="well row" role="note" style={{ gap: 10, padding: 12, alignItems: 'flex-start' }}>
+        <Ms n="schedule" size={20} className="muted" />
+        <span className="caption">Coming soon. Expert reviews are not available yet, so nothing can be sent from here. This is a preview of how it will work.</span>
+      </div>
       <div className="col" style={{ gap: 8 }}>
         {EXPERTS.map((x) => (
           <button key={x.id} onClick={() => setPick(x.id)} className="row" style={{ gap: 12, padding: '12px 14px', borderRadius: 10, textAlign: 'left', background: pick === x.id ? 'var(--s2)' : '#000', border: `1px solid ${pick === x.id ? '#fff' : 'var(--hair-soft)'}` }} aria-pressed={pick === x.id}>
@@ -45,8 +44,8 @@ export function ExpertModal({ context }: { context: string; placeId?: string | n
         <select className="input" value={l} onChange={(ev) => setL(ev.target.value)}>{LANGS.map((x) => <option key={x.code} value={x.code}>{x.name} · {x.english}</option>)}</select>
       </label>
       <div className="modal-foot">
-        <Btn onClick={close}>Cancel</Btn>
-        <Btn variant="primary" icon="send" tier={e.tier} tierLabel={e.price} onClick={send}>{e.tier === 'free' ? 'Post question' : `Book ${e.name.toLowerCase()}`}</Btn>
+        <Btn onClick={close}>Close</Btn>
+        <Btn variant="primary" icon="schedule" disabled title="Coming soon">Coming soon</Btn>
       </div>
     </Modal>
   );
