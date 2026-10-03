@@ -9,7 +9,7 @@ browser ──:80──> nginx (frontend container) ──/api/*──> backend:
 
 nginx is the single public entry point; the backend is not published on the host. The SPA calls `/api` on its own origin. The frontend image is built with `VITE_API_SOURCE=http` (Vite inlines it at build time), so the deployed app talks to the real backend instead of the scripted fixtures; set `VITE_API_SOURCE=fixture` in `deploy/.env` and rebuild to get the mock-only UI.
 
-> **Product note: `VITE_API_SOURCE=http` and unbuilt routes.** With `http`, every page whose backend route is not built yet shows an error instead of sample data: catalog, map layers, watches, skills, insights and export. Only the ask flow and areas (plus places, shares and dashboards once merged) are live. The team must decide with Liza and Anna Claire whether the demo build keeps sample data on for those pages. Options: build with `VITE_API_SOURCE=fixture` (everything mocked, including the ask flow), or migrate per endpoint in the frontend so live routes use `http` and the rest keep fixtures.
+> **Product note: `VITE_API_SOURCE=http` and unbuilt routes.** With `http`, a page whose backend route is not built yet shows an error instead of sample data. Live today: ask (runs, threads), areas, knowledge, places and memory, shares, dashboards, PDF reports, watches, skills and catalog. Not built: map layers (`/api/map-layers`), export, `/api/ask/insights`, boundary detection, file parsing and parcel lookup (see `docs/API.md` section 2). The team must decide with Liza and Anna Claire whether the demo build keeps sample data on for those pages. Options: build with `VITE_API_SOURCE=fixture` (everything mocked, including the ask flow), or migrate per endpoint in the frontend so live routes use `http` and the rest keep fixtures.
 
 ## 1. VM prerequisites
 
@@ -39,13 +39,17 @@ cp deploy/.env.example deploy/.env        # then edit: PUBLIC_BASE_URL, HTTP_POR
 | --- | --- | --- | --- |
 | `EARTH_IMPL` | `backend/.env` | `stub` | `stub` = offline Hoo Hok Wai preset, no network. `real` = Sentinel-2 via STAC (needs outbound internet). |
 | `SANDBOX_IMPL` | `backend/.env` | `subprocess` | How agent-written scripts run. `docker` = opt-in container sandbox, see "Docker sandbox" below. |
-| `ANTHROPIC_API_KEY` | `backend/.env` | unset | LLM key; only read once the LLM agent lands (see `docs/BUILD-PLAN.md` section 9). |
-| `SHARE_TTL_DAYS` | `backend/.env` | n/a yet | Planned (share links); ignored until implemented. |
+| `ANTHROPIC_API_KEY` | `backend/.env` | unset | Claude key for the agent. Without it, questions about places other than the preset get an `agent_unavailable` error. |
+| `AGENT_MODE` | `backend/.env` | `agent` | `agent` = the Claude tool-use loop. `preset` = the scripted Hoo Hok Wai run only, no AI calls. |
+| `DAILY_SPEND_CAP_USD` | `backend/.env` | `20` | Total AI spend over the last 24 h above which new agent runs are refused. |
+| `RUNS_PER_HOUR_PER_USER` | `backend/.env` | `40` | Anti-spam: runs (questions + replies) per user per hour. `0` turns it off. |
+| `RUNS_PER_HOUR_PER_IP` | `backend/.env` | `60` | Anti-spam: runs per client address per hour. `0` turns it off. |
+| `SHARE_TTL_DAYS` | `backend/.env` | `30` | How long a share link lasts (1 to 3650 days). |
 | `RUNS_DB_PATH` | `backend/.env` | `$EARTH_DATA_DIR/runs.sqlite` | Run store location. Leave unset. |
 | `EARTH_DATA_DIR` | compose | `/data` | Cache, rendered layers, memory, run DB (volume). Set by compose; do not override. |
 | `CORS_ORIGINS` | compose | `["$PUBLIC_BASE_URL"]` | Set by compose from `PUBLIC_BASE_URL`. |
 | `PUBLIC_BASE_URL` | `deploy/.env` | `http://localhost` | Public URL. Compose passes it to the backend (share links read it) and derives `CORS_ORIGINS` from it. |
-| `TRUST_PROXY_HEADERS` | backend (set by compose to `true`) | Trust nginx's `X-Real-IP` for the per-IP run limit. Only safe while the backend is reachable only through nginx. |
+| `TRUST_PROXY_HEADERS` | compose | `true` | Trust nginx's `X-Real-IP` for the per-IP run limit. Only safe while the backend is reachable only through nginx. |
 | `HTTP_PORT` | `deploy/.env` | `80` | Host port of nginx. |
 | `VITE_API_SOURCE` | `deploy/.env` | `http` | Frontend build arg: `http` real API, `fixture` mocks. Needs a rebuild. |
 

@@ -11,21 +11,20 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.routes import runs as runs_routes
 from app.api.routes import threads as threads_routes
 from app.core.config import settings
 from app.services import threads
 from app.services.agent import policy
 from app.services.agent.state import AGENT_KEY
-from tests.test_agent_loop import (
+from tests.agent_helpers import (
     AREA,
     POND_RUN,
     REGISTER,
     USAGE,
     USER,
+    agent_client,
     assert_closed,
     explain,
     finish,
@@ -35,26 +34,15 @@ from tests.test_agent_loop import (
     sse,
     start,
 )
-from tests.test_agent_loop import (
+from tests.agent_helpers import (
     get_run as get_run_json,
 )
 
 
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    monkeypatch.setenv("EARTH_IMPL", "stub")
-    monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setenv("RUNS_DB_PATH", str(tmp_path / "runs.sqlite"))
-    monkeypatch.setattr(settings, "run_cooldown_s", 0.0)
-    monkeypatch.setattr(settings, "agent_mode", "agent")
-    monkeypatch.setattr(settings, "daily_spend_cap_usd", 20.0)
-    policy.reset_cooldowns()
-    app = FastAPI()
-    app.include_router(runs_routes.router, prefix="/api")
-    app.include_router(threads_routes.router, prefix="/api")
-    with TestClient(app) as c:
+    with agent_client(tmp_path, monkeypatch, threads_routes.router) as c:
         yield c
-    policy.reset_cooldowns()
 
 
 def _pond_turns() -> list[Any]:
@@ -268,3 +256,110 @@ def test_refused_hits_are_not_counted() -> None:
 
 
 _GUARD: dict[str, Any] = {"scope": "answerable", "rule_id": None, "reason": "ok"}
+_QUESTIONS = [{"key": "use", "label": "What are the ponds used for?", "options": ["Fish", "Birds"]}]
+
+
+def _paused_run(client: TestClient) -> str:
+    """A run waiting on a clarification card; returns its id."""
+    from app.services.agent.llm.fake import tool_turn
+
+    pin([tool_turn(REGISTER, POND_RUN, ("ask_user", {"questions": _QUESTIONS}))])
+    evs = start(client, area=AREA)
+    assert_closed(evs, "waiting_user")
+    return first(evs, "run_started")["run_id"]
+
+
+def _reply(client: TestClient, run_id: str) -> Any:
+    return client.post(
+        f"/api/runs/{run_id}/reply",
+        json={"answers": {"use": "Fish"}},
+        headers={"X-User-Id": USER},
+    )
+
+
+# --- Gates on /reply ----------------------------------------------------------------------------
+
+
+def test_reply_counts_against_the_hourly_limit(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "runs_per_hour_per_user", 1)
+    monkeypatch.setattr(settings, "runs_per_hour_per_ip", 0)
+    run_id = _paused_run(client)  # the question used the one run this hour
+    res = _reply(client, run_id)
+    assert res.status_code == 429
+    assert int(res.headers["Retry-After"]) >= 1
+    assert get_run_json(client, run_id)["status"] == "waiting_user"  # nothing changed
+
+
+def test_reply_when_the_agent_is_unavailable_is_503(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.agent import llm
+
+    run_id = _paused_run(client)
+
+    def unavailable(name: str | None = None) -> Any:
+        raise llm.ProviderUnavailable("no key")
+
+    monkeypatch.setattr(llm, "get_provider", unavailable)
+    res = _reply(client, run_id)
+    assert res.status_code == 503
+    assert get_run_json(client, run_id)["status"] == "waiting_user"
+
+
+def test_reply_after_the_spend_cap_is_503(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = _paused_run(client)
+
+    def capped() -> None:
+        raise policy.SpendCapReached(spent_usd=20.5, cap_usd=20.0)
+
+    monkeypatch.setattr(policy, "check_spend_cap", capped)
+    res = _reply(client, run_id)
+    assert res.status_code == 503
+    assert get_run_json(client, run_id)["status"] == "waiting_user"
+
+
+# --- Follow-ups skip runs that did not finish ---------------------------------------------------
+
+
+def test_follow_up_skips_failed_and_unanswered_runs(client: TestClient) -> None:
+    from app.services import runs as run_store
+
+    started = _first_run(client)
+    done = run_store.list_runs(started["thread_id"])[-1]
+    failed = done.model_copy(update={"run_id": "r_failed", "status": "failed", "answer": None})
+    paused = done.model_copy(update={"run_id": "r_paused", "status": "waiting_user"})
+
+    found = threads.previous_agent_run([done, failed, paused])
+    assert found is not None and found[0].run_id == done.run_id
+    assert threads.previous_agent_run([failed, paused]) is None
+    preset = done.model_copy(update={"params": {}})  # done, but no agent state
+    assert threads.previous_agent_run([preset]) is None
+
+
+# --- In-memory limits stay bounded --------------------------------------------------------------
+
+
+def test_rate_windows_drop_idle_keys_when_large() -> None:
+    clock = [0.0]
+    window = policy.SlidingWindow(clock=lambda: clock[0])
+    window._PRUNE_AT = 2
+    window.hit("a", 5, 60, "user")
+    window.hit("b", 5, 60, "user")
+    clock[0] = 61.0  # a and b are now outside the window
+    window.hit("c", 5, 60, "user")
+    assert set(window._events) == {"c"}
+
+
+def test_cooldowns_drop_old_users_when_large() -> None:
+    clock = [0.0]
+    cooldowns = policy.Cooldowns(clock=lambda: clock[0])
+    cooldowns._PRUNE_AT = 2
+    cooldowns.check("a", cooldown_s=3)
+    cooldowns.check("b", cooldown_s=3)
+    clock[0] = 10.0
+    cooldowns.check("c", cooldown_s=3)
+    assert set(cooldowns._last) == {"c"}

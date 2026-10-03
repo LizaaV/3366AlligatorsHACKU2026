@@ -45,9 +45,17 @@ npx openapi-typescript ../contracts/openapi.json -o src/api/schema.d.ts
 | `GET /api/threads/{thread_id}` | Reopen one conversation: every run, oldest first, with answers, blocks and event logs to redraw it exactly | `ThreadDetail` |
 | `GET /api/health` | Liveness check | `{status: "ok"}` |
 
-**Not built yet** (coming in later modules; keep using the mocks):
+More endpoints, each with its own section:
 
-- watches and skills listing (A5)
+| Group | Paths | Section |
+|---|---|---|
+| Places and memory | `/api/places…`, `/api/me/memory`, `POST /api/runs/{id}/insight` | 10 |
+| PDF report | `/api/runs/{id}/report.pdf`, `/api/shares/{slug}/report.pdf` | 11 |
+| Share links and dashboards | `/api/runs/{id}/share(s)`, `/api/shares/{slug}…`, `/api/dashboards…` | 12 |
+| Watches (shown as "triggers" in the UI) | `/api/watches…` | 13 |
+| Skills library and catalog | `/api/skills…`, `/api/catalog` | 14 |
+
+**Not built** (the frontend still calls these; keep their mocks): `GET /api/map-layers` (the layer list is in `/api/catalog`), `/api/export`, `/api/ask/insights` (use `POST /api/runs/{id}/insight`), `/api/places/detect-boundary`, `/api/places/parse-file`, `/api/places/lookup-parcel`.
 
 ## 3. The live stream (`POST /api/runs`)
 
@@ -383,11 +391,12 @@ Map image URLs (`/api/layers/...png`) are always given inside blocks; use them a
 | Code | Meaning | `detail` |
 |---|---|---|
 | 400 | Bad input: ids, `X-User-Id`, area, reply answers too long, a `provider` the server has not configured | text, or `{kind, message, hint}` for areas |
-| 404 | Not found, or not yours (runs, threads, cards, layers) | text |
-| 409 | Reply to a run that isn't waiting for the user | text |
+| 404 | Not found, or not yours (runs, threads, places, watches, skills, dashboards, share links, cards, layers) | text |
+| 409 | Reply to a run that isn't waiting for the user; a conversation that already has 30 runs (start a new one); a PDF of a run that isn't `done` | text |
+| 410 | A share link that expired or was revoked | text |
 | 422 | Request didn't match the schema (FastAPI validation), or unusable area | FastAPI validation list / `{kind, message, hint}` |
-| 429 | Too many runs: the same user within 3 s, or 3 agent runs already streaming. Wait `Retry-After` seconds | text |
-| 501 | Place search not available (geocoder missing) | text |
+| 429 | Too many runs: the same user within 3 s, 3 agent runs already streaming, or the hourly limit (40 per user, 60 per client address; section 7b). Wait `Retry-After` seconds | text |
+| 501 | Place search not available (geocoder missing); `POST /api/skills/test` (not built yet) | text |
 | 503 | `/reply` only: the run's AI model is not available, or the daily budget is used up | text |
 
 Once a stream has started, problems arrive as `error` events, never as HTTP errors.
@@ -440,3 +449,62 @@ Use a plain link or `fetch` + blob; the owner route needs the `X-User-Id` header
 - Privacy: built from the same allow-list snapshot as a share link. It never contains params, events, script, memory, user id, thread id or run id.
 - A layer image that is missing on disk shows a grey placeholder; the PDF is still returned.
 - Limit: built-in Helvetica font, Latin only. Chinese text (`zh-Hant`, `yue`) appears as `?` and the PDF says so.
+
+## 12. Share links and dashboards
+
+**Share links** are a public, read-only snapshot of a finished run. They need no login and expire.
+
+| Method + path | What it does | Returns |
+|---|---|---|
+| `POST /api/runs/{run_id}/share` | Snapshot the run behind an unguessable link | `ShareCreated` (**201**) |
+| `GET /api/runs/{run_id}/shares` | The caller's links for that run | `ShareInfo[]` |
+| `GET /api/shares/{slug}` | Read a shared run (no login) | `SharedRun` |
+| `GET /api/shares/{slug}/layers/{measure}/{scene}.png` | Map images inside the snapshot (the run id is never public) | PNG |
+| `DELETE /api/shares/{slug}` | Revoke a link | **204** |
+
+- A snapshot never contains the user id, memory, event log or code.
+- Unknown link: **404**. Expired or revoked: **410**.
+
+**Dashboards** keep blocks from runs and refresh them later without the AI.
+
+| Method + path | What it does | Returns |
+|---|---|---|
+| `GET /api/dashboards` | The caller's dashboards | `DashboardSummary[]` |
+| `POST /api/dashboards` | Create one | `DashboardOut` (**201**) |
+| `GET /api/dashboards/{id}` | One dashboard with its blocks | `DashboardOut` |
+| `PATCH /api/dashboards/{id}` | Rename | `DashboardOut` |
+| `DELETE /api/dashboards/{id}` | Delete | **204** |
+| `POST /api/dashboards/{id}/blocks` | Save a block from one of the caller's runs (copies the run's script and params) | `DashboardBlockOut` (**201**) |
+| `DELETE /api/dashboards/{id}/blocks/{block_id}` | Remove a block | **204** |
+| `POST /api/dashboards/{id}/blocks/{block_id}/refresh` | Re-run the saved script with the dates moved forward (no AI, no cost) | `DashboardBlockOut` |
+
+## 13. Watches ("triggers" in the UI)
+
+A watch is a saved question about a place that should be re-checked over time. The UI calls them **triggers**; the API keeps the name `watches`.
+
+| Method + path | What it does | Returns |
+|---|---|---|
+| `GET /api/watches` | The caller's watches | `WatchDto[]` |
+| `POST /api/watches` | Create one: `{name, question, place_id?, skill_id?, category_key?, condition?, channels?, cadence?}` | `WatchDto` (**201**) |
+| `POST /api/watches/feasibility` | "Can satellites answer this?" before saving: `{text, place_id?}` | `FeasibilityDto` |
+| `PATCH /api/watches/{id}` | Pause or resume (`enabled`), rename, change condition, channels or cadence | `WatchDto` |
+| `DELETE /api/watches/{id}` | Delete | **204** |
+| `GET /api/watches/{id}/proof` | Scenes behind the latest check, plus a reproducibility hash | `WatchProofDto` |
+
+- **Nothing runs watches on a schedule yet.** Measurement fields (`value`, `ci`, `baseline`, `status`, `last_run_at`, `series`) stay `null` or empty, and `next_run_at` is always `null`. The API never invents numbers; show "not checked yet".
+- A question the policy refuses gives **422**. An unknown `place_id` or someone else's watch gives **404**.
+
+## 14. Skills library and catalog
+
+| Method + path | What it does | Returns |
+|---|---|---|
+| `GET /api/skills` | Built-in skills first (working ones, then concepts), then the caller's drafts | `SkillDto[]` |
+| `GET /api/skills/{id}` | One skill | `SkillDto` |
+| `GET /api/skills/{id}/manifest` | The reproducible recipe: ordered modules with params, plus `code_ref` / `code_sha256` for skills with a script (the same `code_ref` a run reports in `answer.method`) | `SkillManifest` |
+| `POST /api/skills` | Save a draft from the skill builder | `SkillDto` (**201**) |
+| `POST /api/skills/test` | Dry-run a draft. **Not built: always 501** after checking the body | **501** |
+| `GET /api/catalog` | Registry data: categories, satellites, skill modules, channels, languages, map layers. Colours stay in the frontend | `CatalogDto` |
+
+- The skills the agent can actually run come from the backend registry (`backend/skills/`). Today that is one: `pond-filling-check`. Show the real list instead of the fixture's sample skills.
+- Unknown module or category on `POST /api/skills`: **422**.
+- Every field is snake_case (`category_key`, `updated_at`, …), like the rest of the API.
