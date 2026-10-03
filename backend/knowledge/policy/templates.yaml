@@ -1,0 +1,115 @@
+# Fixed replies per policy rule (HANDOFF-BACKEND B7.5). English only for v1.
+# text: one to three plain sentences. alternatives: suggested actions (never for block rules).
+version: 1
+templates:
+  tpl_identify_person:
+    text: >-
+      Sorry, I can't help find, identify or follow a person. Satellite images can't see
+      people, and I don't use them for that.
+    alternatives: []
+
+  tpl_surveil_private_home:
+    text: >-
+      Sorry, I can't watch a private home or what the people living there do. I only look
+      at how land changes across an area.
+    alternatives: []
+
+  tpl_military_targeting:
+    text: >-
+      Sorry, I can't analyse military sites, equipment or movements.
+    alternatives: []
+
+  tpl_harassment:
+    text: >-
+      Sorry, I can't help use satellite results to expose, shame or pressure anyone.
+    alternatives: []
+
+  tpl_prompt_injection:
+    text: >-
+      I can't change or reveal how I work. Ask me about a place and I'll look at it.
+    alternatives: []
+
+  tpl_ownership_or_blame:
+    text: >-
+      Satellites show what changed and when, not who owns the land or who made the change.
+      I can show you the change itself, and the public records below can tell you more.
+    alternatives:
+      - "Show what changed here and when"
+      - "Measure the size of the change"
+    contacts:
+      - {name: "Land Registry (Hong Kong)", url: "https://www.landreg.gov.hk"}
+      - {name: "Planning Department (Hong Kong)", url: "https://www.pland.gov.hk"}
+      - {name: "Local land registry or planning authority (outside Hong Kong)"}
+
+  tpl_sensitive_allegation:
+    text: >-
+      I can show how this land changed and whether it is consistent with filling, dumping or
+      clearing. I can't say who did it or whether it was allowed.
+    alternatives:
+      - "Show the before and after"
+      - "Show the timeline of the change"
+    contacts:
+      - {name: "Planning Department (Hong Kong)", url: "https://www.pland.gov.hk"}
+      - {name: "Environmental Protection Department (Hong Kong)", url: "https://www.epd.gov.hk"}
+      - {name: "Agriculture, Fisheries and Conservation Department (Hong Kong)", url: "https://www.afcd.gov.hk"}
+
+  tpl_below_resolution:
+    text: >-
+      That is smaller than what the satellite can see clearly (each pixel is about 10 m
+      across). I can still check the area around it for changes.
+    alternatives:
+      - "Check the surrounding area instead"
+      - "Enlarge the area to at least 50 x 50 m"
+
+  tpl_no_clear_data:
+    text: >-
+      Clouds or a missing pass mean there is no clear image for those dates. I can use radar,
+      which sees through cloud, or the nearest clear images before and after.
+    alternatives:
+      - "Use radar (Sentinel-1) instead"
+      - "Use the nearest clear dates"
+      - "Wait for the next clear pass"
+
+  tpl_area_too_large:
+    text: >-
+      That area is larger than I can analyse in detail in one go (about 25 km2). Could you
+      pick a smaller area, or should I take a coarser look?
+    alternatives:
+      - "Pick a smaller area"
+      - "Split it into parts"
+      - "Take a coarser look at the whole area"
+
+  tpl_cannot_distinguish:
+    text: >-
+      The change is clear, but the evidence fits more than one cause equally well. Here are
+      the likely explanations and what would tell them apart.
+    alternatives:
+      - "Look at a longer timeline"
+      - "Add radar to check the surface"
+      - "Wait for the next clear pass"
+
+  tpl_emergency_now:
+    text: >-
+      If anyone may be in danger, call 999 in Hong Kong (or your local emergency number) now.
+      Satellite images are usually days old, so they can't help in an emergency.
+    alternatives: []
+    contacts:
+      - {name: "Emergency services (Hong Kong)", phone: "999"}
+      - {name: "Local emergency number (elsewhere)", phone: "112 in many countries"}
+
+  tpl_off_topic:
+    text: >-
+      I can only help with questions about places on Earth and what satellites can see.
+      Pick a place on the map and ask what has changed there.
+    alternatives:
+      - "Pick a place on the map"
+      - "See example questions"
+
+  tpl_future_prediction:
+    text: >-
+      Satellite images only show what has already happened, so I can't predict what will
+      happen next. I can show how this place has changed so far and how fast, with the
+      limits of what that trend can tell you.
+    alternatives:
+      - "Show the trend so far"
+      - "Compare with the same season in earlier years"
