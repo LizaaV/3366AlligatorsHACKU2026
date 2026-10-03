@@ -719,6 +719,89 @@
         }
       }
     },
+    "/api/places/detect-boundary": {
+      "post": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Detect Boundary",
+        "description": "Suggest the outline of the field / pond / plot around a point (add-place wizard).\n\nGrown from the latest clear Sentinel-2 scene; a ~1 ha square with `confidence: \"Low\"` when\nthere is no usable imagery. Never an error for imagery problems.",
+        "operationId": "detect_boundary_api_places_detect_boundary_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectBoundaryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectBoundaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/places/parse-file": {
+      "post": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Parse File",
+        "description": "Read one outline from an uploaded boundary file (multipart field `file`, max 5 MB).",
+        "operationId": "parse_file_api_places_parse_file_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_parse_file_api_places_parse_file_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseFileResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File too large or too many points: `{kind, message, hint}`"
+          },
+          "415": {
+            "description": "Unsupported type (e.g. Shapefile): `{kind, message, hint}`"
+          },
+          "422": {
+            "description": "Unreadable file or no outline in it: `{kind, message, hint}`"
+          }
+        }
+      }
+    },
     "/api/places/{place_id}": {
       "get": {
         "tags": [
@@ -3635,6 +3718,21 @@
         "title": "BlockSourceOut",
         "description": "`BlockSource` as the API returns it: the stored script is kept server-side only."
       },
+      "Body_parse_file_api_places_parse_file_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "GeoJSON, KML/KMZ, GPX or CSV"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_parse_file_api_places_parse_file_post"
+      },
       "CardDetail": {
         "properties": {
           "entry": {
@@ -4515,6 +4613,73 @@
           "value"
         ],
         "title": "DetailRow"
+      },
+      "DetectBoundaryRequest": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "DetectBoundaryRequest"
+      },
+      "DetectBoundaryResponse": {
+        "properties": {
+          "geometry": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Geometry"
+          },
+          "area_ha": {
+            "type": "number",
+            "title": "Area Ha"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "High",
+              "Medium",
+              "Low"
+            ],
+            "title": "Confidence"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "sentinel2_segmentation",
+              "fallback_square"
+            ],
+            "title": "Method",
+            "description": "`sentinel2_segmentation`: grown from the latest clear Sentinel-2 scene. `fallback_square`: no usable imagery, a ~1 ha square around the point."
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "geometry",
+          "area_ha",
+          "confidence",
+          "method"
+        ],
+        "title": "DetectBoundaryResponse",
+        "description": "A suggested outline for the field / pond / plot containing the point."
       },
       "Done": {
         "properties": {
@@ -5721,6 +5886,46 @@
           "text"
         ],
         "title": "Note"
+      },
+      "ParseFileResponse": {
+        "properties": {
+          "geometry": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Geometry"
+          },
+          "area_ha": {
+            "type": "number",
+            "title": "Area Ha"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "center": {
+            "$ref": "#/components/schemas/LatLon"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "geometry",
+          "area_ha",
+          "center"
+        ],
+        "title": "ParseFileResponse",
+        "description": "The single outline read from an uploaded boundary file."
       },
       "Patch": {
         "properties": {

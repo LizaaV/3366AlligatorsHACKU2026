@@ -81,3 +81,36 @@ class PatchPlaceRequest(_OutlineMixin):
         if self.geometry is None and self.center is not None and self.radius_m is None:
             raise ValueError("`radius_m` is required with `center`")
         return self
+
+
+# --- add-place wizard helpers: AI boundary + boundary file ---------------------------------------
+
+BoundaryMethod = Literal["sentinel2_segmentation", "fallback_square"]
+
+
+class DetectBoundaryRequest(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+
+
+class DetectBoundaryResponse(BaseModel):
+    """A suggested outline for the field / pond / plot containing the point."""
+
+    geometry: dict  # GeoJSON Polygon, WGS84 [lon, lat]
+    area_ha: float
+    confidence: Literal["High", "Medium", "Low"]  # same levels as `Answer.confidence.level`
+    method: BoundaryMethod = Field(
+        description="`sentinel2_segmentation`: grown from the latest clear Sentinel-2 scene. "
+        "`fallback_square`: no usable imagery, a ~1 ha square around the point."
+    )
+    note: str = ""
+
+
+class ParseFileResponse(BaseModel):
+    """The single outline read from an uploaded boundary file."""
+
+    geometry: dict  # GeoJSON Polygon, WGS84 [lon, lat]
+    area_ha: float
+    name: str | None = None  # from the file / feature, when it has one
+    center: LatLon
+    note: str = ""  # what was found, e.g. "Outline around 128 points"
