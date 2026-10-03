@@ -459,4 +459,6 @@ def test_v1_measures_match_earth() -> None:
     from earth.types import Measure
     from knowledge.schema import MEASURES_V1
 
-    assert set(MEASURES_V1) == set(get_args(Measure))
+    # Cards may only rely on what earth computes; earth may compute more (e.g. `heat` from M9c
+    # stays "planned" for cards until their heat signs are reviewed).
+    assert set(MEASURES_V1) <= set(get_args(Measure))
