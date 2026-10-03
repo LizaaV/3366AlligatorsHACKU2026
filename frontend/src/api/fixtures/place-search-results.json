@@ -1,0 +1,51 @@
+[
+  {
+    "name": "Garden City, Kansas",
+    "description": "United States",
+    "lat": 37.971,
+    "lon": -100.873,
+    "zoom": 13
+  },
+  {
+    "name": "Lake Mead",
+    "description": "Nevada, United States",
+    "lat": 36.13,
+    "lon": -114.45,
+    "zoom": 12
+  },
+  {
+    "name": "Rondônia",
+    "description": "Brazil",
+    "lat": -10,
+    "lon": -63,
+    "zoom": 12
+  },
+  {
+    "name": "Port of Rotterdam",
+    "description": "Netherlands",
+    "lat": 51.95,
+    "lon": 4.05,
+    "zoom": 13
+  },
+  {
+    "name": "Great Barrier Reef",
+    "description": "Queensland, Australia",
+    "lat": -18.3,
+    "lon": 147.7,
+    "zoom": 11
+  },
+  {
+    "name": "Anand, Gujarat",
+    "description": "India",
+    "lat": 22.56,
+    "lon": 72.95,
+    "zoom": 13
+  },
+  {
+    "name": "Nakuru County",
+    "description": "Kenya",
+    "lat": -0.3,
+    "lon": 36.07,
+    "zoom": 12
+  }
+]

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { SOURCE_LABEL, type Place } from '../data/places';
-import { TILE, areaHa, txy } from '../data/geo';
-import type { Watch } from '../data/watches';
+import { sourceLabel } from '../data/presentation';
+import type { Place, Watch } from '../model';
+import { TILE, txy } from '../lib/geo';
 import { Btn, CatPill, Empty, IconBtn, Ms, RingOverlay, hideBroken } from '../components/ui';
+import { ErrorState, SkeletonCard } from '../components/async';
 
 const THUMB_H = 170;
 const STATUS_COLOR: Record<Watch['status'], string> = { ok: 'var(--green)', warn: 'var(--yellow)', alert: 'var(--red)' };
@@ -79,10 +80,10 @@ function CardMenu({ place, onClose }: { place: Place; onClose: () => void }) {
 }
 
 function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
-  const { go } = useStore();
+  const { go, category } = useStore();
   const [menu, setMenu] = useState(false);
   const ask = () => go('ask', undefined, { place: place.id });
-  const ha = areaHa(place.pts, place.lat);
+  const ha = place.areaHa;
   const ring = watches.some((w) => w.ring);
 
   return (
@@ -103,7 +104,7 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
           <div className="grow">
             <div className="card-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</div>
             <div className="caption" style={{ marginTop: 4 }}>
-              {place.project} · {ha.toLocaleString()} ha · {SOURCE_LABEL[place.source]}
+              {place.project} · {ha.toLocaleString()} ha · {sourceLabel(place.source)}
             </div>
           </div>
           <div style={{ position: 'relative', margin: '-6px -10px 0 0' }} onClick={(e) => e.stopPropagation()}>
@@ -113,8 +114,8 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
         </div>
 
         <div className="row wrap" style={{ gap: 6 }}>
-          <CatPill cat={place.cat} />
-          {place.tags.map((t) => <span key={t} className="tag">{t}</span>)}
+          <CatPill category={category(place.categoryKey)} />
+          {place.tags.map((t: string) => <span key={t} className="tag">{t}</span>)}
         </div>
 
         <div style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--hair-soft)' }}>
@@ -128,9 +129,9 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
             <div className="col" style={{ gap: 4, marginTop: 8 }}>
               {watches.slice(0, 3).map((w) => (
                 <div key={w.id} className="row body-sm" style={{ gap: 8, minWidth: 0 }}>
-                  <span className="dot" style={{ background: w.on ? STATUS_COLOR[w.status] : 'var(--subtle)' }} />
+                  <span className="dot" style={{ background: w.enabled ? STATUS_COLOR[w.status] : 'var(--subtle)' }} />
                   <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--ink)' }}>{w.name}</span>
-                  {!w.on && <span className="tiny">Paused</span>}
+                  {!w.enabled && <span className="tiny">Paused</span>}
                 </div>
               ))}
               {watches.length > 3 && <div className="tiny">+{watches.length - 3} more</div>}
@@ -149,7 +150,7 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
 }
 
 export function PlacesPage() {
-  const { places, watches, t, open } = useStore();
+  const { places, watches, t, open, loading, errors, reload } = useStore();
   const [project, setProject] = useState('All');
   const [q, setQ] = useState('');
 
@@ -192,7 +193,13 @@ export function PlacesPage() {
           </div>
         </div>
 
-        {shown.length === 0 ? (
+        {loading.places ? (
+          <div className="grid-cards" aria-busy="true" aria-label="Loading places">
+            {Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} height={320} />)}
+          </div>
+        ) : errors.places ? (
+          <ErrorState error={errors.places} onRetry={reload} title="Could not load your places" />
+        ) : shown.length === 0 ? (
           <Empty icon="travel_explore" title="No places match" body={q ? `Nothing in ${project === 'All' ? 'your places' : project} matches “${q}”.` : 'This project has no places yet.'}>
             <Btn onClick={() => { setQ(''); setProject('All'); }}>Clear filters</Btn>
             <Btn variant="primary" icon="add_location_alt" tier="free" onClick={() => open({ kind: 'addPlace' })}>Add place</Btn>

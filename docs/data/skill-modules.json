@@ -1,0 +1,141 @@
+[
+  {
+    "id": "ask.clarify",
+    "name": "Ask",
+    "icon": "help",
+    "group": "Input",
+    "desc": "Ask the user a few short questions before running.",
+    "params": {
+      "questions": [
+        "What crop?",
+        "How is it watered?"
+      ]
+    }
+  },
+  {
+    "id": "area.mark",
+    "name": "Mark the area",
+    "icon": "pentagon",
+    "group": "Input",
+    "desc": "Use a saved place or ask the user to draw or upload one.",
+    "params": {
+      "min_ha": 1
+    }
+  },
+  {
+    "id": "time.window",
+    "name": "Pick dates",
+    "icon": "date_range",
+    "group": "Data",
+    "desc": "Recent window plus the same window in past years.",
+    "params": {
+      "recent_days": 45,
+      "baseline_years": 3
+    }
+  },
+  {
+    "id": "sat.route",
+    "name": "Pick the satellite",
+    "icon": "satellite_alt",
+    "group": "Data",
+    "desc": "Route to free sources first; paid only if the area is too small.",
+    "params": {
+      "prefer": "free",
+      "candidates": [
+        "s2",
+        "l9",
+        "ps"
+      ]
+    }
+  },
+  {
+    "id": "scenes.filter",
+    "name": "Find clear images",
+    "icon": "filter_drama",
+    "group": "Data",
+    "desc": "Skip cloudy scenes and scenes right after rain.",
+    "params": {
+      "max_cloud_pct": 20,
+      "skip_after_rain_h": 48
+    }
+  },
+  {
+    "id": "scenes.clean",
+    "name": "Clean the images",
+    "icon": "content_cut",
+    "group": "Data",
+    "desc": "Clip to the area and mask clouds and shadows.",
+    "params": {
+      "mask": "SCL"
+    }
+  },
+  {
+    "id": "index.compute",
+    "name": "Calculate indices",
+    "icon": "calculate",
+    "group": "Analysis",
+    "desc": "Spectral indices such as NDVI, NDMI, NDWI or LST.",
+    "params": {
+      "indices": [
+        "NDMI",
+        "NDVI",
+        "LST"
+      ]
+    }
+  },
+  {
+    "id": "detect.anomaly",
+    "name": "Find anomalies",
+    "icon": "troubleshoot",
+    "group": "Analysis",
+    "desc": "Zones far from the area median on N or more dates.",
+    "params": {
+      "min_dates": 2,
+      "z_score": -1.5
+    }
+  },
+  {
+    "id": "detect.change",
+    "name": "Find changes",
+    "icon": "compare",
+    "group": "Analysis",
+    "desc": "Compare each date with a baseline and list changes.",
+    "params": {
+      "min_area_ha": 0.5
+    }
+  },
+  {
+    "id": "explain.cause",
+    "name": "Find the cause",
+    "icon": "psychology",
+    "group": "Analysis",
+    "desc": "Check elevation, soil and weather to suggest a cause.",
+    "params": {
+      "layers": [
+        "elevation",
+        "soil",
+        "rain"
+      ]
+    }
+  },
+  {
+    "id": "output.map",
+    "name": "Show the answer",
+    "icon": "map",
+    "group": "Output",
+    "desc": "Map layers, key numbers with confidence ranges, next steps.",
+    "params": {
+      "confidence": true
+    }
+  },
+  {
+    "id": "output.watch",
+    "name": "Keep watching",
+    "icon": "visibility",
+    "group": "Output",
+    "desc": "Re-run on each new pass and alert on a condition.",
+    "params": {
+      "every": "new pass"
+    }
+  }
+]

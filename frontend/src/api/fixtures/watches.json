@@ -1,0 +1,765 @@
+[
+  {
+    "id": "w-dry",
+    "name": "Dry patches · North Pivot",
+    "categoryKey": "agriculture",
+    "placeId": "np",
+    "skillId": "dry-patch-finder",
+    "question": "Where are the dry patches in my field?",
+    "condition": "Dry area larger than 5 ha",
+    "metric": "Dry area",
+    "value": 4.6,
+    "unit": "ha",
+    "ci": [
+      3.9,
+      5.3
+    ],
+    "confidence": "Medium",
+    "baselineLabel": "5-yr avg, same week",
+    "baseline": 1.2,
+    "delta": "+2.5 ha in 3 passes",
+    "status": "warn",
+    "enabled": true,
+    "series": {
+      "labels": [
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct"
+      ],
+      "current": [
+        0.1,
+        0.12,
+        0.1,
+        0.14,
+        0.13,
+        0.16,
+        0.2,
+        0.26,
+        0.34,
+        0.45,
+        0.6,
+        0.74
+      ],
+      "bandLow": [
+        0.04,
+        0.05,
+        0.04,
+        0.06,
+        0.05,
+        0.06,
+        0.07,
+        0.08,
+        0.08,
+        0.1,
+        0.1,
+        0.12
+      ],
+      "bandHigh": [
+        0.18,
+        0.2,
+        0.2,
+        0.22,
+        0.24,
+        0.25,
+        0.26,
+        0.28,
+        0.28,
+        0.3,
+        0.3,
+        0.32
+      ],
+      "mean": [
+        0.1,
+        0.11,
+        0.11,
+        0.13,
+        0.14,
+        0.15,
+        0.16,
+        0.17,
+        0.18,
+        0.19,
+        0.2,
+        0.21
+      ]
+    },
+    "channels": [
+      "email",
+      "whatsapp"
+    ],
+    "cadence": "Every Sentinel-2 pass (~5 days)",
+    "tier": "free",
+    "lastRunAt": "2026-09-28T18:04:00Z",
+    "nextRunAt": "2026-10-03T12:00:00Z",
+    "satellites": "Sentinel-2 · Landsat 9",
+    "thumbnail": {
+      "zoom": 16
+    },
+    "ring": true,
+    "events": [
+      {
+        "at": "2026-09-28T12:00:00Z",
+        "text": "Dry zone grew to 4.6 ha (±0.7). Spans 5–6.",
+        "level": "warn"
+      },
+      {
+        "at": "2026-09-23T12:00:00Z",
+        "text": "Dry zone 3.9 ha. Cause updated: irrigation fault (was: unknown).",
+        "level": "warn"
+      },
+      {
+        "at": "2026-09-18T12:00:00Z",
+        "text": "Pass skipped — 64% cloud over field.",
+        "level": "info"
+      },
+      {
+        "at": "2026-09-08T12:00:00Z",
+        "text": "First dry zone detected on 2 consecutive dates.",
+        "level": "alert"
+      }
+    ]
+  },
+  {
+    "id": "w-ndvi",
+    "name": "Crop health · South Block",
+    "categoryKey": "agriculture",
+    "placeId": "sb",
+    "skillId": "weekly-crop-health",
+    "question": "Is South Block healthy?",
+    "condition": "NDVI drops more than 0.1 between passes",
+    "metric": "NDVI",
+    "value": 0.71,
+    "unit": "",
+    "ci": [
+      0.68,
+      0.74
+    ],
+    "confidence": "High",
+    "baselineLabel": "5-yr avg, same week",
+    "baseline": 0.66,
+    "delta": "Stable",
+    "status": "ok",
+    "enabled": true,
+    "series": {
+      "labels": [
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct"
+      ],
+      "current": [
+        0.42,
+        0.5,
+        0.58,
+        0.66,
+        0.72,
+        0.76,
+        0.78,
+        0.78,
+        0.77,
+        0.76,
+        0.76,
+        0.75
+      ],
+      "bandLow": [
+        0.3,
+        0.38,
+        0.46,
+        0.54,
+        0.6,
+        0.64,
+        0.66,
+        0.66,
+        0.64,
+        0.62,
+        0.6,
+        0.58
+      ],
+      "bandHigh": [
+        0.5,
+        0.58,
+        0.66,
+        0.74,
+        0.8,
+        0.82,
+        0.84,
+        0.84,
+        0.82,
+        0.8,
+        0.78,
+        0.76
+      ],
+      "mean": [
+        0.4,
+        0.48,
+        0.56,
+        0.64,
+        0.7,
+        0.73,
+        0.75,
+        0.75,
+        0.73,
+        0.71,
+        0.69,
+        0.67
+      ]
+    },
+    "channels": [
+      "push"
+    ],
+    "cadence": "Weekly",
+    "tier": "free",
+    "lastRunAt": "2026-09-28T18:04:00Z",
+    "nextRunAt": "2026-10-03T12:00:00Z",
+    "satellites": "Sentinel-2",
+    "thumbnail": {
+      "zoom": 16
+    },
+    "ring": false,
+    "events": [
+      {
+        "at": "2026-09-28T12:00:00Z",
+        "text": "NDVI 0.71 — within normal range.",
+        "level": "info"
+      },
+      {
+        "at": "2026-09-03T12:00:00Z",
+        "text": "Pass skipped — cloudy.",
+        "level": "info"
+      }
+    ]
+  },
+  {
+    "id": "w-heat",
+    "name": "Heat stress · both fields",
+    "categoryKey": "agriculture",
+    "placeId": null,
+    "skillId": "dry-patch-finder",
+    "question": "Are my fields under heat stress?",
+    "condition": "Surface temperature above 34 °C on 2 passes",
+    "metric": "Surface temp.",
+    "value": 31.4,
+    "unit": "°C",
+    "ci": [
+      30.2,
+      32.6
+    ],
+    "confidence": "Medium",
+    "baselineLabel": "5-yr avg, same week",
+    "baseline": 29.8,
+    "delta": "+1.6 °C vs normal",
+    "status": "ok",
+    "enabled": true,
+    "series": {
+      "labels": [
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct"
+      ],
+      "current": [
+        0.52,
+        0.58,
+        0.65,
+        0.72,
+        0.8,
+        0.84,
+        0.82,
+        0.8,
+        0.78,
+        0.76,
+        0.74,
+        0.72
+      ],
+      "bandLow": [
+        0.4,
+        0.46,
+        0.52,
+        0.58,
+        0.62,
+        0.64,
+        0.62,
+        0.6,
+        0.56,
+        0.52,
+        0.48,
+        0.44
+      ],
+      "bandHigh": [
+        0.62,
+        0.68,
+        0.74,
+        0.8,
+        0.84,
+        0.86,
+        0.86,
+        0.84,
+        0.8,
+        0.76,
+        0.72,
+        0.68
+      ],
+      "mean": [
+        0.5,
+        0.56,
+        0.62,
+        0.68,
+        0.72,
+        0.74,
+        0.73,
+        0.71,
+        0.68,
+        0.64,
+        0.6,
+        0.56
+      ]
+    },
+    "channels": [
+      "email"
+    ],
+    "cadence": "Every Landsat pass (8 days)",
+    "tier": "free",
+    "lastRunAt": "2026-09-26T12:00:00Z",
+    "nextRunAt": "2026-10-04T12:00:00Z",
+    "satellites": "Landsat 9 TIRS",
+    "thumbnail": {
+      "zoom": 15
+    },
+    "ring": false,
+    "events": [
+      {
+        "at": "2026-09-26T12:00:00Z",
+        "text": "North Pivot 2.8 °C hotter than field average in dry zone.",
+        "level": "warn"
+      }
+    ]
+  },
+  {
+    "id": "w-mead",
+    "name": "Reservoir level · Lake Mead",
+    "categoryKey": "water",
+    "placeId": "mead",
+    "skillId": "reservoir-level-tracker",
+    "question": "How much water is in Lake Mead?",
+    "condition": "Surface area drops 5% in 30 days",
+    "metric": "Surface area",
+    "value": -3.2,
+    "unit": "% vs Aug",
+    "ci": [
+      -4.1,
+      -2.3
+    ],
+    "confidence": "High",
+    "baselineLabel": "5-yr avg change",
+    "baseline": -2.6,
+    "delta": "In line with seasonal drawdown",
+    "status": "ok",
+    "enabled": false,
+    "series": {
+      "labels": [
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct"
+      ],
+      "current": [
+        0.62,
+        0.6,
+        0.58,
+        0.57,
+        0.55,
+        0.54,
+        0.53,
+        0.52,
+        0.51,
+        0.5,
+        0.49,
+        0.48
+      ],
+      "bandLow": [
+        0.5,
+        0.49,
+        0.48,
+        0.46,
+        0.45,
+        0.44,
+        0.43,
+        0.42,
+        0.41,
+        0.4,
+        0.4,
+        0.39
+      ],
+      "bandHigh": [
+        0.7,
+        0.69,
+        0.68,
+        0.66,
+        0.65,
+        0.64,
+        0.63,
+        0.62,
+        0.61,
+        0.6,
+        0.6,
+        0.59
+      ],
+      "mean": [
+        0.6,
+        0.59,
+        0.58,
+        0.56,
+        0.55,
+        0.54,
+        0.53,
+        0.52,
+        0.51,
+        0.5,
+        0.5,
+        0.49
+      ]
+    },
+    "channels": [
+      "email"
+    ],
+    "cadence": "Every pass (5–21 days)",
+    "tier": "free",
+    "lastRunAt": "2026-09-30T12:00:00Z",
+    "nextRunAt": null,
+    "satellites": "Sentinel-2 · SWOT",
+    "thumbnail": {
+      "zoom": 12
+    },
+    "ring": false,
+    "events": [
+      {
+        "at": "2026-09-30T12:00:00Z",
+        "text": "Area −3.2% vs August.",
+        "level": "info"
+      }
+    ]
+  },
+  {
+    "id": "w-algae",
+    "name": "Algae watch · Lake Erie",
+    "categoryKey": "water",
+    "placeId": null,
+    "skillId": "algae-red-tide-alert",
+    "question": "Is there an algae bloom near the Toledo intake?",
+    "condition": "Bloom within 5 km of intake",
+    "metric": "Chlorophyll-a",
+    "value": 28,
+    "unit": "µg/L",
+    "ci": [
+      21,
+      35
+    ],
+    "confidence": "Low",
+    "baselineLabel": "5-yr avg, same week",
+    "baseline": 19,
+    "delta": "Above normal, falling",
+    "status": "warn",
+    "enabled": true,
+    "series": {
+      "labels": [
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct"
+      ],
+      "current": [
+        0.2,
+        0.22,
+        0.25,
+        0.3,
+        0.42,
+        0.55,
+        0.62,
+        0.58,
+        0.5,
+        0.4,
+        0.33,
+        0.28
+      ],
+      "bandLow": [
+        0.1,
+        0.12,
+        0.12,
+        0.14,
+        0.16,
+        0.2,
+        0.22,
+        0.2,
+        0.18,
+        0.15,
+        0.13,
+        0.12
+      ],
+      "bandHigh": [
+        0.3,
+        0.32,
+        0.34,
+        0.38,
+        0.44,
+        0.5,
+        0.52,
+        0.5,
+        0.46,
+        0.4,
+        0.34,
+        0.3
+      ],
+      "mean": [
+        0.18,
+        0.2,
+        0.2,
+        0.22,
+        0.25,
+        0.3,
+        0.34,
+        0.33,
+        0.3,
+        0.27,
+        0.24,
+        0.22
+      ]
+    },
+    "channels": [
+      "whatsapp",
+      "sms"
+    ],
+    "cadence": "Daily",
+    "tier": "paid",
+    "lastRunAt": "2026-10-03T11:20:00Z",
+    "nextRunAt": "2026-10-04T12:00:00Z",
+    "satellites": "Sentinel-3 OLCI",
+    "thumbnail": {
+      "zoom": 11
+    },
+    "ring": false,
+    "events": [
+      {
+        "at": "2026-10-02T12:00:00Z",
+        "text": "Bloom 7.4 km from intake (±1.5 km).",
+        "level": "warn"
+      },
+      {
+        "at": "2026-08-17T12:00:00Z",
+        "text": "Peak bloom — 22 km² near Maumee Bay.",
+        "level": "alert"
+      }
+    ]
+  },
+  {
+    "id": "w-defor",
+    "name": "Clearing alerts · Rondônia plot 14",
+    "categoryKey": "forests",
+    "placeId": "ro",
+    "skillId": "deforestation-alerts",
+    "question": "Has any forest been cleared on plot 14?",
+    "condition": "Any new clearing above 0.5 ha",
+    "metric": "New clearing",
+    "value": 0,
+    "unit": "ha",
+    "ci": [
+      0,
+      0.3
+    ],
+    "confidence": "High",
+    "baselineLabel": "Since Dec 31, 2020",
+    "baseline": 0,
+    "delta": "No change since 2020",
+    "status": "ok",
+    "enabled": true,
+    "series": {
+      "labels": [
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct"
+      ],
+      "current": [
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05
+      ],
+      "bandLow": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "bandHigh": [
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1
+      ],
+      "mean": [
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05
+      ]
+    },
+    "channels": [
+      "email"
+    ],
+    "cadence": "Every 6 days",
+    "tier": "free",
+    "lastRunAt": "2026-09-29T12:00:00Z",
+    "nextRunAt": "2026-10-05T12:00:00Z",
+    "satellites": "Sentinel-1 · Sentinel-2",
+    "thumbnail": {
+      "zoom": 14
+    },
+    "ring": false,
+    "events": [
+      {
+        "at": "2026-09-29T12:00:00Z",
+        "text": "No clearing. Radar and optical agree.",
+        "level": "info"
+      }
+    ]
+  },
+  {
+    "id": "w-fire",
+    "name": "Fire nearby · my fields",
+    "categoryKey": "disasters",
+    "placeId": null,
+    "skillId": "active-fire-map",
+    "question": "Any fires within 10 km of my farm?",
+    "condition": "VIIRS hotspot within 10 km of any of my places",
+    "metric": "Hotspots < 10 km",
+    "value": 0,
+    "unit": "",
+    "ci": [
+      0,
+      0
+    ],
+    "confidence": "High",
+    "baselineLabel": "Last 30 days",
+    "baseline": 1,
+    "delta": "None this week",
+    "status": "ok",
+    "enabled": true,
+    "series": {
+      "labels": [
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct"
+      ],
+      "current": [
+        0,
+        0.1,
+        0,
+        0,
+        0.3,
+        0,
+        0,
+        0.1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "bandLow": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "bandHigh": [
+        0.2,
+        0.2,
+        0.3,
+        0.3,
+        0.4,
+        0.4,
+        0.3,
+        0.3,
+        0.2,
+        0.2,
+        0.2,
+        0.2
+      ],
+      "mean": [
+        0.05,
+        0.06,
+        0.08,
+        0.1,
+        0.14,
+        0.14,
+        0.12,
+        0.1,
+        0.08,
+        0.06,
+        0.05,
+        0.05
+      ]
+    },
+    "channels": [
+      "push",
+      "whatsapp"
+    ],
+    "cadence": "Every ~12 hours",
+    "tier": "free",
+    "lastRunAt": "2026-10-03T06:10:00Z",
+    "nextRunAt": "2026-10-03T18:00:00Z",
+    "satellites": "VIIRS / FIRMS",
+    "thumbnail": {
+      "zoom": 12
+    },
+    "ring": false,
+    "events": [
+      {
+        "at": "2026-08-21T12:00:00Z",
+        "text": "Hotspot 8.2 km SW — grass fire, out after 6 h.",
+        "level": "alert"
+      }
+    ]
+  }
+]

@@ -1,5 +1,6 @@
 import { StoreProvider, useStore } from './state/store';
 import { MobileTabs, ToastHost, TopNav } from './components/Shell';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AskPage } from './pages/AskPage';
 import { PlacesPage } from './pages/PlacesPage';
 import { WatchesPage } from './pages/WatchesPage';
@@ -12,12 +13,22 @@ function Routes() {
     <>
       <TopNav />
       {/* Ask stays mounted so the globe, map and chat keep their state across tabs. */}
-      <AskPage active={route.page === 'ask'} />
-      {route.page === 'places' && <PlacesPage />}
-      {route.page === 'watches' && <WatchesPage />}
-      {route.page === 'library' && <LibraryPage />}
+      <ErrorBoundary label="ask">
+        <AskPage active={route.page === 'ask'} />
+      </ErrorBoundary>
+      {/*
+        One boundary per page, keyed on the route, so a crash on one screen does not take the
+        nav with it and navigating away clears the error.
+      */}
+      <ErrorBoundary key={route.page} label={route.page}>
+        {route.page === 'places' && <PlacesPage />}
+        {route.page === 'watches' && <WatchesPage />}
+        {route.page === 'library' && <LibraryPage />}
+      </ErrorBoundary>
       <MobileTabs />
-      <ModalHost />
+      <ErrorBoundary label="modal">
+        <ModalHost />
+      </ErrorBoundary>
       <ToastHost />
     </>
   );
@@ -25,8 +36,10 @@ function Routes() {
 
 export function App() {
   return (
-    <StoreProvider>
-      <Routes />
-    </StoreProvider>
+    <ErrorBoundary label="app">
+      <StoreProvider>
+        <Routes />
+      </StoreProvider>
+    </ErrorBoundary>
   );
 }

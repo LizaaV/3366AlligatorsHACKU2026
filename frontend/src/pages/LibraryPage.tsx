@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { CATS, type Skill } from '../data/catalog';
+import type { Skill } from '../model';
 import { Btn, Empty, Eyebrow, Ms } from '../components/ui';
+import { ErrorState, SkeletonCard } from '../components/async';
 import { SkillCard } from './libraryParts';
 import { SkillDetail } from './SkillDetail';
 import { SkillBuilder } from './SkillBuilder';
@@ -27,7 +28,7 @@ const isTyping = (el: EventTarget | null) => {
 };
 
 function LibraryHome() {
-  const { t, go, skills, installed, modal, route } = useStore();
+  const { t, go, skills, installed, modal, route, categories, category, loading, errors, reload } = useStore();
   const initialCat = route.query.cat !== undefined && /^[0-8]$/.test(route.query.cat) ? +route.query.cat : null;
   const [cat, setCat] = useState<number | null>(initialCat);
   const [q, setQ] = useState('');
@@ -50,13 +51,13 @@ function LibraryHome() {
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return skills.filter((s) => {
-      if (cat !== null && s.cat !== cat) return false;
+      if (cat !== null && s.categoryKey !== categories[cat]?.key) return false;
       if (src === 'installed' && !installed.includes(s.id)) return false;
       if (price !== 'any' && s.tier !== price) return false;
-      if (needle && !`${s.name} ${s.short} ${s.sat} ${s.dev} ${CATS[s.cat].name}`.toLowerCase().includes(needle)) return false;
+      if (needle && !`${s.name} ${s.short} ${s.sat} ${s.publisherName} ${category(s.categoryKey).name}`.toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [skills, cat, src, price, q, installed]);
+  }, [skills, categories, category, cat, src, price, q, installed]);
 
   const official = filtered.filter((s) => s.official);
   const community = filtered.filter((s) => !s.official);
@@ -90,7 +91,13 @@ function LibraryHome() {
 
       <Hotbar cat={cat} setCat={setCat} />
 
-      {nothing ? (
+      {loading.skills ? (
+        <div className="grid-cards" aria-busy="true" aria-label="Loading skills">
+          {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} />)}
+        </div>
+      ) : errors.skills ? (
+        <ErrorState error={errors.skills} onRetry={reload} title="Could not load the library" />
+      ) : nothing ? (
         <Empty icon="search_off" title="No skills match" body="Try another category or clear the filters. You can also build the skill you need from modules.">
           <Btn icon="restart_alt" onClick={reset}>Clear filters</Btn>
           <Btn variant="primary" icon="construction" tier="free" onClick={() => go('library', 'new')}>Build a skill</Btn>
@@ -134,6 +141,7 @@ function Seg<T extends string>({ value, onChange, options, label }: { value: T; 
 }
 
 function Hotbar({ cat, setCat }: { cat: number | null; setCat: React.Dispatch<React.SetStateAction<number | null>> }) {
+  const { categories } = useStore();
   const ref = useRef<HTMLDivElement>(null);
   const lastWheel = useRef(0);
 
@@ -166,7 +174,7 @@ function Hotbar({ cat, setCat }: { cat: number | null; setCat: React.Dispatch<Re
     else if (r > bar.scrollLeft + bar.clientWidth) bar.scrollTo({ left: r - bar.clientWidth + 8, behavior: 'smooth' });
   }, [cat]);
 
-  const c = cat === null ? null : CATS[cat];
+  const c = cat === null ? null : categories[cat];
 
   return (
     <div className="lib-hotbar-row">
@@ -177,7 +185,7 @@ function Hotbar({ cat, setCat }: { cat: number | null; setCat: React.Dispatch<Re
           <Ms n="apps" />
           <span className="bar" style={{ background: cat === null ? '#fff' : 'transparent' }} />
         </button>
-        {CATS.map((k, i) => {
+        {categories.map((k, i) => {
           const sel = cat === i;
           return (
             <button key={k.key} className={`lib-hb ${sel ? 'on' : ''}`} onClick={() => setCat(i)} title={k.name} role="tab" aria-selected={sel} aria-label={k.name}

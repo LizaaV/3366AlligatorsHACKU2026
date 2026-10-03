@@ -1,0 +1,92 @@
+[
+  {
+    "index": 0,
+    "key": "agriculture",
+    "name": "Agriculture",
+    "icon": "agriculture",
+    "color": "#ffcf25",
+    "fg": "#000",
+    "uses": "Crop health, dry patches, yield, pasture for herders",
+    "sats": "Sentinel-2, Landsat, Sentinel-1"
+  },
+  {
+    "index": 1,
+    "key": "water",
+    "name": "Water Bodies",
+    "icon": "water_drop",
+    "color": "#14c6cb",
+    "fg": "#000",
+    "uses": "Reservoir levels, algae/red tide, water use",
+    "sats": "Sentinel-2, Sentinel-3, SWOT"
+  },
+  {
+    "index": 2,
+    "key": "forests",
+    "name": "Forests & Nature",
+    "icon": "forest",
+    "color": "#00ca8e",
+    "fg": "#000",
+    "uses": "Deforestation alerts, EUDR proof, mangroves, carbon credits",
+    "sats": "Sentinel-2, Sentinel-1, Landsat"
+  },
+  {
+    "index": 3,
+    "key": "disasters",
+    "name": "Disasters & Risk",
+    "icon": "local_fire_department",
+    "color": "#e62b1e",
+    "fg": "#fff",
+    "uses": "Fire, flood, storm damage, landslides / ground sinking",
+    "sats": "VIIRS/FIRMS, Sentinel-1, Sentinel-2"
+  },
+  {
+    "index": 4,
+    "key": "urban",
+    "name": "Urban & Real Estate",
+    "icon": "location_city",
+    "color": "#7b42bc",
+    "fg": "#fff",
+    "uses": "Land-use change, construction, heat maps, roof solar",
+    "sats": "Sentinel-2, Landsat thermal (+ paid high-res)"
+  },
+  {
+    "index": 5,
+    "key": "oceans",
+    "name": "Oceans & Coasts",
+    "icon": "sailing",
+    "color": "#1868f2",
+    "fg": "#fff",
+    "uses": "Fishing zones, dark ships, coral reefs",
+    "sats": "Sentinel-3, MODIS/VIIRS, Sentinel-1"
+  },
+  {
+    "index": 6,
+    "key": "air",
+    "name": "Air & Climate",
+    "icon": "air",
+    "color": "#fbeabf",
+    "fg": "#000",
+    "uses": "Air pollution, methane leaks",
+    "sats": "Sentinel-5P, EMIT"
+  },
+  {
+    "index": 7,
+    "key": "finance",
+    "name": "Finance & Insurance",
+    "icon": "account_balance",
+    "color": "#2b89ff",
+    "fg": "#000",
+    "uses": "Port activity, crop forecasts, crop insurance, lender checks",
+    "sats": "Sentinel-1/2, MODIS (+ paid high-res)"
+  },
+  {
+    "index": 8,
+    "key": "society",
+    "name": "Society & Public Good",
+    "icon": "diversity_3",
+    "color": "#911ced",
+    "fg": "#fff",
+    "uses": "Poverty mapping, mosquito areas, fact-checking, education, heritage",
+    "sats": "VIIRS night lights, Sentinel-2, Landsat"
+  }
+]

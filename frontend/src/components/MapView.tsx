@@ -1,6 +1,6 @@
-import { DRY_PATH, TILE, areaHa, txy } from '../data/geo';
-import { CLOUDY, DRY_LV } from '../data/agent';
-import type { Place } from '../data/places';
+import { DRY_PATH, TILE, txy } from '../lib/geo';
+import type { AnswerTimelineDto } from '../api/types';
+import type { Place } from '../model';
 import { Ms, hideBroken } from './ui';
 
 export interface MapLayers { contour: boolean; ndmi: boolean; ndvi: boolean; lst: boolean; dry: boolean; clouds: boolean; }
@@ -16,10 +16,15 @@ interface Props {
   layers: MapLayers;
   dateIdx: number;
   pass?: string | null; // satellite name to draw a ground-track for while the agent routes
+  /**
+   * Per-pass timeline from the answer: which passes were cloudy and how strong the detected
+   * feature was on each. Previously hardcoded in the frontend; now part of the API response.
+   */
+  timeline?: AnswerTimelineDto | null;
 }
 
 /** Sentinel-2 tile map with the AI overlay stack from the prototype. */
-export function MapView({ W, H, cx, cy, center, zoom, place, layers, dateIdx, pass }: Props) {
+export function MapView({ W, H, cx, cy, center, zoom, place, layers, dateIdx, pass, timeline }: Props) {
   const c = txy(center.lat, center.lon, zoom);
   const x0 = Math.floor(c.x - cx / 256) - 1, x1 = Math.floor(c.x + (W - cx) / 256) + 1;
   const y0 = Math.floor(c.y - cy / 256) - 1, y1 = Math.floor(c.y + (H - cy) / 256) + 1;
@@ -35,12 +40,14 @@ export function MapView({ W, H, cx, cy, center, zoom, place, layers, dateIdx, pa
       x: cx + (ft.x - c.x) * 256, y: cy + (ft.y - c.y) * 256, s: sc,
       pts: place.pts.map((p) => `${p[0] + 300},${p[1] + 300}`).join(' '),
       clip: `polygon(${place.pts.map((p) => `${p[0] + 300}px ${p[1] + 300}px`).join(',')})`,
-      labelTop: minY - 36, ha: areaHa(place.pts, place.lat),
+      labelTop: minY - 36, ha: place.areaHa,
     };
   }
-  const dl = DRY_LV[dateIdx];
+  // Feature intensity and cloudiness for the pass being shown. No timeline (a general answer,
+  // or a place with no run yet) means no agent overlays to animate.
+  const dl = timeline?.intensity[dateIdx] ?? 0;
   const circ = !!place?.circle;
-  const cloudy = CLOUDY.includes(dateIdx);
+  const cloudy = timeline?.cloudyIndices.includes(dateIdx) ?? false;
   const mask = 'conic-gradient(from 0deg,transparent 0deg,#000 18deg,#000 88deg,transparent 108deg)';
   const arc: React.CSSProperties = { position: 'absolute', inset: 0, WebkitMaskImage: mask, maskImage: mask, transition: 'opacity .4s' };
   const fill: React.CSSProperties = { position: 'absolute', inset: 0, transition: 'opacity .4s' };

@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { CATS } from '../data/catalog';
-import { pts2 } from '../data/geo';
+import { pts2 } from '../lib/geo';
+import type { Category } from '../model';
 
 export const Ms = ({ n, size, className = '', style }: { n: string; size?: number; className?: string; style?: React.CSSProperties }) => (
   <span className={`ms ${className}`} style={{ fontSize: size, ...style }} aria-hidden>
@@ -52,16 +52,16 @@ export const Check = ({ on }: { on: boolean }) => (
   </span>
 );
 
-export const CatPill = ({ cat }: { cat: number }) => (
+export const CatPill = ({ category }: { category: Category }) => (
   <span className="pill">
-    <span className="dot" style={{ background: CATS[cat].color }} />
-    {CATS[cat].name}
+    <span className="dot" style={{ background: category.color }} />
+    {category.name}
   </span>
 );
 
-export const Eyebrow = ({ cat, children }: { cat?: number; children: ReactNode }) => (
+export const Eyebrow = ({ category, children }: { category?: Category; children: ReactNode }) => (
   <div className="row">
-    {cat !== undefined && <span className="sq" style={{ background: CATS[cat].color }} />}
+    {category && <span className="sq" style={{ background: category.color }} />}
     <span className="eyebrow">{children}</span>
   </div>
 );
@@ -127,11 +127,11 @@ export function HistoryChart({ series, band, mean, color, labels, height = 130, 
   return (
     <div>
       <svg viewBox="0 0 300 110" width="100%" height={height} style={{ display: 'block', overflow: 'visible' }} role="img" aria-label="Trend with historical range">
-        <line x1="0" y1="100" x2="300" y2="100" stroke="#252830" />
-        <line x1="0" y1="55" x2="300" y2="55" stroke="#252830" strokeDasharray="3 4" />
-        <line x1="0" y1="10" x2="300" y2="10" stroke="#252830" strokeDasharray="3 4" />
+        <line x1="0" y1="100" x2="300" y2="100" stroke="var(--hair-soft)" />
+        <line x1="0" y1="55" x2="300" y2="55" stroke="var(--hair-soft)" strokeDasharray="3 4" />
+        <line x1="0" y1="10" x2="300" y2="10" stroke="var(--hair-soft)" strokeDasharray="3 4" />
         {band && <path d={area(band[0], band[1])} fill="rgba(178,182,189,.09)" />}
-        {mean && <polyline points={pts2(mean)} fill="none" stroke="#656a76" strokeWidth="1.5" strokeDasharray="4 4" />}
+        {mean && <polyline points={pts2(mean)} fill="none" stroke="var(--subtle)" strokeWidth="1.5" strokeDasharray="4 4" />}
         <path d={area(ciLo, ciHi)} fill={color} opacity="0.16" />
         <polyline points={pts2(series)} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
         <circle cx="300" cy={y(series[series.length - 1])} r="3.5" fill={color} />
@@ -145,8 +145,8 @@ export function HistoryChart({ series, band, mean, color, labels, height = 130, 
         <div className="row wrap" style={{ gap: 14, marginTop: 8, font: '500 12px/1.38 var(--font)', color: 'var(--muted)' }}>
           <span className="row" style={{ gap: 6 }}><span style={{ width: 12, height: 2, background: color }} />This year</span>
           <span className="row" style={{ gap: 6 }}><span style={{ width: 12, height: 8, background: color, opacity: 0.25, borderRadius: 2 }} />Confidence range</span>
-          {mean && <span className="row" style={{ gap: 6 }}><span style={{ width: 12, height: 0, borderTop: '1.5px dashed #656a76' }} />5-year average</span>}
-          {band && <span className="row" style={{ gap: 6 }}><span style={{ width: 12, height: 8, background: 'rgba(178,182,189,.18)', borderRadius: 2 }} />5-year range</span>}
+          {mean && <span className="row" style={{ gap: 6 }}><span style={{ width: 12, height: 0, borderTop: '1.5px dashed var(--subtle)' }} />5-year average</span>}
+          {band && <span className="row" style={{ gap: 6 }}><span style={{ width: 12, height: 8, background: 'var(--hair-faint)', borderRadius: 2 }} />5-year range</span>}
         </div>
       )}
     </div>

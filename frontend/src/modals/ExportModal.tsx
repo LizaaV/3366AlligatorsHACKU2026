@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useStore, type ExportTarget } from '../state/store';
+import { api, toApiError } from '../api';
 import { Btn, Check, Modal, ModalHead, Ms } from '../components/ui';
 import { LANGS } from '../data/i18n';
-import { thumb } from '../data/geo';
-import { FIELD } from '../data/places';
+import { DEFAULT_CENTER, thumb } from '../lib/geo';
 
 type Tab = 'link' | 'pdf' | 'data';
 
@@ -15,13 +15,35 @@ export function ExportModal({ target }: { target: ExportTarget }) {
   const [liveLink, setLiveLink] = useState(target.kind === 'watch');
   const [opts, setOpts] = useState({ map: true, ci: true, proof: true, method: true });
   const [pdfLang, setPdfLang] = useState(lang);
+  const [busy, setBusy] = useState<string | null>(null);
+  // Placeholder share link until POST /export exists; `requestExport` replaces it with the
+  // server's real URL once the endpoint is live.
   const slug = Math.abs([...target.title].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)).toString(36).slice(0, 8);
-  const url = `https://groundtruth.earth/s/${slug}`;
+  const [url, setUrl] = useState(`https://groundtruth.earth/s/${slug}`);
+
+  /**
+   * TODO(api): every export here goes through POST /api/export. There is no fixture for it —
+   * returning a fake download would be worse than saying it is not connected — so until the
+   * endpoint lands this reports the not-implemented error honestly.
+   */
+  const requestExport = async (format: 'link' | 'pdf' | 'data', label: string) => {
+    setBusy(label);
+    try {
+      const res = await api.exports.create({ targetKind: target.kind, targetId: target.id, title: target.title, format, lang: pdfLang });
+      if (format === 'link') setUrl(res.url);
+      notify(`${label} ready`, undefined, undefined, 'download');
+    } catch (err) {
+      notify(toApiError(err).userMessage, undefined, undefined, 'cloud_off');
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const copy = async () => {
     try { await navigator.clipboard.writeText(url); notify('Link copied', undefined, undefined, 'link'); } catch { notify('Copy failed — select the link and copy it', undefined, undefined, 'error'); }
   };
-  const paid = (feature: string, price: string) => (plan === 'pro' ? notify(`${feature} ready`, undefined, undefined, 'download') : open({ kind: 'upgrade', feature, price }));
+  const paid = (feature: string, price: string, format: 'pdf' | 'data' = 'pdf') =>
+    plan === 'pro' ? void requestExport(format, feature) : open({ kind: 'upgrade', feature, price });
 
   return (
     <Modal onClose={close} size="wide" label="Export">
@@ -75,7 +97,7 @@ export function ExportModal({ target }: { target: ExportTarget }) {
               <span style={{ width: 8, height: 8, borderRadius: '50%', border: '1.5px solid #000' }} />GROUNDTRUTH REPORT
             </div>
             <div style={{ font: '700 11px/1.2 var(--font)' }}>{target.title}</div>
-            {opts.map && <div style={{ height: 70, borderRadius: 3, background: `#000 url(${thumb(FIELD.lat, FIELD.lon, 16)}) center/cover`, position: 'relative' }}><span style={{ position: 'absolute', inset: 14, borderRadius: '50%', border: '1.5px solid #ffcf25' }} /></div>}
+            {opts.map && <div style={{ height: 70, borderRadius: 3, background: `#000 url(${thumb(DEFAULT_CENTER.lat, DEFAULT_CENTER.lon, 16)}) center/cover`, position: 'relative' }}><span style={{ position: 'absolute', inset: 14, borderRadius: '50%', border: '1.5px solid #ffcf25' }} /></div>}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 3 }}>
               {['4.6 ha', '0.12', 'Sep 8'].map((v) => <div key={v} style={{ background: '#f1f2f3', borderRadius: 2, padding: 3, font: '700 7px/1.2 var(--font)' }}>{v}{opts.ci && <div style={{ fontWeight: 500, color: '#656a76' }}>±0.7</div>}</div>)}
             </div>
@@ -93,7 +115,7 @@ export function ExportModal({ target }: { target: ExportTarget }) {
               <select className="input" value={pdfLang} onChange={(e) => setPdfLang(e.target.value)}>{LANGS.map((l) => <option key={l.code} value={l.code}>{l.name} · {l.english}</option>)}</select>
             </label>
             <div className="row wrap" style={{ gap: 8 }}>
-              <Btn variant="primary" icon="download" tier="free" onClick={() => notify('PDF report downloaded', undefined, undefined, 'picture_as_pdf')}>Download PDF</Btn>
+              <Btn variant="primary" icon="download" tier="free" disabled={busy === 'PDF report'} onClick={() => void requestExport('pdf', 'PDF report')}>{busy === 'PDF report' ? 'Preparing…' : 'Download PDF'}</Btn>
               <Btn icon="workspace_premium" tier="paid" tierLabel="$5" onClick={() => paid('Signed & time-stamped PDF', '$5 / report')}>Signed PDF</Btn>
             </div>
             <div className="tiny">Signed PDFs carry a time-stamp and a hash anyone can check — useful for lenders, insurers and EUDR buyers.</div>
@@ -113,7 +135,7 @@ export function ExportModal({ target }: { target: ExportTarget }) {
             <div key={n} className="row" style={{ gap: 12, padding: '10px 12px', borderRadius: 8, background: '#000', border: '1px solid var(--hair-soft)' }}>
               <Ms n={i} size={20} className="muted" />
               <div className="col grow"><span style={{ font: '600 14px/1.4 var(--font)' }}>{n}</span><span className="tiny">{d}</span></div>
-              <Btn size="sm" icon="download" tier={tier} tierLabel={lbl || undefined} onClick={() => (tier === 'paid' ? paid(n, '$29 / month (Pro)') : notify(`${n} downloaded`, undefined, undefined, 'download'))}>Download</Btn>
+              <Btn size="sm" icon="download" tier={tier} tierLabel={lbl || undefined} onClick={() => (tier === 'paid' ? paid(n, '$29 / month (Pro)', 'data') : void requestExport('data', n))}>Download</Btn>
             </div>
           ))}
         </div>

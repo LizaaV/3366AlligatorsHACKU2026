@@ -1,27 +1,33 @@
 import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { CATS, MODULES, SATS, type Skill, type StepModule } from '../data/catalog';
+import { api, toApiError } from '../api';
+import type { SkillModule } from '../model';
+import { slug } from '../lib/format';
 import { Btn, IconBtn, Ms, Toggle } from '../components/ui';
-import { CopyBtn, JsonCode, StorageExplainer, slug } from './libraryParts';
+import { ErrorState } from '../components/async';
+import { CopyBtn, JsonCode, StorageExplainer } from './libraryParts';
 
 type ParamVal = string | number | boolean | string[];
 interface Step { uid: number; module: string; params: Record<string, ParamVal>; }
 type Visibility = 'private' | 'team' | 'public';
 
 const DEFAULT_STEPS = ['area.mark', 'time.window', 'sat.route', 'scenes.filter', 'scenes.clean', 'index.compute', 'output.map'];
-const GROUPS: StepModule['group'][] = ['Input', 'Data', 'Analysis', 'Output'];
-const mod = (id: string) => MODULES.find((m) => m.id === id);
-const cloneParams = (p?: StepModule['params']): Record<string, ParamVal> =>
-  Object.fromEntries(Object.entries(p || {}).map(([k, v]) => [k, Array.isArray(v) ? [...v] : v]));
+const GROUPS: SkillModule['group'][] = ['Input', 'Data', 'Analysis', 'Output'];
+const cloneParams = (p?: SkillModule['params']): Record<string, ParamVal> =>
+  Object.fromEntries(Object.entries(p ?? {}).map(([k, v]) => [k, Array.isArray(v) ? [...v] : v] as [string, ParamVal]));
 
 export function SkillBuilder() {
-  const { route, go, skills, places, addSkill, notify } = useStore();
+  const { route, go, skills, places, addSkill, notify, categories, modules, catalog } = useStore();
+  const satellites = catalog?.satellites ?? [];
+  // Module definitions come from the catalog endpoint, so this is a closure rather than a
+  // module-level helper (the catalog is not available until it has loaded).
+  const mod = (id: string) => modules.find((m) => m.id === id);
   const from = route.query.from ? skills.find((s) => s.id === route.query.from) : undefined;
   const uid = useRef(0);
   const mk = (id: string): Step => ({ uid: ++uid.current, module: id, params: cloneParams(mod(id)?.params) });
 
   const [name, setName] = useState(from ? `${from.name} (my version)` : '');
-  const [cat, setCat] = useState(from ? from.cat : 0);
+  const [categoryKey, setCategoryKey] = useState<string>(from?.categoryKey ?? 'agriculture');
   const [short, setShort] = useState(from ? from.short : '');
   const [vis, setVis] = useState<Visibility>('private');
   const [paid, setPaid] = useState(false);
@@ -29,6 +35,8 @@ export function SkillBuilder() {
   const [steps, setSteps] = useState<Step[]>(() => (from ? from.steps : DEFAULT_STEPS).filter((id) => mod(id)).map(mk));
   const [openUid, setOpenUid] = useState<number | null>(null);
   const [testing, setTesting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<ReturnType<typeof toApiError> | null>(null);
 
   const move = (i: number, d: -1 | 1) => setSteps((s) => {
     const j = i + d;
@@ -70,18 +78,19 @@ export function SkillBuilder() {
   const sats = useMemo(() => {
     const r = steps.find((s) => s.module === 'sat.route');
     const ids = r && Array.isArray(r.params.candidates) ? r.params.candidates : ['s2'];
-    const names = ids.map((id) => SATS[id]?.name.replace(/ (L2A|TIRS|SAR|OLCI)$/, '') ?? id);
+    const names = ids.map((id) => satellites.find((x) => x.id === String(id))?.name.replace(/ (L2A|TIRS|SAR|OLCI)$/, '') ?? String(id));
     return names.length ? names.join(' · ') : 'Sentinel-2';
-  }, [steps]);
+  }, [steps, satellites]);
 
   const version = '0.1.0';
   const skillSlug = slug(name) || 'untitled-skill';
   const manifest = {
     $schema: 'https://groundtruth.earth/schemas/skill/v1.json',
-    id: `you.${CATS[cat].key}.${skillSlug}`,
+    id: `you.${categoryKey}.${skillSlug}`,
     version,
     name: name.trim() || 'Untitled skill',
-    category: CATS[cat].key,
+    category: categoryKey,
+    satellites: sats,
     publisher: { name: 'You', official: false, verified: false },
     visibility: vis,
     pricing: { tier: paid ? 'paid' : 'free', price: paid ? price : null },
@@ -100,51 +109,51 @@ export function SkillBuilder() {
   };
   const json = JSON.stringify(manifest, null, 2);
 
-  const test = () => {
+  const test = async () => {
+    const placeId = places[0]?.id;
+    if (!placeId || testing) return;
     setTesting(true);
-    window.setTimeout(() => {
+    setPublishError(null);
+    try {
+      const res = await api.skills.test({ placeId, steps: steps.map((st) => ({ module: st.module, params: st.params })) });
+      notify(res.ok ? `Test run passed \u00b7 ${res.summary}` : `Test run failed \u00b7 ${res.summary}`, undefined, undefined, res.ok ? 'check_circle' : 'error');
+    } catch (err) {
+      setPublishError(toApiError(err));
+    } finally {
       setTesting(false);
-      notify('Test run passed · 7 of 12 scenes usable', undefined, undefined, 'check_circle');
-    }, 1100);
+    }
   };
 
-  const publish = () => {
-    if (errors) return;
-    let id = skillSlug;
-    if (skills.some((s) => s.id === id)) id = `${skillSlug}-${Date.now().toString(36).slice(-4)}`;
-    const p0 = places[0];
-    const flow = steps.map((s) => mod(s.module)?.name).filter(Boolean).join(' → ');
-    const sk: Skill = {
-      id,
-      cat,
-      name: name.trim(),
-      sat: sats,
-      cost: paid ? price.trim() : 'Free',
-      tier: paid ? 'paid' : 'free',
-      short: short.trim() || `Custom ${CATS[cat].name.toLowerCase()} skill.`,
-      long: `${short.trim() ? short.trim() + ' ' : ''}Runs ${steps.length} modules in a fixed order: ${flow}.`,
-      dev: 'You',
-      official: false,
-      verified: false,
-      lat: p0?.lat ?? 37.9785,
-      lon: p0?.lon ?? -100.9155,
-      res: '10 m',
-      revisit: '5 days',
-      runs: 0,
-      rating: 0,
-      version,
-      updated: 'Today',
-      steps: steps.map((s) => s.module),
-      accuracy: 'Not yet validated',
-      limits: [
-        'Not yet checked against ground-truth plots — treat results as indicative.',
-        'Optical satellites cannot see through cloud; cloudy passes are skipped.',
-        'Causes are inferred from patterns, not observed directly — confirm on the ground.',
-      ],
-    };
-    addSkill(sk);
-    go('library', id);
-    notify(vis === 'public' ? `Published “${sk.name}” to the community library` : `Saved “${sk.name}” to your ${vis === 'team' ? 'team' : 'private'} library`, undefined, undefined, 'publish');
+  const publish = async () => {
+    if (errors || publishing) return;
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      // The server owns the published record: it assigns the id, version, publisher and the
+      // accuracy statement. The builder only sends what the user actually authored.
+      const created = await addSkill({
+        name: name.trim(),
+        categoryKey,
+        short: short.trim() || `Custom ${categories.find((c) => c.key === categoryKey)?.name.toLowerCase() ?? ''} skill.`.trim(),
+        tier: paid ? 'paid' : 'free',
+        cost: paid ? price.trim() : 'Free',
+        visibility: vis,
+        steps: steps.map((st) => ({ module: st.module, params: st.params })),
+      });
+      go('library', created.id);
+      notify(
+        vis === 'public'
+          ? `Published \u201c${created.name}\u201d to the community library`
+          : `Saved \u201c${created.name}\u201d to your ${vis === 'team' ? 'team' : 'private'} library`,
+        undefined,
+        undefined,
+        'publish',
+      );
+    } catch (err) {
+      setPublishError(toApiError(err));
+    } finally {
+      setPublishing(false);
+    }
   };
 
   const hintIcon = { ok: ['check_circle', 'var(--green)'], error: ['error', 'var(--coral)'], warn: ['warning', 'var(--yellow)'] } as const;
@@ -170,8 +179,8 @@ export function SkillBuilder() {
             <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Late-season dry spots" />
           </label>
           <label className="field">Category
-            <select className="input" value={cat} onChange={(e) => setCat(+e.target.value)}>
-              {CATS.map((c, i) => <option key={c.key} value={i}>{c.name}</option>)}
+            <select className="input" value={categoryKey} onChange={(e) => setCategoryKey(e.target.value)}>
+              {categories.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
             </select>
           </label>
           <label className="field">Short description
@@ -279,7 +288,7 @@ export function SkillBuilder() {
             {GROUPS.map((g) => (
               <div key={g} className="col" style={{ gap: 2 }}>
                 <div className="tiny" style={{ padding: '4px 10px', fontWeight: 600 }}>{g}</div>
-                {MODULES.filter((m) => m.group === g).map((m) => (
+                {modules.filter((m) => m.group === g).map((m) => (
                   <button key={m.id} className="lib-palette-item" onClick={() => append(m.id)} title={`Add “${m.name}”`}>
                     <Ms n={m.icon} />
                     <span className="col grow" style={{ gap: 1 }}>
@@ -304,13 +313,17 @@ export function SkillBuilder() {
         </div>
       </div>
 
+      {publishError && (
+        <ErrorState error={publishError} onRetry={publish} title="Could not publish the skill" compact />
+      )}
+
       <div className="lib-foot">
-        <Btn icon={testing ? undefined : 'science'} tier="free" onClick={test} disabled={testing || errors > 0}>
+        <Btn icon={testing ? undefined : 'science'} tier="free" onClick={() => void test()} disabled={testing || errors > 0 || !places.length}>
           {testing && <span className="spinner" />}
           {testing ? 'Testing on North Pivot…' : 'Test on North Pivot'}
         </Btn>
         <Btn icon="save" onClick={() => notify(`Draft saved · ${manifest.id}@${version}`, undefined, undefined, 'save')}>Save draft</Btn>
-        <Btn variant="primary" icon="publish" tier="free" onClick={publish} disabled={errors > 0} title={errors ? 'Fix the checks above first' : undefined}>
+        <Btn variant="primary" icon="publish" tier="free" onClick={publish} disabled={errors > 0 || publishing} title={errors ? 'Fix the checks above first' : undefined}>
           Publish to library
         </Btn>
       </div>
