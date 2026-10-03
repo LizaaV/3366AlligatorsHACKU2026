@@ -13,18 +13,21 @@ export function Globe({
   visible,
   autoRotate = true,
   offsetRight = true,
+  pickable = true,
   onPick,
   onOutside,
 }: {
   visible: boolean;
   autoRotate?: boolean;
   offsetRight?: boolean;
+  /** When false, a tap anywhere just calls `onOutside` (no fly-in): used on the opening screen. */
+  pickable?: boolean;
   onPick?: (lat: number, lon: number) => void;
   onOutside?: () => void;
 }) {
   const el = useRef<HTMLDivElement>(null);
-  const live = useRef({ visible, autoRotate, offsetRight, onPick, onOutside });
-  live.current = { visible, autoRotate, offsetRight, onPick, onOutside };
+  const live = useRef({ visible, autoRotate, offsetRight, pickable, onPick, onOutside });
+  live.current = { visible, autoRotate, offsetRight, pickable, onPick, onOutside };
   /** Restarts the render loop; set by the mount effect, called when the globe becomes visible. */
   const resume = useRef<() => void>(() => undefined);
 
@@ -116,6 +119,7 @@ export function Globe({
     };
 
     const pick = (e: PointerEvent) => {
+      if (!live.current.pickable) return live.current.onOutside?.();
       const rect = host.getBoundingClientRect();
       ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
       ray.setFromCamera(ndc, cam);

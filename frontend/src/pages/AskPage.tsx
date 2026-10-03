@@ -9,7 +9,7 @@ import { ErrorState } from '../components/async';
 import { api, toApiError } from '../api';
 import { useResource } from '../hooks/useResource';
 import type { MapImage, MapLayer, Place } from '../model';
-import { mapImagesFrom, passTimelineFrom, toSearchHits } from '../model';
+import { mapImagesFrom, toSearchHits } from '../model';
 import { sourceLabel } from '../data/presentation';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, circlePts, parseLocation, ptsToRing, thumb, type Pt } from '../lib/geo';
 import { useAskRun, type AskTurn } from '../ask/useAskRun';
@@ -18,7 +18,7 @@ import { stagesFrom } from '../ask/stages';
 import { AnswerBlocks } from '../components/blocks';
 import { Splash } from '../components/Splash';
 import { BANDS, type Band } from '../lib/scenes';
-import type { PlaceContext, ViewImage, ViewPass } from '../api';
+import type { PlaceContext, ViewImage, ViewPass, ViewTarget } from '../api';
 
 /** What a drawn outline is, and the catalog category it is filed under. */
 const DRAFT_KINDS = { Field: 'agriculture', Pond: 'water', Plot: 'agriculture', 'Building site': 'urban', Forest: 'forests' } as const;
@@ -55,8 +55,6 @@ export function AskPage({ active }: { active: boolean }) {
   const [center, setCenter] = useState({ lat: place?.lat ?? DEFAULT_CENTER.lat, lon: place?.lon ?? DEFAULT_CENTER.lon });
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [layers, setLayers] = useState<MapLayer[]>([]);
-  const [dateIdx, setDateIdx] = useState(0);
-  const [playing, setPlaying] = useState(false);
   const [q, setQ] = useState('');
   const [pop, setPop] = useState<string | null>(null);
   const [panel, setPanel] = useState<'layers' | null>(null);
@@ -70,7 +68,6 @@ export function AskPage({ active }: { active: boolean }) {
   const [sheet, setSheet] = useState(false);
   const [cat, setCat] = useState(0);
   const [placeOpen, setPlaceOpen] = useState(!mobile);
-  const playT = useRef<number | undefined>(undefined);
   const thread = useRef<HTMLDivElement>(null);
 
   /* ---------------- a picked spot: look around before asking ---------------- */
@@ -118,37 +115,42 @@ export function AskPage({ active }: { active: boolean }) {
   useEffect(() => {
     if (askPlaceId) setSpot(null);
   }, [askPlaceId]);
-  const focusLat = place?.lat ?? spot?.lat, focusLon = place?.lon ?? spot?.lon;
+  // What live views show: a saved place's own outline, or the square around a pin.
+  const focusKey = place ? `p:${place.id}` : spot ? `s:${spot.lat},${spot.lon}` : null;
+  const focusTarget: ViewTarget | null = place ? { placeId: place.id } : spot ? { lat: spot.lat, lon: spot.lon } : null;
   useEffect(() => {
     setScenes([]);
     setSceneIdx(0);
     setViewNote(null);
-    if (focusLat === undefined || focusLon === undefined || mode !== 'map') return;
+    if (!focusTarget || mode !== 'map') return;
     const ac = new AbortController();
     setScenesLoading(true);
     api.views
-      .passes(focusLat, focusLon, ac.signal)
+      .passes(focusTarget, ac.signal)
       .then((sc) => !ac.signal.aborted && setScenes(sc))
       .catch((e) => !ac.signal.aborted && setViewNote(toApiError(e).detail ?? 'Live views are not available here.'))
       .finally(() => !ac.signal.aborted && setScenesLoading(false));
     return () => ac.abort();
-  }, [focusLat, focusLon, mode]);
+    // focusKey stands for focusTarget (a new object each render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKey, mode]);
   const scene = scenes[sceneIdx] ?? null;
 
-  // One rendered square (about 2 km) around the spot, in the chosen band and pass. Rendered
-  // and cached by the backend, then laid on the map by its bounds.
+  // One rendered image in the chosen band and pass: inside a place's outline, or a 2 km square
+  // around a pin. Rendered and cached by the backend, then laid on the map by its bounds.
   useEffect(() => {
     setView(null);
-    if (!scene || band === 'map' || focusLat === undefined || focusLon === undefined) return;
+    if (!scene || band === 'map' || !focusTarget) return;
     const ac = new AbortController();
     setViewLoading(true);
     api.views
-      .image(focusLat, focusLon, band, scene.scene, ac.signal)
+      .image(focusTarget, band, scene.scene, ac.signal)
       .then((v) => !ac.signal.aborted && setView(v))
       .catch((e) => !ac.signal.aborted && setViewNote(toApiError(e).detail ?? 'Could not render this view.'))
       .finally(() => !ac.signal.aborted && setViewLoading(false));
     return () => ac.abort();
-  }, [scene, band, focusLat, focusLon]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene, band, focusKey]);
   const viewOverlay: MapImage | null =
     view && band !== 'map' ? { layerId: band, url: view.url, bounds: view.bounds, date: view.date, label: band, when: 'after' } : null;
 
@@ -179,7 +181,6 @@ export function AskPage({ active }: { active: boolean }) {
     else if (!first) setMode('globe');
   }, [askPlaceId, place, flyTo]);
 
-  useEffect(() => () => window.clearInterval(playT.current), []);
 
   /* ---------------- agent run ---------------- */
 
@@ -187,27 +188,42 @@ export function AskPage({ active }: { active: boolean }) {
   // `stage` to drive the map, and reads the blocks the run produced.
   const run = useAskRun({ lang, selectedPlaceId: askPlaceId });
   const { turns, last, stage, submit: ask } = run;
-  // The contract streams a `timeline` block rather than a `timeline` field on the answer.
-  const timeline = useMemo(() => (last ? passTimelineFrom(last.blocks) : null), [last]);
 
-  // Real images the agent rendered for the latest answer, by layer id; one is shown on the map.
-  const images = useMemo(() => (last ? mapImagesFrom(last.blocks) : {}), [last]);
-  const [overlayId, setOverlayId] = useState<string | null>(null);
-  const [overlayWhen, setOverlayWhen] = useState<'before' | 'after'>('after');
-
-  /**
-   * Clicking a point on a timeline block moves the map's pass cursor to that scene.
-   *
-   * This is the `{"time": "cursor"}` link from §6: the block addresses the cursor by scene id,
-   * which is the only identifier both sides share — an index would mean nothing to the block.
-   */
-  const pickScene = useCallback(
-    (scene: string) => {
-      const i = timeline?.scenes.indexOf(scene) ?? -1;
-      if (i >= 0) setDateIdx(i);
-    },
-    [timeline],
+  // A run's images belong to the place (or pin) that run was about. The overlay remembers its
+  // turn and is only drawn while that place or pin is the one selected, so switching place never
+  // leaves another place's picture on the map (and switching back shows it again).
+  const aboutFocus = useCallback(
+    (t: AskTurn) =>
+      t.placeId
+        ? t.placeId === askPlaceId
+        : !askPlaceId && !!spot && !!t.area &&
+          Math.abs(t.area.point.lat - spot.lat) < 1e-5 && Math.abs(t.area.point.lon - spot.lon) < 1e-5,
+    [askPlaceId, spot],
   );
+  const [overlaySel, setOverlaySel] = useState<{ turnId: string; key: string } | null>(null);
+  const [overlayWhen, setOverlayWhen] = useState<'before' | 'after'>('after');
+  const selTurn = overlaySel ? turns.find((t) => t.id === overlaySel.turnId) : undefined;
+  const shownTurn = selTurn && aboutFocus(selTurn) ? selTurn : undefined;
+  // The layers panel lists what the latest answer about the current place or pin rendered.
+  const panelTurn = shownTurn ?? (last && aboutFocus(last) ? last : undefined);
+  const images = useMemo(() => (panelTurn ? mapImagesFrom(panelTurn.blocks) : {}), [panelTurn]);
+  const overlayId = shownTurn && overlaySel ? overlaySel.key : null;
+
+  /** Show one of a turn's layers; first bring its place or pin back into focus if needed. */
+  const showTurnLayer = (t: AskTurn, key: string) => {
+    if (!aboutFocus(t)) {
+      if (t.placeId) setAskPlace(t.placeId);
+      else if (t.area) {
+        setAskPlace(null);
+        setSpot({ lat: t.area.point.lat, lon: t.area.point.lon });
+        setCenter({ lat: t.area.point.lat, lon: t.area.point.lon });
+      }
+    }
+    setOverlaySel({ turnId: t.id, key });
+    setOverlayWhen('after');
+    setMode('map');
+  };
+
 
   /**
    * Map choreography, keyed on a coarse stage rather than a step index — runs vary in how
@@ -216,7 +232,7 @@ export function AskPage({ active }: { active: boolean }) {
   useEffect(() => {
     if (stage === 'idle') return;
     if (stage === 'starting') {
-      setOverlayId(null);
+      setOverlaySel(null);
       return;
     }
     if (stage === 'locating') {
@@ -235,9 +251,9 @@ export function AskPage({ active }: { active: boolean }) {
     }
     if (stage === 'done') {
       setPass(null);
-      setOverlayId(Object.keys(images)[0] ?? null);
+      const first = last ? Object.keys(mapImagesFrom(last.blocks))[0] : undefined;
+      setOverlaySel(last && first ? { turnId: last.id, key: first } : null);
       setOverlayWhen('after');
-      setDateIdx(Math.max(0, (timeline?.dates.length ?? 1) - 1));
       return;
     }
     if (stage === 'error') setPass(null);
@@ -326,18 +342,6 @@ export function AskPage({ active }: { active: boolean }) {
 
   /* ---------------- map tools ---------------- */
 
-  const togglePlay = () => {
-    const lastIdx = (timeline?.dates.length ?? 1) - 1;
-    if (playing) { window.clearInterval(playT.current); setPlaying(false); return; }
-    setPlaying(true);
-    setDateIdx((d) => (d >= lastIdx ? 0 : d));
-    playT.current = window.setInterval(() => {
-      setDateIdx((d) => {
-        if (d >= lastIdx) { window.clearInterval(playT.current); setPlaying(false); return d; }
-        return d + 1;
-      });
-    }, 850);
-  };
 
   /** Save a drawn or generated outline. Geometry goes up as GeoJSON; area comes back from the server. */
   const savePlace = async (name: string, pts: Pt[], isCircle: boolean, source: 'drawn' | 'pin') => {
@@ -428,7 +432,6 @@ export function AskPage({ active }: { active: boolean }) {
   const isMap = mode === 'map';
   const showHero = !splash && !isMap && !turns.length && !sheet && H >= 560 && !mobile;
   const spotName = spotInfo?.name ?? 'Dropped pin';
-  const cloudy = timeline?.cloudyIndices.includes(dateIdx) ?? false;
   const placeWatches = place ? watches.filter((w) => w.placeId === place.id) : [];
 
   // Questions the backend can actually answer today. The pond check is the one real skill;
@@ -511,6 +514,8 @@ export function AskPage({ active }: { active: boolean }) {
         <Globe
           visible={active && !isMap}
           offsetRight={!mobile && !splash}
+          // On the opening screen a tap only starts the app; picking places comes after.
+          pickable={!splash}
           onPick={(lat, lon) => lookAt(lat, lon)}
           onOutside={() => splash && setSplash(false)}
         />
@@ -572,7 +577,7 @@ export function AskPage({ active }: { active: boolean }) {
               {w === 'before' ? 'Before' : 'After'}
             </button>
           ))}
-          <IconBtn icon="close" className="sm" onClick={() => setOverlayId(null)} aria-label="Hide layer" />
+          <IconBtn icon="close" className="sm" onClick={() => setOverlaySel(null)} aria-label="Hide layer" />
         </div>
       )}
 
@@ -640,12 +645,11 @@ export function AskPage({ active }: { active: boolean }) {
                   onRetry={run.retry}
                   onRunSkill={(id) => runSkill(id)}
                   onAskFollowup={(q) => ask(q)}
-                  onPickScene={pickScene}
-                  onShowOnMap={(key) => { setOverlayId(key); setOverlayWhen('after'); setMode('map'); }}
+                  onShowOnMap={(key) => showTurnLayer(turn, key)}
                 />
               ))}
               {last?.phase === 'done' && (
-                <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => { run.reset(); setOverlayId(null); }}>
+                <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => { run.reset(); setOverlaySel(null); }}>
                   <Ms n="add_comment" />New chat
                 </button>
               )}
@@ -735,7 +739,7 @@ export function AskPage({ active }: { active: boolean }) {
           <div style={{ position: 'relative' }}>
             <div className="row" style={{ gap: 8, width: compact ? 150 : 250, height: 40, padding: '0 12px', borderRadius: 8, background: '#000', border: '1px solid var(--hair-soft)' }}>
               <Ms n="search" size={20} className="muted" />
-              <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPop('search'); }} onFocus={() => setPop('search')} onKeyDown={(e) => e.key === 'Enter' && searchResults[0]?.go()} placeholder="Search a town, or paste a map link" aria-label="Search a place" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 14px/1.5 var(--font)' }} />
+              <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPop('search'); }} onFocus={() => setPop('search')} onKeyDown={(e) => e.key === 'Enter' && searchResults[0]?.go()} placeholder="Search a place" title="Search a town or place, or paste a Google Maps link" aria-label="Search a place" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 14px/1.5 var(--font)' }} />
             </div>
             {pop === 'search' && (
               <div className="menu" style={{ left: -8, top: 52, width: 320, maxHeight: 420, overflowY: 'auto' }}>
@@ -797,7 +801,7 @@ export function AskPage({ active }: { active: boolean }) {
             {layers.filter((l) => l.isAgentMade).map((l) => {
               const ready = !!images[l.id];
               return (
-              <button key={l.id} className="menu-item" style={{ opacity: ready ? 1 : 0.4, gap: 12 }} onClick={() => (ready ? (setOverlayId((cur) => (cur === l.id ? null : l.id)), setMode('map')) : notify('Ask the agent about this place to render this layer', undefined, undefined, 'info'))}>
+              <button key={l.id} className="menu-item" style={{ opacity: ready ? 1 : 0.4, gap: 12 }} onClick={() => (ready && panelTurn ? (overlayId === l.id ? setOverlaySel(null) : showTurnLayer(panelTurn, l.id)) : notify('Ask the agent about this place to render this layer', undefined, undefined, 'info'))}>
                 <Check on={overlayId === l.id} />
                 <span className="sq" style={{ width: 10, height: 10, background: l.color }} />
                 <span className="col grow"><span style={{ font: '600 14px/1.4 var(--font)' }}>{l.name}</span><span className="tiny">{l.source}</span></span>
@@ -810,27 +814,6 @@ export function AskPage({ active }: { active: boolean }) {
         </div>
       )}
 
-      {/* TIMELINE */}
-      {isMap && place && timeline && timeline.dates.length > 0 && !sheet && !mobile && (
-        <div className="panel fade-up row" style={{ position: 'absolute', left: chatW + 40, right: 20, margin: '0 auto', bottom: 92, width: 600, maxWidth: `calc(100% - ${chatW + 120}px)`, padding: '12px 16px', gap: 14, zIndex: 15 }}>
-          <button onClick={togglePlay} title={playing ? 'Pause' : 'Play'} aria-label={playing ? 'Pause' : 'Play'} style={{ width: 38, height: 38, flex: 'none', borderRadius: 8, background: '#fff', color: '#000', border: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ms n={playing ? 'pause' : 'play_arrow'} size={22} /></button>
-          <div className="col grow" style={{ gap: 4 }}>
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <span style={{ font: '600 14px/1.4 var(--font)' }}>{timeline.dates[dateIdx]}</span>
-              <span className="tiny">{cloudy ? `Pass ${dateIdx + 1} of ${timeline.dates.length} · cloudy, skipped` : `Pass ${dateIdx + 1} of ${timeline.dates.length}`}</span>
-            </div>
-            <input type="range" min={0} max={Math.max(0, timeline.dates.length - 1)} step={1} value={dateIdx} onChange={(e) => setDateIdx(+e.target.value)} aria-label="Satellite pass date" style={{ width: '100%', margin: '2px 0' }} />
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              {timeline.dates.map((d, i) => (
-                <button key={d} onClick={() => setDateIdx(i)} style={{ background: 'transparent', border: 0, padding: 0, font: '500 11px/1.38 var(--font)', color: i === dateIdx ? '#fff' : 'var(--subtle)', display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {d}{timeline.cloudyIndices.includes(i) && <Ms n="cloud" size={12} />}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* DOCK */}
       <div className="panel row" style={{ position: 'absolute', left: mobile ? 'auto' : chatW + 40, right: mobile ? 16 : 20, margin: mobile ? 0 : '0 auto', width: 'max-content', bottom: mobile ? 'auto' : 24, top: mobile ? 12 : 'auto', gap: 6, padding: 6, zIndex: 16, display: mobile && (turns.length > 0 || pop) ? 'none' : 'flex' }}>
         <Btn variant="primary" icon="auto_stories" onClick={() => { setSheet(true); setPop(null); setPanel(null); }}>{mobile ? '' : 'Skills'}</Btn>
@@ -840,7 +823,7 @@ export function AskPage({ active }: { active: boolean }) {
             {t('nav.triggers')}<span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999, background: '#fff', color: '#000', font: '600 11px/18px var(--font)', textAlign: 'center' }}>{watches.filter((w) => w.enabled).length}</span>
           </Btn>
         )}
-        {isMap && !mobile && <IconBtn icon="public" title="Back to globe" aria-label="Back to globe" onClick={() => { setMode('globe'); setPlaying(false); cancelDraw(); setSpot(null); }} />}
+        {isMap && !mobile && <IconBtn icon="public" title="Back to globe" aria-label="Back to globe" onClick={() => { setMode('globe'); cancelDraw(); setSpot(null); }} />}
       </div>
 
       {/* ZOOM */}
@@ -875,7 +858,6 @@ function TurnView({
   onRetry,
   onRunSkill,
   onAskFollowup,
-  onPickScene,
   onShowOnMap,
 }: {
   turn: AskTurn;
@@ -888,8 +870,6 @@ function TurnView({
   onRetry: () => void;
   onRunSkill: (id: string) => void;
   onAskFollowup: (q: string) => void;
-  /** Move the map's pass cursor to the scene a timeline point names. */
-  onPickScene: (scene: string) => void;
   /** Put a block's before/after layer on the map. */
   onShowOnMap: (layerKey: string) => void;
 }) {
@@ -1038,7 +1018,7 @@ function TurnView({
       {/* Rendered from the turn, not the answer, so each block appears the moment its
           `block_ready` event arrives rather than all at once when the run finishes. The answer
           carries the same objects, so a reloaded run shows exactly the same visuals. */}
-      <AnswerBlocks blocks={turn.blocks} onPickScene={onPickScene} onShowOnMap={onShowOnMap} />
+      <AnswerBlocks blocks={turn.blocks} onShowOnMap={onShowOnMap} />
 
       {turn.phase === 'error' && (
         <ErrorState

@@ -67,3 +67,58 @@ def test_bad_inputs(client: TestClient) -> None:
     )
     unknown = client.get("/api/views", params={**HHW, "band": "photo", "scene": "S2X_NOPE"})
     assert unknown.status_code == 404
+
+
+# --- A saved place is drawn inside its own outline ------------------------------------------------
+
+USER = {"X-User-Id": "u_views"}
+
+
+def test_place_view_fits_the_outline(client: TestClient) -> None:
+    [place] = client.get("/api/places", headers=USER).json()  # the demo place, seeded per user
+    res = client.get("/api/views", params={"place_id": place["id"], "band": "water"}, headers=USER)
+    assert res.status_code == 200, res.text
+    west, south, east, north = res.json()["bounds"]
+    ring = place["geometry"]["coordinates"][0]
+    lons, lats = [p[0] for p in ring], [p[1] for p in ring]
+    pad = 0.0005  # about one 10 m pixel plus rounding at the grid edge
+    assert west >= min(lons) - pad and east <= max(lons) + pad
+    assert south >= min(lats) - pad and north <= max(lats) + pad
+    passes = client.get("/api/views/passes", params={"place_id": place["id"]}, headers=USER)
+    assert passes.status_code == 200 and passes.json()
+
+
+def test_place_and_spot_views_are_cached_apart(client: TestClient) -> None:
+    [place] = client.get("/api/places", headers=USER).json()
+    by_place = client.get(
+        "/api/views", params={"place_id": place["id"], "band": "water"}, headers=USER
+    )
+    by_spot = client.get("/api/views", params={**HHW, "band": "water"}, headers=USER)
+    assert by_place.json()["url"] != by_spot.json()["url"]
+
+
+def test_place_target_errors(client: TestClient) -> None:
+    # A place only this user made (every user has their own copy of the demo place).
+    made = client.post(
+        "/api/places",
+        json={
+            "name": "Mine",
+            "category_key": "water",
+            "center": {"lat": 22.534, "lon": 114.0906},
+            "radius_m": 300,
+            "project": "Test",
+            "tags": [],
+            "source": "pin",
+        },
+        headers=USER,
+    )
+    assert made.status_code == 201, made.text
+    pid = made.json()["id"]
+    other = client.get(
+        "/api/views", params={"place_id": pid, "band": "photo"}, headers={"X-User-Id": "u_other"}
+    )
+    assert other.status_code == 404
+    both = client.get("/api/views", params={"place_id": pid, **HHW, "band": "photo"}, headers=USER)
+    assert both.status_code == 400
+    neither = client.get("/api/views", params={"band": "photo"}, headers=USER)
+    assert neither.status_code == 400

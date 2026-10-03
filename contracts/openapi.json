@@ -3066,31 +3066,82 @@
         "tags": [
           "views"
         ],
-        "summary": "Recent clear passes over a spot",
-        "description": "The latest clear Sentinel-2 passes over a 2 km square around the point, newest first.",
+        "summary": "Recent clear passes over a place or spot",
+        "description": "The latest clear Sentinel-2 passes over the place (or the square around the pin).",
         "operationId": "view_passes_api_views_passes_get",
         "parameters": [
           {
             "name": "lat",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": "number",
-              "maximum": 85,
-              "minimum": -85,
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 85,
+                  "minimum": -85
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Lat"
             }
           },
           {
             "name": "lon",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": "number",
-              "maximum": 180,
-              "minimum": -180,
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 180,
+                  "minimum": -180
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Lon"
             }
+          },
+          {
+            "name": "place_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A saved place: its outline.",
+              "title": "Place Id"
+            },
+            "description": "A saved place: its outline."
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
           }
         ],
         "responses": {
@@ -3108,8 +3159,11 @@
               }
             }
           },
+          "400": {
+            "description": "Give either `place_id`, or both `lat` and `lon`."
+          },
           "404": {
-            "description": "No imagery for this spot (offline data or no clear pass)."
+            "description": "Unknown place, or no imagery here (offline data or no clear pass)."
           },
           "422": {
             "description": "Validation Error",
@@ -3129,8 +3183,8 @@
         "tags": [
           "views"
         ],
-        "summary": "Render one band of a spot",
-        "description": "One band (photo, greenness, water, bare) of a 2 km square around the point, from the\ngiven pass or the latest clear one. Rendered once, then cached. No agent, no cost.",
+        "summary": "Render one band of a place or spot",
+        "description": "One band (photo, greenness, water, bare) from the given pass or the latest clear one.\nA place is drawn inside its own outline (transparent outside); a pin gets a 2 km square.\nRendered once, then cached. No agent, no cost.",
         "operationId": "view_image_api_views_get",
         "parameters": [
           {
@@ -3149,28 +3203,6 @@
             }
           },
           {
-            "name": "lat",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "number",
-              "maximum": 85,
-              "minimum": -85,
-              "title": "Lat"
-            }
-          },
-          {
-            "name": "lon",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "number",
-              "maximum": 180,
-              "minimum": -180,
-              "title": "Lon"
-            }
-          },
-          {
             "name": "scene",
             "in": "query",
             "required": false,
@@ -3186,6 +3218,79 @@
               ],
               "title": "Scene"
             }
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 85,
+                  "minimum": -85
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 180,
+                  "minimum": -180
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "place_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A saved place: its outline.",
+              "title": "Place Id"
+            },
+            "description": "A saved place: its outline."
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
           }
         ],
         "responses": {
@@ -3199,8 +3304,11 @@
               }
             }
           },
+          "400": {
+            "description": "Give either `place_id`, or both `lat` and `lon`."
+          },
           "404": {
-            "description": "No imagery for this spot (offline data or no clear pass)."
+            "description": "Unknown place, or no imagery here (offline data or no clear pass)."
           },
           "422": {
             "description": "Validation Error",

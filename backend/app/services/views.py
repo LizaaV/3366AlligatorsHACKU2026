@@ -1,7 +1,9 @@
 """Live views: look at any spot before asking (no agent, no LLM, no cost).
 
-A view is one PNG of a square about 2 km across around a point, in one band (true-colour
-photo, greenness, water or bare ground) from one recent Sentinel-2 pass. It is rendered with
+A view is one PNG in one band (true-colour photo, greenness, water or bare ground) from one
+recent Sentinel-2 pass, of either a saved place's own outline (pixels outside it are
+transparent, so the colours fit the shape exactly) or, for a dropped pin, a square about 2 km
+across around the point. It is rendered with
 the same `earth` code the agent uses and cached on disk, so a view is computed once and then
 served as a file. Images go under `data/layers/<view id>/...` and are served by the existing
 layer route.
@@ -17,6 +19,7 @@ import json
 import math
 import threading
 import time
+from dataclasses import dataclass
 from typing import Literal
 
 import earth
@@ -39,13 +42,33 @@ class ViewUnavailable(Exception):
     """No imagery for this spot (offline data, or no clear pass recently)."""
 
 
-def _key(lat: float, lon: float) -> str:
-    return f"{lat:.4f},{lon:.4f}"
+@dataclass(frozen=True)
+class Target:
+    """What a view shows: an area, plus a stable key for its cache."""
+
+    area: Area
+    key: str
+    lat: float
+    lon: float
+
+    @property
+    def view_id(self) -> str:
+        """Folder name for this target's images (a valid run id)."""
+        return "v" + hashlib.sha1(self.key.encode()).hexdigest()[:12]
 
 
-def view_id(lat: float, lon: float) -> str:
-    """Folder name for this spot's images (a valid run id)."""
-    return "v" + hashlib.sha1(_key(lat, lon).encode()).hexdigest()[:12]
+def spot(lat: float, lon: float) -> Target:
+    """A dropped pin: a 2 km square around it, for looking around."""
+    return Target(square(lat, lon), f"spot:{lat:.4f},{lon:.4f}", lat, lon)
+
+
+def place(place_id: str, geojson: dict, name: str | None = None) -> Target:
+    """A saved place: its own outline. The key includes the outline, so a redrawn place
+    renders afresh instead of reusing the old shape's images."""
+    area = Area.from_geojson(geojson, name=name)
+    shape = hashlib.sha1(json.dumps(geojson, sort_keys=True).encode()).hexdigest()[:10]
+    lat, lon = area.centroid()
+    return Target(area, f"place:{place_id}:{shape}", lat, lon)
 
 
 def square(lat: float, lon: float, half_m: float = HALF_M) -> Area:
@@ -69,38 +92,37 @@ def _check_offline(lat: float, lon: float) -> None:
         )
 
 
-def recent_scenes(lat: float, lon: float) -> list[Scene]:
-    """Recent clear optical passes over the spot, newest first (cached for 30 minutes)."""
-    _check_offline(lat, lon)
-    key = _key(lat, lon)
+def recent_scenes(target: Target) -> list[Scene]:
+    """Recent clear optical passes over the target, newest first (cached for 30 minutes)."""
+    _check_offline(target.lat, target.lon)
     with _lock:
-        hit = _scene_cache.get(key)
+        hit = _scene_cache.get(target.key)
         if hit and time.monotonic() - hit[0] < _SCENE_TTL_S:
             return hit[1]
     with _reads:
-        found = earth._impl().scenes(square(lat, lon), last="120d", kind="optical", max_cloud=30)
+        found = earth._impl().scenes(target.area, last="120d", kind="optical", max_cloud=30)
     clear = [s for s in found.scenes if s.usable][:8]
     with _lock:
-        _scene_cache[key] = (time.monotonic(), clear)
+        _scene_cache[target.key] = (time.monotonic(), clear)
     return clear
 
 
-def render_view(lat: float, lon: float, band: Band, scene_id: str | None = None) -> dict:
+def render_view(target: Target, band: Band, scene_id: str | None = None) -> dict:
     """Render (or reuse) one view. Returns url, WGS84 bounds and the pass it came from."""
     if band not in BANDS:
         raise ValueError(f"Unknown band {band!r}.")
-    scenes = recent_scenes(lat, lon)
+    scenes = recent_scenes(target)
     if not scenes:
         raise ViewUnavailable("No clear Sentinel-2 pass over this spot in the last 4 months.")
     scene = next((s for s in scenes if s.id == scene_id), None) if scene_id else scenes[0]
     if scene is None:
         raise ViewUnavailable("That pass is not one of the recent clear ones here.")
-    vid = view_id(lat, lon)
+    vid = target.view_id
     measure = None if band == "photo" else band
     png = layer_path(vid, measure, scene.id)
     meta = png.with_suffix(".json")
     if not (png.is_file() and meta.is_file()):
-        bounds = _render(lat, lon, scene, measure, vid)
+        bounds = _render(target.area, scene, measure, vid)
         meta.write_text(json.dumps({"bounds": bounds}))
     bounds = json.loads(meta.read_text())["bounds"]
     return {
@@ -114,10 +136,10 @@ def render_view(lat: float, lon: float, band: Band, scene_id: str | None = None)
     }
 
 
-def _render(lat: float, lon: float, scene: Scene, measure: str | None, vid: str) -> list[float]:
+def _render(area: Area, scene: Scene, measure: str | None, vid: str) -> list[float]:
     impl_mod = earth._impl()
     with _reads:
-        layer = impl_mod.load(square(lat, lon), scene)
+        layer = impl_mod.load(area, scene)
         if measure is None:
             if impl() == "stub":
                 rgb, inside, bounds = impl_mod.layer_rgb(layer.id)

@@ -747,8 +747,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Recent clear passes over a spot
-         * @description The latest clear Sentinel-2 passes over a 2 km square around the point, newest first.
+         * Recent clear passes over a place or spot
+         * @description The latest clear Sentinel-2 passes over the place (or the square around the pin).
          */
         get: operations["view_passes_api_views_passes_get"];
         put?: never;
@@ -767,9 +767,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Render one band of a spot
-         * @description One band (photo, greenness, water, bare) of a 2 km square around the point, from the
-         *     given pass or the latest clear one. Rendered once, then cached. No agent, no cost.
+         * Render one band of a place or spot
+         * @description One band (photo, greenness, water, bare) from the given pass or the latest clear one.
+         *     A place is drawn inside its own outline (transparent outside); a pin gets a 2 km square.
+         *     Rendered once, then cached. No agent, no cost.
          */
         get: operations["view_image_api_views_get"];
         put?: never;
@@ -5475,11 +5476,16 @@ export interface operations {
     };
     view_passes_api_views_passes_get: {
         parameters: {
-            query: {
-                lat: number;
-                lon: number;
+            query?: {
+                lat?: number | null;
+                lon?: number | null;
+                /** @description A saved place: its outline. */
+                place_id?: string | null;
             };
-            header?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -5494,7 +5500,14 @@ export interface operations {
                     "application/json": components["schemas"]["ViewPass"][];
                 };
             };
-            /** @description No imagery for this spot (offline data or no clear pass). */
+            /** @description Give either `place_id`, or both `lat` and `lon`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown place, or no imagery here (offline data or no clear pass). */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5516,11 +5529,16 @@ export interface operations {
         parameters: {
             query: {
                 band: "photo" | "greenness" | "water" | "bare";
-                lat: number;
-                lon: number;
                 scene?: string | null;
+                lat?: number | null;
+                lon?: number | null;
+                /** @description A saved place: its outline. */
+                place_id?: string | null;
             };
-            header?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -5535,7 +5553,14 @@ export interface operations {
                     "application/json": components["schemas"]["ViewImage"];
                 };
             };
-            /** @description No imagery for this spot (offline data or no clear pass). */
+            /** @description Give either `place_id`, or both `lat` and `lon`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown place, or no imagery here (offline data or no clear pass). */
             404: {
                 headers: {
                     [name: string]: unknown;

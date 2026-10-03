@@ -1,7 +1,7 @@
 /**
  * The opening screen: the Earth fills the window with the live satellites going round it.
- * Tap the globe to look at a place (handled by the globe itself); press any key, or click
- * the space around it, to go to the app.
+ * Press any key (or tap anywhere, on a phone) to go to the app. Picking a place happens after,
+ * in the app; tapping here only starts.
  */
 
 import { useEffect, useState } from 'react';
@@ -41,7 +41,6 @@ export function Splash({ onContinue }: { onContinue: () => void }) {
           Free satellites pass over every place on Earth every few days. Pick one and ask what changed.
         </div>
         <div className="row wrap" style={{ gap: 10, justifyContent: 'center', marginTop: 6 }}>
-          <span className="pill" style={{ background: 'rgba(255,255,255,.08)' }}>Tap the globe to look at a place</span>
           <span className="pill" style={{ background: 'rgba(255,255,255,.08)' }}>
             Press <kbd style={{ font: '600 12px/1 var(--font)', padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,.16)' }}>any key</kbd> to start
           </span>
