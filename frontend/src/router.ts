@@ -12,9 +12,9 @@
 
 import { useEffect, useState } from 'react';
 
-export type Page = 'ask' | 'places' | 'triggers' | 'library';
+export type Page = 'ask' | 'places' | 'triggers' | 'dashboard' | 'library';
 
-export const PAGES: Page[] = ['ask', 'places', 'triggers', 'library'];
+export const PAGES: Page[] = ['ask', 'places', 'triggers', 'dashboard', 'library'];
 
 /** Old route names that still resolve, so links shared before a rename keep working. */
 const ALIASES: Record<string, Page> = { watches: 'triggers' };

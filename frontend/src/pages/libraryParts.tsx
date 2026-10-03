@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { thumb } from '../lib/geo';
-import { Btn, CatPill, Ms, Tier, hideBroken } from '../components/ui';
+import { Btn, CatPill, Ms, hideBroken } from '../components/ui';
 import { fmtRuns, slug } from '../lib/format';
 import { useStore } from '../state/store';
 import type { Skill } from '../model';
@@ -32,15 +32,13 @@ export function SkillCard({ s, installed, onOpen, delay = 0 }: { s: Skill; insta
       <div className="lib-card-body">
         <div className="row wrap" style={{ gap: 6 }}>
           <CatPill category={category(s.categoryKey)} />
-          <Tier tier={s.tier} label={s.tier === 'paid' ? s.cost : 'Free'} />
         </div>
         <div className="lib-card-name">{s.name}</div>
         <div className="lib-sat"><Ms n="satellite_alt" />{s.sat}</div>
         <div className="body-sm">{s.short}</div>
         <div className="lib-card-stats">
           <span className="row" style={{ gap: 3 }}><span style={{ color: 'var(--yellow)' }}>★</span>{s.rating ? s.rating.toFixed(1) : 'New'}</span>
-          <span className="subtle">·</span>
-          <span>{fmtRuns(s.runs)} runs</span>
+          {s.runs !== null && <><span className="subtle">·</span><span>{fmtRuns(s.runs)} runs</span></>}
           <span className="subtle">·</span>
           <span>v{s.version}</span>
         </div>

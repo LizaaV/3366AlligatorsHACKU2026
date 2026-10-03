@@ -18,8 +18,8 @@ import { useStore } from '../state/store';
 import { ApiError, toApiError } from '../api';
 import type { Place } from '../model';
 import { sourceLabel } from '../data/presentation';
-import { ptsToRing } from '../lib/geo';
-import { Btn, Modal, ModalHead, Ms, Tier } from '../components/ui';
+import { fmtC, ptsToRing } from '../lib/geo';
+import { Btn, Modal, ModalHead, Ms } from '../components/ui';
 import { ErrorState } from '../components/async';
 import { Steps } from './addPlace/Steps';
 import { MethodInput } from './addPlace/methods';
@@ -29,17 +29,32 @@ import { useOutline } from './addPlace/useOutline';
 import { useDetailsForm } from './addPlace/useDetailsForm';
 import { METHODS, type Loc, type Method } from './addPlace/types';
 
-export function AddPlaceModal() {
-  const { close, addPlace, addWatch, notify, go, skills } = useStore();
-  const [step, setStep] = useState(1);
-  const [method, setMethod] = useState<Method | null>(null);
-  const [loc, setLoc] = useState<Loc | null>(null);
+/** A location carried in from elsewhere (geocoder pick, globe click): the wizard starts at the outline step. */
+export interface AddPlacePrefill { lat: number; lon: number; name?: string; method?: 'pin' }
+
+const fmtHa = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+
+export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
+  const { close, addPlace, addWatch, notify, go, skills, setAskPlace } = useStore();
+  const [step, setStep] = useState(prefill ? 2 : 1);
+  const [method, setMethod] = useState<Method | null>(prefill ? (prefill.method ?? 'pin') : null);
+  const [loc, setLoc] = useState<Loc | null>(() =>
+    prefill
+      ? {
+          lat: prefill.lat,
+          lon: prefill.lon,
+          label: prefill.name ?? 'Pinned site',
+          source: 'pin',
+          via: prefill.name ? `${prefill.name} · ${fmtC(prefill.lat, prefill.lon)}` : fmtC(prefill.lat, prefill.lon),
+        }
+      : null,
+  );
   const [error, setError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
 
   const outline = useOutline({ loc, step, method });
   const form = useDetailsForm(loc);
-  const { pts, isCircle, ha, fitted, outlineLabel } = outline;
+  const { pts, isCircle, ha, fitted, outlineLabel, center } = outline;
 
   // Stable so the method components' effects don't re-fire on every render of this shell.
   const onMethodChange = useCallback((next: Loc | null) => setLoc(next), []);
@@ -72,6 +87,14 @@ export function AddPlaceModal() {
     setStep(2);
   };
 
+  /** The user picked a different spot on the globe in step 2: start over from a pin there. */
+  const relocate = (at: { lat: number; lon: number }) => {
+    const next: Loc = { ...at, label: 'Pinned site', source: 'pin', via: fmtC(at.lat, at.lon) };
+    setMethod('pin');
+    setLoc(next);
+    outline.begin(next, 'pin');
+  };
+
   const goStep3 = () => {
     if (!loc) return;
     setError(null);
@@ -93,7 +116,7 @@ export function AddPlaceModal() {
       const created = await addPlace({
         name: form.finalName,
         categoryKey: form.categoryKey,
-        center: { lat: loc.lat, lon: loc.lon },
+        center: center ?? { lat: loc.lat, lon: loc.lon },
         geometry: { type: 'Polygon', coordinates: [ptsToRing(pts, { lat: loc.lat, lon: loc.lon })] },
         isCircle,
         project: form.finalProject,
@@ -130,10 +153,12 @@ export function AddPlaceModal() {
       }
 
       close();
+      // Point the chat composer at the new place straight away.
+      setAskPlace(created.id);
       notify(
         started.length
-          ? `${created.name} saved · ${created.areaHa} ha · ${started.length} watch${started.length > 1 ? 'es' : ''} started`
-          : `${created.name} saved · ${created.areaHa} ha`,
+          ? `${created.name} saved · ${fmtHa(created.areaHa)} ha · ${started.length} watch${started.length > 1 ? 'es' : ''} started`
+          : `${created.name} saved · ${fmtHa(created.areaHa)} ha`,
         'Ask about it',
         () => go('ask', undefined, { place: created.id }),
         'check_circle',
@@ -153,7 +178,7 @@ export function AddPlaceModal() {
       {step === 1 && (
         <>
           <div className="subhead">How do you want to add it?</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
             {METHODS.map((mt) => {
               const on = method === mt.id;
               return (
@@ -163,15 +188,13 @@ export function AddPlaceModal() {
                   // unmounted, so whatever it had reported is no longer backed by any input.
                   onClick={() => { setMethod(mt.id); setLoc(null); }}
                   aria-pressed={on}
+                  aria-label={mt.title}
                   style={{
                     textAlign: 'left', padding: 12, borderRadius: 'var(--r)', display: 'flex', flexDirection: 'column', gap: 6,
                     background: on ? 'var(--s2)' : 'var(--canvas)', border: `1px solid ${on ? '#fff' : 'var(--hair-soft)'}`, color: '#fff',
                   }}
                 >
-                  <span className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
-                    <Ms n={mt.icon} size={22} style={{ color: on ? '#fff' : 'var(--muted)' }} />
-                    {mt.paid ? <Tier tier="paid" label="$0.50" /> : <Tier tier="free" />}
-                  </span>
+                  <Ms n={mt.icon} size={22} style={{ color: on ? '#fff' : 'var(--muted)' }} />
                   <span style={{ font: '600 14px/1.3 var(--font)' }}>{mt.title}</span>
                   <span className="tiny">{mt.hint}</span>
                 </button>
@@ -183,12 +206,12 @@ export function AddPlaceModal() {
               <MethodInput method={method} onChange={onMethodChange} />
             </div>
           )}
-          {!method && <div className="caption">Every method is free except official parcel lookups in a few countries (US, Kenya: $0.50 per parcel found).</div>}
+          {!method && <div className="caption">Once the place is located you can draw its outline, use the AI boundary and fine-tune every point.</div>}
         </>
       )}
 
-      {step === 2 && loc && draft && <OutlineStep loc={loc} draft={draft} outline={outline} />}
-      {step === 3 && loc && <DetailsStep loc={loc} ha={ha} form={form} />}
+      {step === 2 && loc && draft && <OutlineStep loc={loc} draft={draft} outline={outline} onRelocate={relocate} />}
+      {step === 3 && loc && <DetailsStep loc={loc} ha={ha} form={form} outline={{ shape: outline.shape, edited: outline.isEdited }} />}
 
       {error && <ErrorState error={error} onRetry={step === 3 ? () => void save() : undefined} title="Could not complete that" compact />}
 
@@ -196,7 +219,7 @@ export function AddPlaceModal() {
         {step === 1 ? <Btn variant="text" onClick={close}>Cancel</Btn> : <Btn variant="text" icon="arrow_back" onClick={goBack}>Back</Btn>}
         {step === 1 && <Btn variant="primary" trailing="arrow_forward" disabled={!loc} onClick={goStep2}>Continue</Btn>}
         {step === 2 && <Btn variant="primary" trailing="arrow_forward" disabled={!loc || ha <= 0} onClick={goStep3}>Continue</Btn>}
-        {step === 3 && <Btn variant="primary" icon="check" tier="free" disabled={!form.complete || saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save place'}</Btn>}
+        {step === 3 && <Btn variant="primary" icon="check" disabled={!form.complete || saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save place'}</Btn>}
       </div>
     </Modal>
   );

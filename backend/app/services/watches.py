@@ -42,6 +42,7 @@ __all__ = [
     "get_proof",
     "get_watch",
     "list_watches",
+    "record_event",
     "update_watch",
 ]
 
@@ -230,6 +231,33 @@ RULES: tuple[Rule, ...] = (
         confidence="Low",
         notes=("300 m pixels — fine near open water, unreliable within ~600 m of the shore.",),
     ),
+    Rule(
+        pattern=_rx(
+            r"ponds?\b",
+            r"fish ?ponds?",
+            r"wetlands?",
+            r"open water",
+            r"water (?:area|level|extent)",
+            r"reservoirs?",
+            r"lakes?\b",
+            r"fill(?:ed|ing)? in",
+            r"reclaim",
+            r"shrink",
+        ),
+        title="Open water at my ponds or wetland",
+        skill_id="pond-filling-check",
+        category_key="water",
+        metric="Open water area",
+        condition="Open water falls clearly below its usual range",
+        satellites="Sentinel-2 · Sentinel-1",
+        cadence="Every ~5 days",
+        confidence="Medium",
+        notes=(
+            "Ponds narrower than about 50 m, or filling along one bund, may be missed at 10 m.",
+            "A pond drained for the season looks like a filled one; only persistence across "
+            "many passes separates them.",
+        ),
+    ),
     _SMALL_PLOT,
     Rule(
         pattern=_rx(r"dry", r"drought", r"moisture", r"irrigat", r"water stress"),
@@ -402,6 +430,8 @@ def create_watch(user_id: str, req: CreateWatchRequest, area_ha: float | None = 
             "tier": spec.tier,
             "satellites": spec.satellites.replace("—", ""),
             "enabled": True,
+            "recurrence": req.recurrence,
+            "dashboard_id": req.dashboard_id,
             "events": [_event("Watch created. No passes measured yet.")],
             "proof": {"scenes": [], "hash": ""},
             "created_at": now,
@@ -427,6 +457,28 @@ def update_watch(user_id: str, watch_id: str, req: PatchWatchRequest) -> WatchDt
             if not changes["enabled"]:
                 row["next_run_at"] = None
         row.update(changes)
+        row["updated_at"] = _now()
+        _save(path, rows)
+    return _dto(row)
+
+
+def record_event(user_id: str, watch_id: str, text: str, level: str = "info") -> WatchDto | None:
+    """Append an event (newest first). A `once` watch disables itself on its first `alert`."""
+    if not ID_RE.fullmatch(watch_id):
+        return None
+    path = _path(user_id)
+    with _lock(path):
+        rows = _load(path)
+        row = next((r for r in rows if r["id"] == watch_id), None)
+        if row is None:
+            return None
+        row["events"].insert(0, _event(text, level))
+        if level == "alert":
+            row["status"] = "alert"
+            if row.get("recurrence", "recurring") == "once" and row.get("enabled", True):
+                row["enabled"] = False
+                row["next_run_at"] = None
+                row["events"].insert(0, _event("One-time trigger fired; now disabled."))
         row["updated_at"] = _now()
         _save(path, rows)
     return _dto(row)

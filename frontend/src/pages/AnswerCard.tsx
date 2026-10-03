@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
-import { Btn, ConfidenceBadge, Ms, Tier } from '../components/ui';
+import { api } from '../api';
+import { Btn, ConfidenceBadge, Ms } from '../components/ui';
 import type { Answer } from '../model';
 import { cloudFromPercent } from '../lib/format';
+import { ArtifactRefs, LinkedText } from '../components/artifacts/ArtifactRefs';
 
 /** The contract's `RouteOption` (`contracts/openapi.json`): `sat`, not `satellite`. */
 type RouteOption = Answer['route'][number];
@@ -61,8 +63,8 @@ function Routing({ route }: { route: RouteOption[] }) {
   );
 }
 
-export function AnswerCard({ answer: a, question, placeId, onRunSkill, onAskFollowup }: { answer: Answer; question: string; placeId: string | null; onRunSkill: (id: string) => void; onAskFollowup?: (q: string) => void }) {
-  const { open, notify, go, places, skills } = useStore();
+export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunSkill, onAskFollowup }: { answer: Answer; turnId: string; question: string; placeId: string | null; runId?: string | null; onRunSkill: (id: string) => void; onAskFollowup?: (q: string) => void }) {
+  const { open, go, places, skills } = useStore();
   const used = a.proof.filter((p) => p.used).length;
   const place = places.find((p) => p.id === placeId);
   // The backend sends the accent colour; it has no notion of our category list.
@@ -80,8 +82,9 @@ export function AnswerCard({ answer: a, question, placeId, onRunSkill, onAskFoll
       </div>
       <div style={{ font: '600 22px/1.18 var(--font)', letterSpacing: -0.4, textWrap: 'balance' }}>{a.title}</div>
       {a.sentence && (
-        <div className="body-sm" style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-dim, inherit)' }}>{a.sentence}</div>
+        <div className="body-sm" style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-dim, inherit)' }}><LinkedText text={a.sentence} turnId={turnId} /></div>
       )}
+      <ArtifactRefs turnId={turnId} />
       {a.stats.length > 0 && (
         <div className="stats" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
           {a.stats.map((s) => (
@@ -125,7 +128,7 @@ export function AnswerCard({ answer: a, question, placeId, onRunSkill, onAskFoll
               <div key={id} className="row" style={{ gap: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--s1)', border: '1px solid var(--hair-soft)' }}>
                 <div className="col grow"><span style={{ font: '600 13px/1.38 var(--font)' }}>{s.name}</span><span className="tiny">{s.sat} · by {s.publisherName}</span></div>
                 <Btn size="sm" variant="text" onClick={() => go('library', id)}>Open</Btn>
-                <Btn size="sm" icon="play_arrow" tier={s.tier} onClick={() => onRunSkill(id)}>Run</Btn>
+                <Btn size="sm" icon="play_arrow" onClick={() => onRunSkill(id)}>Run</Btn>
               </div>
             );
           })}
@@ -201,25 +204,20 @@ export function AnswerCard({ answer: a, question, placeId, onRunSkill, onAskFoll
           </div>
           <div className="row wrap" style={{ marginTop: 10, gap: 8, justifyContent: 'space-between' }}>
             <span className="tiny">Processing hash <span className="muted" style={{ fontFamily: 'ui-monospace, monospace' }}>{a.hash}</span> · re-runnable</span>
-            <Btn size="sm" icon="download" tier="free" onClick={() => notify('Proof pack downloaded · scenes, masks, parameters, hash', undefined, undefined, 'download')}>Proof pack</Btn>
+            {runId && <a className="btn btn-secondary btn-sm" href={api.shares.reportPdfUrl(runId)} download><Ms n="download" />Proof pack (PDF)</a>}
           </div>
         </Section>
       )}
 
       <div className="row wrap" style={{ gap: 8, borderTop: '1px solid var(--hair)', paddingTop: 14 }}>
         {a.kind === 'place' ? (
-          <Btn variant="primary" icon="visibility" tier="free" onClick={() => open({ kind: 'watchBuilder', prefill: watchPrefill(question, a, place?.name), placeId, skillId: a.skillId ?? undefined, fromAnswer: true })}>Keep watching</Btn>
+          <Btn variant="primary" icon="visibility" onClick={() => open({ kind: 'watchBuilder', prefill: watchPrefill(question, a, place?.name), placeId, skillId: a.skillId ?? undefined, fromAnswer: true })}>Keep watching</Btn>
         ) : (
           <Btn variant="primary" icon="pentagon" onClick={() => go('places')}>Pick a place</Btn>
         )}
-        <Btn variant="secondary" icon="ios_share" tier="free" onClick={() => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: a.eyebrow } })}>Export</Btn>
-        <Btn icon="support_agent" tier="paid" tierLabel="from $49" onClick={() => open({ kind: 'expert', context: a.title, placeId })}>Ask an expert</Btn>
+        <Btn variant="secondary" icon="ios_share" onClick={() => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: a.eyebrow, id: runId ?? undefined } })}>Export</Btn>
+        <Btn icon="support_agent" onClick={() => open({ kind: 'expert', context: a.title, placeId })}>Ask an expert</Btn>
       </div>
-      {a.kind === 'place' && (
-        <div className="tiny row" style={{ gap: 6 }}>
-          <Tier tier="free" /> This run used free satellites only. Paid sources are always marked before you spend.
-        </div>
-      )}
     </div>
   );
 }

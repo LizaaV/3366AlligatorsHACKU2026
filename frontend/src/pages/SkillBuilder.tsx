@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { api, toApiError } from '../api';
+import { toApiError } from '../api';
 import type { SkillModule } from '../model';
 import { slug } from '../lib/format';
 import { Btn, IconBtn, Ms, Toggle } from '../components/ui';
@@ -17,7 +17,7 @@ const cloneParams = (p?: SkillModule['params']): Record<string, ParamVal> =>
   Object.fromEntries(Object.entries(p ?? {}).map(([k, v]) => [k, Array.isArray(v) ? [...v] : v] as [string, ParamVal]));
 
 export function SkillBuilder() {
-  const { route, go, skills, places, addSkill, notify, categories, modules, catalog } = useStore();
+  const { route, go, skills, addSkill, notify, categories, modules, catalog } = useStore();
   const satellites = catalog?.satellites ?? [];
   // Module definitions come from the catalog endpoint, so this is a closure rather than a
   // module-level helper (the catalog is not available until it has loaded).
@@ -30,11 +30,8 @@ export function SkillBuilder() {
   const [categoryKey, setCategoryKey] = useState<string>(from?.categoryKey ?? 'agriculture');
   const [short, setShort] = useState(from ? from.short : '');
   const [vis, setVis] = useState<Visibility>('private');
-  const [paid, setPaid] = useState(false);
-  const [price, setPrice] = useState('$1 / km²');
   const [steps, setSteps] = useState<Step[]>(() => (from ? from.steps : DEFAULT_STEPS).filter((id) => mod(id)).map(mk));
   const [openUid, setOpenUid] = useState<number | null>(null);
-  const [testing, setTesting] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<ReturnType<typeof toApiError> | null>(null);
 
@@ -71,7 +68,6 @@ export function SkillBuilder() {
     last?.group === 'Output' ? { level: 'ok', text: `Ends with an Output module (${last.name})` } : { level: 'error', text: 'Must end with an Output module (Show the answer or Keep watching)' },
     ...(steps.some((s) => s.module === 'scenes.filter') ? [] : [{ level: 'warn' as const, text: 'No “Find clear images” step — results may include cloudy images' }]),
     ...(steps.some((s) => mod(s.module)?.group === 'Analysis') ? [] : [{ level: 'warn' as const, text: 'No Analysis module — the skill will only return raw images' }]),
-    ...(paid && !price.trim() ? [{ level: 'error' as const, text: 'Set a price for a paid skill' }] : []),
   ];
   const errors = hints.filter((h) => h.level === 'error').length;
 
@@ -93,7 +89,7 @@ export function SkillBuilder() {
     satellites: sats,
     publisher: { name: 'You', official: false, verified: false },
     visibility: vis,
-    pricing: { tier: paid ? 'paid' : 'free', price: paid ? price : null },
+    pricing: { tier: 'free', price: null },
     inputs: [
       { key: 'area', type: 'geometry', required: true, accepts: ['place', 'polygon', 'geojson', 'kml'] },
       ...(steps.some((s) => s.module === 'ask.clarify') ? [{ key: 'context', type: 'answers', required: false }] : []),
@@ -109,21 +105,6 @@ export function SkillBuilder() {
   };
   const json = JSON.stringify(manifest, null, 2);
 
-  const test = async () => {
-    const placeId = places[0]?.id;
-    if (!placeId || testing) return;
-    setTesting(true);
-    setPublishError(null);
-    try {
-      const res = await api.skills.test({ placeId, steps: steps.map((st) => ({ module: st.module, params: st.params })) });
-      notify(res.ok ? `Test run passed \u00b7 ${res.summary}` : `Test run failed \u00b7 ${res.summary}`, undefined, undefined, res.ok ? 'check_circle' : 'error');
-    } catch (err) {
-      setPublishError(toApiError(err));
-    } finally {
-      setTesting(false);
-    }
-  };
-
   const publish = async () => {
     if (errors || publishing) return;
     setPublishing(true);
@@ -135,8 +116,8 @@ export function SkillBuilder() {
         name: name.trim(),
         categoryKey,
         short: short.trim() || `Custom ${categories.find((c) => c.key === categoryKey)?.name.toLowerCase() ?? ''} skill.`.trim(),
-        tier: paid ? 'paid' : 'free',
-        cost: paid ? price.trim() : 'Free',
+        tier: 'free',
+        cost: 'Free',
         visibility: vis,
         steps: steps.map((st) => ({ module: st.module, params: st.params })),
       });
@@ -194,18 +175,6 @@ export function SkillBuilder() {
             </div>
             {vis === 'public' && <span className="tiny">Public skills show under Community with your name. Constellation does not validate them unless you apply for verification.</span>}
           </div>
-          <div className="field">Pricing
-            <div className="seg" role="radiogroup" aria-label="Pricing" style={{ alignSelf: 'flex-start' }}>
-              <button role="radio" aria-checked={!paid} className={!paid ? 'on' : ''} onClick={() => setPaid(false)}>Free</button>
-              <button role="radio" aria-checked={paid} className={paid ? 'on' : ''} onClick={() => setPaid(true)}>Paid</button>
-            </div>
-          </div>
-          {paid && (
-            <label className="field">Price
-              <input className="input" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="$1 / km²" />
-              <span className="tiny">Charged per run on top of any paid imagery the steps use.</span>
-            </label>
-          )}
         </div>
 
         {/* ---------- middle: steps ---------- */}
@@ -318,12 +287,10 @@ export function SkillBuilder() {
       )}
 
       <div className="lib-foot">
-        <Btn icon={testing ? undefined : 'science'} tier="free" onClick={() => void test()} disabled={testing || errors > 0 || !places.length}>
-          {testing && <span className="spinner" />}
-          {testing ? 'Testing on North Pivot…' : 'Test on North Pivot'}
+        <Btn icon="science" disabled title="Test runs are not available yet">
+          Test run · Coming soon
         </Btn>
-        <Btn icon="save" onClick={() => notify(`Draft saved · ${manifest.id}@${version}`, undefined, undefined, 'save')}>Save draft</Btn>
-        <Btn variant="primary" icon="publish" tier="free" onClick={publish} disabled={errors > 0 || publishing} title={errors ? 'Fix the checks above first' : undefined}>
+        <Btn variant="primary" icon="publish" onClick={publish} disabled={errors > 0 || publishing} title={errors ? 'Fix the checks above first' : undefined}>
           Publish to library
         </Btn>
       </div>

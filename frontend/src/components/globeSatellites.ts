@@ -144,5 +144,21 @@ export function addSatellites(parent: THREE.Object3D) {
     parent.remove(group);
   };
 
-  return { update, dispose };
+  const setVisible = (v: boolean) => {
+    group.visible = v;
+  };
+
+  /** The satellite under the pointer, unless the Earth is in front of it (`maxDist`). */
+  const ray = new THREE.Raycaster();
+  const pick = (ndc: THREE.Vector2, cam: THREE.Camera, maxDist = Infinity) => {
+    if (!group.visible || !tracked.length) return null;
+    ray.setFromCamera(ndc, cam);
+    const hit = ray.intersectObjects(tracked.map((t) => t.dot), false)[0];
+    if (!hit || hit.distance > maxDist) return null;
+    const t = tracked.find((x) => x.dot === hit.object);
+    const p = t && subPoint(t.satrec, new Date());
+    return t && p ? { name: t.sat.name, family: t.sat.family, lat: p.lat, lon: p.lon } : null;
+  };
+
+  return { update, dispose, setVisible, pick };
 }

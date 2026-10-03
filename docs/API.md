@@ -440,3 +440,60 @@ Use a plain link or `fetch` + blob; the owner route needs the `X-User-Id` header
 - Privacy: built from the same allow-list snapshot as a share link. It never contains params, events, script, memory, user id, thread id or run id.
 - A layer image that is missing on disk shows a grey placeholder; the PDF is still returned.
 - Limit: built-in Helvetica font, Latin only. Chinese text (`zh-Hant`, `yue`) appears as `?` and the PDF says so.
+
+## 12. Trigger recurrence, dashboard link and satellites
+
+**Triggers (watches).** `WatchDto`, `CreateWatchRequest` and `PatchWatchRequest` gain two fields,
+both optional on write:
+
+- `recurrence: "recurring" | "once"` (default `"recurring"`). A `once` trigger sets
+  `enabled: false` after its first `alert`-level event; `recurring` keeps going. Not nullable on PATCH.
+- `dashboard_id: string | null` (default `null`). Links the trigger to a dashboard from
+  `/api/dashboards`. Create/PATCH answer **404** when the id is not one of the user's dashboards.
+  On PATCH, an explicit `null` unlinks it.
+
+**`GET /api/satellites?at=<ISO datetime>`** returns `SatelliteDto[]` (`at` defaults to now, UTC):
+
+```json
+{ "id": "sentinel-2a", "name": "Sentinel-2A", "norad_id": 40697, "mission": "Sentinel-2",
+  "lat": 12.3, "lon": 45.6, "alt_km": 786.2, "velocity_kms": 7.45,
+  "at": "2026-10-04T12:00:00Z", "track": [{ "lat": 12.3, "lon": 45.6 }] }
+```
+
+`track` is the sub-satellite point for the next 90 minutes at 2-minute steps (45 points, the first
+equals the current position). Satellites: Sentinel-1A, Sentinel-2A/2B/2C, Landsat 8/9, Terra, Aqua,
+Suomi NPP. TLEs come from CelesTrak (cached 6 h) with a bundled fallback snapshot, so the endpoint
+works offline; positions are approximate (a few km).
+
+## 13. Add-place wizard: AI boundary and boundary file
+
+**`POST /api/places/detect-boundary`**, body `{ "lat": 22.4884, "lon": 114.0448 }` →
+
+```json
+{ "geometry": { "type": "Polygon", "coordinates": [[[114.044, 22.489], "..."]] },
+  "area_ha": 4.34, "confidence": "High", "method": "sentinel2_segmentation",
+  "note": "Outline grown from the 25 Sep 2026 Sentinel-2 pass; check it against the map." }
+```
+
+The latest clear Sentinel-2 scene over a ~600 m box is read through `earth`, NDVI and NDWI are
+computed, and the region around the point is grown (4-connected, tolerance on both indices, at most
+200 ha), vectorised, smoothed and simplified (~5 m). With no clear scene, a provider error, a
+timeout (60 s) or a degenerate region the answer is a ~1 ha square with `"confidence": "Low"` and
+`"method": "fallback_square"`. It is never a 5xx for imagery problems. A cold call can take ~35 s;
+the frontend allows 75 s. Under `EARTH_IMPL=stub` the answer is deterministic.
+
+**`POST /api/places/parse-file`**, multipart, field `file` (max 5 MB) →
+`{ geometry, area_ha, name, center: {lat, lon}, note }`. `geometry` is one Polygon (the largest
+polygon of the file); `name` comes from the feature / placemark, else the file name.
+
+| Format | Notes |
+| --- | --- |
+| `.geojson`, `.json` | Polygon, MultiPolygon, Feature(Collection), GeometryCollection; points-only files fall under "points" |
+| `.kml`, `.kmz` | Placemark polygons; points and lines count as points. DTDs are refused |
+| `.gpx` | track / route / way points |
+| `.csv` | needs `lat` + `lon` columns (also latitude/longitude/lng/x/y); points in order form the polygon if it is simple, else their convex hull |
+| `.zip` / `.shp` | **415**: no shapefile reader is installed; the hint says to export GeoJSON or KML |
+
+Errors use `detail: {kind, message, hint}`: **413** (`too_large`, `too_many_points` above
+`MAX_VERTICES` = 10 000), **415** (`unsupported_type`), **422** (`unreadable_file`, no outline in the
+file, fewer than 3 points).

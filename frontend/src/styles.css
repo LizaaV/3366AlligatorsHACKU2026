@@ -28,6 +28,14 @@
   --r-lg: 12px;
   --r-xl: 16px;
   --nav-h: 56px;
+  /* Glass: translucent floating surfaces over the globe and map */
+  --glass-bg: rgba(28, 31, 38, 0.52);
+  --glass-bg-strong: rgba(24, 27, 33, 0.9);
+  --glass-fill: rgba(255, 255, 255, 0.07);
+  --glass-fill-hover: rgba(255, 255, 255, 0.12);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-blur: blur(28px) saturate(180%);
+  --glass-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
 * { box-sizing: border-box; }
@@ -94,7 +102,19 @@ input[type='range'] { accent-color: #fff; }
 }
 
 /* ---------- Surfaces ---------- */
-.panel { background: var(--s1); border: 1px solid var(--hair); border-radius: var(--r-lg); }
+.glass, .panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+.panel { border-radius: var(--r-lg); }
+.glass-strong { background: var(--glass-bg-strong); }
+/* Without backdrop blur, translucency alone hurts legibility: fall back to near-solid. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass, .panel, .menu, .modal, .icon-btn.boxed { background: rgba(21, 24, 30, 0.96); }
+}
 .card { background: var(--s1); border: 1px solid var(--hair-faint); border-radius: var(--r-lg); }
 .well { background: var(--canvas); border: 1px solid var(--hair-soft); border-radius: var(--r-lg); }
 .sunk { background: var(--s2); border-radius: var(--r); }
@@ -127,16 +147,10 @@ input[type='range'] { accent-color: #fff; }
 .icon-btn .ms { font-size: 20px; }
 .icon-btn.sm { width: 32px; height: 32px; color: var(--muted); }
 .icon-btn.sm:hover { color: #fff; }
-.icon-btn.boxed { background: var(--s1); border: 1px solid var(--hair); }
-.icon-btn.boxed:hover { background: var(--s2); }
+.icon-btn.boxed { background: var(--glass-bg); border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+.icon-btn.boxed:hover { background: var(--glass-fill-hover); }
 
 /* tier tag inside CTAs — "separation of free vs paid in every CTA" */
-.tier { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; padding: 1px 6px; border-radius: 9999px; font: 600 10.5px/1.5 var(--font); letter-spacing: 0.3px; text-transform: uppercase; }
-.tier .ms { font-size: 12px !important; }
-.tier-free { background: rgba(0, 202, 142, 0.14); color: var(--green); }
-.tier-paid { background: rgba(255, 207, 37, 0.16); color: var(--yellow); }
-.btn-primary .tier-free { background: rgba(0, 150, 105, 0.14); color: #007a56; }
-.btn-primary .tier-paid { background: #000; color: var(--yellow); }
 
 /* ---------- Chips / pills ---------- */
 .chip {
@@ -185,15 +199,15 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .stats .ci { font: 500 12px/1.38 var(--font); color: var(--muted); margin-top: 1px; }
 
 /* ---------- Menus / popovers ---------- */
-.menu { position: absolute; z-index: 80; min-width: 240px; padding: 6px; background: var(--s1); border: 1px solid var(--hair); border-radius: var(--r-lg); animation: fadeUp 0.2s ease both; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5); }
+.menu { position: absolute; z-index: 80; min-width: 240px; padding: 6px; background: var(--glass-bg-strong); border: 1px solid var(--glass-border); border-radius: var(--r-lg); animation: fadeUp 0.2s ease both; box-shadow: var(--glass-shadow); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
 .menu-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: var(--r); background: transparent; border: 0; color: #fff; text-align: left; font: 500 14px/1.4 var(--font); }
-.menu-item:hover, .menu-item.on { background: var(--s2); }
+.menu-item:hover, .menu-item.on { background: var(--glass-fill-hover); }
 .menu-item .ms { font-size: 20px; color: var(--muted); }
 .menu-label { padding: 8px 10px 6px; }
 
 /* ---------- Modal ---------- */
 .scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.72); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; animation: fadeIn 0.2s ease both; }
-.modal { width: 520px; max-width: 100%; max-height: calc(100vh - 32px); overflow-y: auto; background: var(--s1); border: 1px solid var(--hair); border-radius: var(--r-lg); padding: 28px; display: flex; flex-direction: column; gap: 18px; animation: fadeUp 0.25s ease both; }
+.modal { width: 520px; max-width: 100%; max-height: calc(100vh - 32px); overflow-y: auto; background: var(--glass-bg-strong); border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-radius: var(--r-lg); padding: 28px; display: flex; flex-direction: column; gap: 18px; animation: fadeUp 0.25s ease both; }
 .modal.wide { width: 760px; }
 .modal.xwide { width: 1040px; }
 .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }

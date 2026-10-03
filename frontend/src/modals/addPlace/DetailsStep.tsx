@@ -1,13 +1,14 @@
 /** Step 3: name it, file it, tag it, and optionally start watching it. */
 
 import { useStore } from '../../state/store';
-import { Check, Tier } from '../../components/ui';
+import { Check } from '../../components/ui';
 import { sourceLabel } from '../../data/presentation';
 import { fmtC } from '../../lib/geo';
-import type { Loc } from './types';
+import type { Loc, Shape } from './types';
 import type { DetailsForm } from './useDetailsForm';
 
-export function DetailsStep({ loc, ha, form }: { loc: Loc; ha: number; form: DetailsForm }) {
+export function DetailsStep({ loc, ha, form, outline }: { loc: Loc; ha: number; form: DetailsForm; outline: { shape: Shape; edited: boolean } }) {
+  const origin = `${outline.shape === 'drawn' ? 'Drawn' : sourceLabel(loc.source)}${outline.edited ? ' · outline edited' : ''}`;
   const { categories } = useStore();
   const {
     projects, name, setName, project, setProject, newProject, setNewProject,
@@ -65,7 +66,6 @@ export function DetailsStep({ loc, ha, form }: { loc: Loc; ha: number; form: Det
                     <span style={{ font: '600 14px/1.4 var(--font)' }}>{sk.name}</span>
                     <span className="caption" style={{ display: 'block' }}>{sk.short} · {sk.sat}</span>
                   </span>
-                  <Tier tier={sk.tier} label={sk.tier === 'paid' ? sk.cost : undefined} />
                 </button>
               );
             })}
@@ -73,11 +73,11 @@ export function DetailsStep({ loc, ha, form }: { loc: Loc; ha: number; form: Det
         </div>
       )}
       <div className="well row wrap" style={{ padding: '10px 14px', gap: 12 }}>
-        <span className="caption">{sourceLabel(loc.source)}</span>
+        <span className="caption">{origin}</span>
         <span className="caption">·</span>
         <span className="caption">{fmtC(loc.lat, loc.lon)}</span>
         <span className="caption">·</span>
-        <span className="caption">{ha} ha</span>
+        <span className="caption">{ha.toLocaleString(undefined, { maximumFractionDigits: 1 })} ha</span>
       </div>
     </>
   );

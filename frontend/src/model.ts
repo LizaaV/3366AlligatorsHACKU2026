@@ -27,7 +27,7 @@ import type {
   ChannelId,
   ConfidenceLevel,
   DeliveryChannelDto,
-  FeasibilityDto,
+  FeasibilityWireDto,
   LanguageDto,
   MapLayerDto,
   PlaceSource,
@@ -35,7 +35,8 @@ import type {
   SkillDto,
   SkillModuleDto,
   Tier,
-  WatchDto,
+  WatchWireDto,
+  WatchRecurrence,
   WatchStatus,
 } from './api/types';
 
@@ -118,37 +119,41 @@ export interface Skill {
   reference: { lat: number; lon: number } | null;
   res: string;
   revisit: string;
-  runs: number;
-  rating: number;
+  /** `null` until the backend counts runs per skill. Never shown as 0. */
+  runs: number | null;
+  /** `null` until ratings exist. */
+  rating: number | null;
   version: string;
   updatedAt: Date | null;
+  /** Ordered module ids; the params live in the manifest. */
   steps: string[];
-  accuracy: string;
+  /** `null` when the skill has not been validated. */
+  accuracy: string | null;
   limits: string[];
 }
 
 export const toSkill = (d: SkillDto): Skill => ({
   id: d.id,
-  categoryKey: d.categoryKey,
+  categoryKey: d.category_key,
   name: d.name,
   sat: d.sat,
   cost: d.cost,
   tier: d.tier,
   short: d.short,
-  long: d.long,
+  long: d.long ?? '',
   publisherName: d.publisher.name,
-  official: d.publisher.official,
-  verified: d.publisher.verified,
+  official: d.publisher.official ?? false,
+  verified: d.publisher.verified ?? false,
   reference: d.reference ?? null,
-  res: d.res,
-  revisit: d.revisit,
-  runs: d.runs,
-  rating: d.rating,
+  res: d.res ?? '\u2014',
+  revisit: d.revisit ?? '\u2014',
+  runs: d.runs ?? null,
+  rating: d.rating ?? null,
   version: d.version,
-  updatedAt: parseIso(d.updatedAt),
+  updatedAt: parseIso(d.updated_at),
   steps: d.steps,
-  accuracy: d.accuracy,
-  limits: d.limits,
+  accuracy: d.accuracy ?? null,
+  limits: d.limits ?? [],
 });
 
 /* ---------------- places ---------------- */
@@ -201,7 +206,8 @@ export const toPlace = (d: PlaceDto): Place => {
     pts,
     circle: d.is_circle,
     // AUTHORITATIVE, from the server. Never recomputed for a saved place.
-    areaHa: d.area_ha,
+    // One decimal is plenty for display (0.1 ha = 1,000 m²).
+    areaHa: Math.round(d.area_ha * 10) / 10,
     project: d.project ?? '',
     tags: d.tags ?? [],
     source: d.source as PlaceSource,
@@ -228,15 +234,20 @@ export interface Watch {
   question: string;
   condition: string;
   metric: string;
-  value: number;
+  /** `null` until the first real run; the API never invents a measurement. */
+  value: number | null;
   unit: string;
-  ci: [number, number];
+  ci: [number, number] | null;
   confidence: ConfidenceLevel;
   baselineLabel: string;
-  baseline: number;
+  baseline: number | null;
   delta: string;
+  /** `ok` also stands in for "no run yet" (see `hasRun`), so shared status pills keep working. */
   status: WatchStatus;
+  /** False until a real run produced `value` / `lastRunAt`. */
+  hasRun: boolean;
   enabled: boolean;
+  /** Chart series, rescaled to 0..1 here (the API sends real units). Empty until the first runs. */
   series: { labels: string[]; current: number[]; bandLow: number[]; bandHigh: number[]; mean: number[] };
   channels: ChannelId[];
   cadence: string;
@@ -248,36 +259,59 @@ export interface Watch {
   thumbnailZoom: number;
   ring: boolean;
   events: WatchEvent[];
+  /** `once` triggers fire a single time, then stop. */
+  recurrence: WatchRecurrence;
+  dashboardId: string | null;
 }
 
-export const toWatch = (d: WatchDto): Watch => ({
+/**
+ * The API sends the series in real units (`WatchSeries.unit`); `HistoryChart` draws 0..1. One
+ * shared min/max keeps the line, the band and the mean on the same scale.
+ */
+function normaliseSeries(s: WatchWireDto['series']): Watch['series'] {
+  const cur = s?.current ?? [];
+  const lo = s?.band_low ?? [];
+  const hi = s?.band_high ?? [];
+  const mean = s?.mean ?? [];
+  const all = [...cur, ...lo, ...hi, ...mean];
+  if (!all.length) return { labels: s?.labels ?? [], current: [], bandLow: [], bandHigh: [], mean: [] };
+  const min = Math.min(...all);
+  const span = Math.max(...all) - min;
+  const n = (v: number) => (span === 0 ? 0.5 : 0.08 + ((v - min) / span) * 0.84);
+  return { labels: s?.labels ?? [], current: cur.map(n), bandLow: lo.map(n), bandHigh: hi.map(n), mean: mean.map(n) };
+}
+
+export const toWatch = (d: WatchWireDto): Watch => ({
   id: d.id,
   name: d.name,
-  categoryKey: d.categoryKey,
-  placeId: d.placeId,
-  skillId: d.skillId,
+  categoryKey: d.category_key ?? '',
+  placeId: d.place_id ?? null,
+  skillId: d.skill_id ?? '',
   question: d.question,
-  condition: d.condition,
-  metric: d.metric,
-  value: d.value,
-  unit: d.unit,
-  ci: d.ci,
+  condition: d.condition ?? '',
+  metric: d.metric ?? '',
+  value: d.value ?? null,
+  unit: d.unit ?? '',
+  ci: d.ci ? [d.ci[0], d.ci[1]] : null,
   confidence: d.confidence,
-  baselineLabel: d.baselineLabel,
-  baseline: d.baseline,
-  delta: d.delta,
-  status: d.status,
-  enabled: d.enabled,
-  series: d.series,
-  channels: d.channels,
-  cadence: d.cadence,
-  tier: d.tier,
-  lastRunAt: parseIso(d.lastRunAt),
-  nextRunAt: parseIso(d.nextRunAt),
-  satellites: d.satellites,
-  thumbnailZoom: d.thumbnail?.zoom ?? 14,
-  ring: d.ring,
-  events: d.events.map((e) => ({ at: parseIso(e.at), text: e.text, level: e.level })),
+  baselineLabel: d.baseline_label ?? '',
+  baseline: d.baseline ?? null,
+  delta: d.delta ?? '',
+  status: d.status ?? 'ok',
+  hasRun: d.value != null || d.last_run_at != null,
+  enabled: d.enabled ?? true,
+  series: normaliseSeries(d.series),
+  channels: d.channels ?? [],
+  cadence: d.cadence ?? '',
+  tier: d.tier ?? 'free',
+  lastRunAt: parseIso(d.last_run_at),
+  nextRunAt: parseIso(d.next_run_at),
+  satellites: d.satellites ?? '',
+  thumbnailZoom: 14,
+  ring: d.ring ?? false,
+  events: (d.events ?? []).map((e) => ({ at: parseIso(e.at), text: e.text, level: e.level })),
+  recurrence: d.recurrence ?? 'recurring',
+  dashboardId: d.dashboard_id ?? null,
 });
 
 /* ---------------- areas ---------------- */
@@ -509,7 +543,42 @@ export interface RunStep {
   done: boolean;
 }
 
-export type Feasibility = FeasibilityDto;
+/** "Can satellites actually watch this?" in the frontend's vocabulary. */
+export interface Feasibility {
+  ok: boolean;
+  /** Answerable only with a compromise (paid imagery, or lower confidence). */
+  partial: boolean;
+  title: string;
+  skillId: string;
+  categoryKey: CategoryKey;
+  metric: string;
+  condition: string;
+  satellites: string;
+  cadence: string;
+  tier: Tier;
+  cost: string;
+  confidence: ConfidenceLevel;
+  notes: string[];
+  /** Offered when `ok` is false: something satellites *can* do instead. */
+  alternative?: string;
+}
+
+export const toFeasibility = (d: FeasibilityWireDto): Feasibility => ({
+  ok: d.ok,
+  partial: d.partial ?? false,
+  title: d.title,
+  skillId: d.skill_id ?? '',
+  categoryKey: d.category_key ?? '',
+  metric: d.metric ?? '',
+  condition: d.condition ?? '',
+  satellites: d.satellites ?? '\u2014',
+  cadence: d.cadence ?? '\u2014',
+  tier: d.tier ?? 'free',
+  cost: d.cost ?? '\u2014',
+  confidence: d.confidence,
+  notes: d.notes ?? [],
+  alternative: d.alternative ?? undefined,
+});
 
 /* ---------------- helpers ---------------- */
 

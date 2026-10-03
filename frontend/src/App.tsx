@@ -5,6 +5,9 @@ import { AskPage } from './pages/AskPage';
 import { PlacesPage } from './pages/PlacesPage';
 import { WatchesPage } from './pages/WatchesPage';
 import { LibraryPage } from './pages/LibraryPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { ProofPage, proofSlug } from './pages/ProofPage';
+import { ChatBubble } from './components/chat/ChatBubble';
 import { ModalHost } from './modals/ModalHost';
 
 function Routes() {
@@ -24,7 +27,14 @@ function Routes() {
         {route.page === 'places' && <PlacesPage />}
         {route.page === 'triggers' && <WatchesPage />}
         {route.page === 'library' && <LibraryPage />}
+        {route.page === 'dashboard' && <DashboardPage />}
       </ErrorBoundary>
+      {/* One chat everywhere: the full chat lives on Ask, every other page gets the bubble. */}
+      {route.page !== 'ask' && (
+        <ErrorBoundary label="chat">
+          <ChatBubble />
+        </ErrorBoundary>
+      )}
       <MobileTabs />
       <ErrorBoundary label="modal">
         <ModalHost />
@@ -35,6 +45,15 @@ function Routes() {
 }
 
 export function App() {
+  // A share link (`/proof/<slug>`) opens a standalone read-only page, not the app.
+  const slug = proofSlug();
+  if (slug) {
+    return (
+      <ErrorBoundary label="proof">
+        <ProofPage slug={slug} />
+      </ErrorBoundary>
+    );
+  }
   return (
     <ErrorBoundary label="app">
       <StoreProvider>

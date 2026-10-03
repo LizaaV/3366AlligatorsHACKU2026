@@ -20,7 +20,6 @@ export function LibraryPage() {
 }
 
 type Source = 'all' | 'official' | 'community' | 'installed';
-type Price = 'any' | 'free' | 'paid';
 
 const isTyping = (el: EventTarget | null) => {
   const n = el as HTMLElement | null;
@@ -33,7 +32,6 @@ function LibraryHome() {
   const [cat, setCat] = useState<number | null>(initialCat);
   const [q, setQ] = useState('');
   const [src, setSrc] = useState<Source>('all');
-  const [price, setPrice] = useState<Price>('any');
 
   // Keys 1–9 pick a block, 0 shows all, arrows step through (as in the prototype's Explore sheet).
   useEffect(() => {
@@ -53,11 +51,10 @@ function LibraryHome() {
     return skills.filter((s) => {
       if (cat !== null && s.categoryKey !== categories[cat]?.key) return false;
       if (src === 'installed' && !installed.includes(s.id)) return false;
-      if (price !== 'any' && s.tier !== price) return false;
       if (needle && !`${s.name} ${s.short} ${s.sat} ${s.publisherName} ${category(s.categoryKey).name}`.toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [skills, categories, category, cat, src, price, q, installed]);
+  }, [skills, categories, category, cat, src, q, installed]);
 
   const official = filtered.filter((s) => s.official);
   const community = filtered.filter((s) => !s.official);
@@ -65,7 +62,7 @@ function LibraryHome() {
   const showCommunity = src !== 'official';
   const nothing = (!showOfficial || !official.length) && (!showCommunity || !community.length);
 
-  const reset = () => { setQ(''); setSrc('all'); setPrice('any'); setCat(null); };
+  const reset = () => { setQ(''); setSrc('all'); setCat(null); };
 
   return (
     <>
@@ -75,7 +72,7 @@ function LibraryHome() {
           <h1 className="h1" style={{ margin: '10px 0 0' }}>{t('library.title')}</h1>
           <p className="body-lg" style={{ margin: '10px 0 0' }}>{t('library.sub')}</p>
         </div>
-        <Btn variant="primary" icon="construction" tier="free" onClick={() => go('library', 'new')}>Build a skill</Btn>
+        <Btn variant="primary" icon="construction" onClick={() => go('library', 'new')}>Build a skill</Btn>
       </div>
 
       <div className="lib-toolbar">
@@ -85,7 +82,6 @@ function LibraryHome() {
         </label>
         <div className="lib-segs">
           <Seg<Source> value={src} onChange={setSrc} label="Source" options={[['all', 'All'], ['official', 'Official'], ['community', 'Community'], ['installed', 'Installed']]} />
-          <Seg<Price> value={price} onChange={setPrice} label="Price" options={[['any', 'Any price'], ['free', 'Free'], ['paid', 'Paid']]} />
         </div>
       </div>
 
@@ -100,7 +96,7 @@ function LibraryHome() {
       ) : nothing ? (
         <Empty icon="search_off" title="No skills match" body="Try another category or clear the filters. You can also build the skill you need from modules.">
           <Btn icon="restart_alt" onClick={reset}>Clear filters</Btn>
-          <Btn variant="primary" icon="construction" tier="free" onClick={() => go('library', 'new')}>Build a skill</Btn>
+          <Btn variant="primary" icon="construction" onClick={() => go('library', 'new')}>Build a skill</Btn>
         </Empty>
       ) : (
         <>

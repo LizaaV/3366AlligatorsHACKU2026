@@ -64,7 +64,7 @@ export function SearchMethod({ onChange }: MethodProps) {
       {geo.error ? (
         <ErrorState error={geo.error} onRetry={geo.refetch} title="Search is unavailable" compact />
       ) : term && hits.length === 0 && !geo.isFetching ? (
-        <div className="caption">No match. Try coordinates, or draw it on the map instead.</div>
+        <div className="caption">No match. Try coordinates, or drop a pin on the globe instead.</div>
       ) : (
         <div className="col" style={{ gap: 2 }}>
           {hits.map((r, i) => (

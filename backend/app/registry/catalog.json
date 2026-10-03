@@ -308,14 +308,14 @@
    "name": "SMS",
    "icon": "sms",
    "tier": "paid",
-   "note": "$0.02 / message"
+   "note": "Text message"
   },
   {
    "id": "slack",
    "name": "Slack",
    "icon": "tag",
    "tier": "paid",
-   "note": "Pro plan"
+   "note": "A channel in your workspace"
   }
  ],
  "languages": [

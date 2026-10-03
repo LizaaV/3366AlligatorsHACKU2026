@@ -15,6 +15,7 @@
  */
 
 import type { Position } from '../lib/geo';
+import type { components } from './schema';
 
 /* ---------------- primitives ---------------- */
 
@@ -97,30 +98,9 @@ export interface CatalogDto {
 
 /* ---------------- skills ---------------- */
 
-export interface SkillDto {
-  id: string;
-  categoryKey: CategoryKey;
-  name: string;
-  /** Human-readable satellite list, e.g. `Sentinel-2 · Landsat 9 thermal`. */
-  sat: string;
-  cost: string;
-  tier: Tier;
-  short: string;
-  long: string;
-  publisher: { name: string; official: boolean; verified: boolean };
-  /** Where to take the card's reference thumbnail from. Presentation hint; may be omitted. */
-  reference?: LatLon;
-  res: string;
-  revisit: string;
-  runs: number;
-  rating: number;
-  version: string;
-  updatedAt: Iso;
-  /** Ordered `SkillModuleDto.id` list. */
-  steps: string[];
-  accuracy: string;
-  limits: string[];
-}
+/** Wire shape (snake_case) from the contract; `toSkill()` in `model.ts` maps it to the view model. */
+export type SkillDto = components['schemas']['SkillDto'];
+export type SkillStepDto = components['schemas']['SkillStep'];
 
 /* ---------------- places ---------------- */
 
@@ -184,20 +164,10 @@ export interface DetectBoundaryResponse {
   geometry: GeoJsonPolygon;
   areaHa: number;
   confidence: ConfidenceLevel;
-}
-
-export interface ParcelLookupRequest {
-  /** Registry id from `parcelSystems`, e.g. `br`, `eu`, `in`. */
-  system: string;
-  parcelId: string;
-}
-
-export interface ParcelLookupResponse {
-  geometry: GeoJsonPolygon;
-  center: LatLon;
-  areaHa: number;
-  registryLabel: string;
-  categoryKey?: CategoryKey;
+  /** `sentinel2_segmentation` when grown from imagery, `fallback_square` when there was none. */
+  method: 'sentinel2_segmentation' | 'fallback_square';
+  /** One plain sentence about how the outline was made. */
+  note: string;
 }
 
 export interface ParseBoundaryFileResponse {
@@ -213,59 +183,24 @@ export interface ParseBoundaryFileResponse {
 /* ---------------- watches ---------------- */
 
 export type WatchStatus = 'ok' | 'warn' | 'alert';
+/** `once` triggers disable themselves after their first alert-level event. From the contract. */
+export type WatchRecurrence = components['schemas']['CreateWatchRequest']['recurrence'];
 export type WatchEventLevel = 'info' | 'warn' | 'alert';
 
-export interface WatchSeriesDto {
-  labels: string[];
-  /**
-   * KNOWN WART, inherited from the prototype: these are normalised 0..1 for chart drawing,
-   * which loses the real measured values. Preferred shape is real values plus a unit, with the
-   * chart normalising. Flagged in docs/data/README.md.
-   */
-  current: number[];
-  bandLow: number[];
-  bandHigh: number[];
-  mean: number[];
-}
+/*
+ * Wire shapes (snake_case) straight from the contract. `toWatch()` / `toFeasibility()` in
+ * `model.ts` and the request mappers in `endpoints/watches.ts` own every rename, so components
+ * never see a wire name.
+ */
+export type WatchWireDto = components['schemas']['WatchDto'];
+export type WatchSeriesDto = components['schemas']['WatchSeries'];
+export type WatchEventDto = components['schemas']['WatchEvent'];
+export type WatchProofDto = components['schemas']['WatchProofDto'];
+/** One scene behind a run: `id`, `sat`, `cloud` (percent), `used`, `why`. */
+export type ProofSceneDto = components['schemas']['ProofScene'];
+export type FeasibilityWireDto = components['schemas']['FeasibilityDto'];
 
-export interface WatchEventDto {
-  at: Iso;
-  text: string;
-  level: WatchEventLevel;
-}
-
-export interface WatchDto {
-  id: string;
-  name: string;
-  categoryKey: CategoryKey;
-  placeId: string | null;
-  skillId: string;
-  question: string;
-  condition: string;
-  metric: string;
-  value: number;
-  unit: string;
-  /** 90% interval, [low, high]. Equal values mean an exact count. */
-  ci: [number, number];
-  confidence: ConfidenceLevel;
-  baselineLabel: string;
-  baseline: number;
-  delta: string;
-  status: WatchStatus;
-  enabled: boolean;
-  series: WatchSeriesDto;
-  channels: ChannelId[];
-  cadence: string;
-  tier: Tier;
-  lastRunAt: Iso | null;
-  /** `null` = paused or not yet scheduled. */
-  nextRunAt: Iso | null;
-  satellites: string;
-  thumbnail?: { zoom: number };
-  ring: boolean;
-  events: WatchEventDto[];
-}
-
+/** What the trigger builder collects, in the frontend's vocabulary. Only fields the backend accepts. */
 export interface CreateWatchRequest {
   name: string;
   categoryKey: CategoryKey;
@@ -275,12 +210,21 @@ export interface CreateWatchRequest {
   condition: string;
   channels: ChannelId[];
   cadence: string;
+  /** Defaults to `recurring` server-side. */
+  recurrence?: WatchRecurrence;
+  /** 404 if it is not the user's dashboard. */
+  dashboardId?: string | null;
 }
 
-/** Scenes behind a watch's most recent run, plus the hash that makes it re-runnable. */
-export interface WatchProofDto {
-  scenes: ProofSceneDto[];
-  hash: string;
+/** Fields `PATCH /api/watches/{id}` accepts. `dashboardId: null` unlinks the dashboard. */
+export interface WatchPatch {
+  enabled?: boolean;
+  name?: string;
+  condition?: string;
+  channels?: ChannelId[];
+  cadence?: string;
+  recurrence?: WatchRecurrence;
+  dashboardId?: string | null;
 }
 
 export interface FeasibilityRequest {
@@ -288,61 +232,13 @@ export interface FeasibilityRequest {
   placeId?: string | null;
 }
 
-/** "Can satellites actually watch this?", asked before a watch is created. */
-export interface FeasibilityDto {
-  ok: boolean;
-  /** Answerable, but only with a compromise (paid imagery, or lower confidence). */
-  partial: boolean;
-  title: string;
-  skillId: string;
-  categoryKey: CategoryKey;
-  metric: string;
-  condition: string;
-  satellites: string;
-  cadence: string;
-  tier: Tier;
-  cost: string;
-  confidence: ConfidenceLevel;
-  notes: string[];
-  /** Offered when `ok` is false — something satellites *can* do instead. */
-  alternative?: string;
-}
-
-/* ---------------- watch proof ---------------- */
-
 /**
- * A satellite pass behind a *watch*'s result.
- *
- * The answer's own proof list now comes from the contract (`ProofScene`, which uses `id`,
- * `sat` and a 0..1 `cloud`). This stays for watches, whose endpoints are not in the contract
- * yet — `docs/API.md` §2 lists watches under "not built yet" (module A5).
+ * @deprecated Compatibility alias for `state/store.tsx`, which still does
+ * `Pick<WatchDto, 'enabled' | ... | 'dashboardId'>` with camelCase names. This is the view
+ * model, not the wire type (that is `WatchWireDto`). Switch the store to `WatchPatch`, then
+ * delete this.
  */
-export interface ProofSceneDto {
-  sceneId: string;
-  date: string;
-  satellite: string;
-  cloudPct: number;
-  used: boolean;
-  /** Why it was rejected. Present when `used` is false. */
-  why?: string;
-}
-
-/* ---------------- insights ("ask your watches") ---------------- */
-
-export interface InsightRequest {
-  question: string;
-  /** `watches` asks across all of them; `watch` asks about one. */
-  scope: 'watches' | 'watch';
-  watchId?: string;
-  lang: string;
-}
-
-export interface InsightDto {
-  title: string;
-  body: string;
-  /** What the answer was derived from, shown as chips: "Compared the last 3 passes". */
-  basis: string[];
-}
+export type WatchDto = import('../model').Watch;
 
 /* ---------------- map layers ---------------- */
 
@@ -355,17 +251,3 @@ export interface MapLayerDto {
   isAgentMade: boolean;
 }
 
-/* ---------------- export ---------------- */
-
-export interface ExportRequest {
-  targetKind: 'answer' | 'watch' | 'place' | 'skill';
-  targetId?: string;
-  title: string;
-  format: 'link' | 'pdf' | 'data';
-  lang: string;
-}
-
-export interface ExportResponse {
-  url: string;
-  expiresAt: Iso | null;
-}

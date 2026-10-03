@@ -257,6 +257,21 @@ def test_feasibility_refusals(client: TestClient, text: str) -> None:
     assert any("individuals" in n for n in got["notes"])
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Tell me when open water in the ponds drops by more than 20%",
+        "Alert me if the fishponds are filled in",
+        "Watch the wetland for shrinking water",
+    ],
+)
+def test_feasibility_matches_open_water(client: TestClient, text: str) -> None:
+    got = client.post("/api/watches/feasibility", json={"text": text}).json()
+    assert got["ok"] is True
+    assert got["skill_id"] == "pond-filling-check"
+    assert got["category_key"] == "water"
+
+
 def test_feasibility_unknown_is_not_ok(client: TestClient) -> None:
     got = client.post(
         "/api/watches/feasibility", json={"text": "what's the meaning of life"}

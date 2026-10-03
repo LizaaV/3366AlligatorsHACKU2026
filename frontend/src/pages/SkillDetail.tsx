@@ -5,7 +5,7 @@ import { useResource } from '../hooks/useResource';
 import type { Skill } from '../model';
 import { DEFAULT_CENTER, fmtC, quad } from '../lib/geo';
 import { fmtDate } from '../lib/format';
-import { Btn, CatPill, Empty, Ms, Tier, hideBroken } from '../components/ui';
+import { Btn, CatPill, Empty, Ms, hideBroken } from '../components/ui';
 import { ErrorState, Skeleton } from '../components/async';
 import { CopyBtn, JsonCode, PublisherBadge, StorageExplainer, fmtRuns } from './libraryParts';
 
@@ -47,12 +47,11 @@ function Detail({ s }: { s: Skill }) {
 
   const install = () => {
     toggleInstall(s.id);
-    notify(isInstalled ? `Removed “${s.name}” from your skills` : `Installed “${s.name}” — the agent can now use it in Ask`, isInstalled ? 'Undo' : undefined, isInstalled ? () => toggleInstall(s.id) : undefined, isInstalled ? 'remove_circle' : 'download_done');
+    notify(isInstalled ? `Removed “${s.name}” from your skills` : `Added “${s.name}” to your skills`, isInstalled ? 'Undo' : undefined, isInstalled ? () => toggleInstall(s.id) : undefined, isInstalled ? 'remove_circle' : 'download_done');
   };
 
   const meta: { l: string; v: React.ReactNode }[] = [
     { l: 'Satellite', v: s.sat },
-    { l: 'Cost', v: <>{s.tier === 'paid' ? s.cost : 'Free sources'}<Tier tier={s.tier} /></> },
     { l: 'Category', v: <><span className="sq" style={{ background: c.color }} />{c.name}</> },
     { l: 'Developer', v: <>{s.publisherName}{s.official ? <Ms n="verified" size={16} className="lib-v-official" /> : s.verified ? <Ms n="verified_user" size={16} className="lib-v-community" /> : null}</> },
     { l: 'Resolution', v: s.res },
@@ -84,8 +83,7 @@ function Detail({ s }: { s: Skill }) {
           <span className="sep">·</span>
           <span>Updated {fmtDate(s.updatedAt)}</span>
           <span className="sep">·</span>
-          <span>{fmtRuns(s.runs)} runs</span>
-          <span className="sep">·</span>
+          {s.runs !== null && <><span>{fmtRuns(s.runs)} runs</span><span className="sep">·</span></>}
           <span><span style={{ color: 'var(--yellow)' }}>★</span> {s.rating ? s.rating.toFixed(1) : 'No ratings yet'}</span>
           {isInstalled && <span className="tag"><Ms n="check" />Installed</span>}
         </div>
@@ -145,7 +143,7 @@ function Detail({ s }: { s: Skill }) {
                 <span className="eyebrow">Accuracy &amp; limits</span>
                 <Ms n={s.official ? 'fact_check' : 'info'} size={18} className="muted" />
               </div>
-              <div className="ink" style={{ font: '600 15px/1.45 var(--font)' }}>{s.accuracy}</div>
+              <div className="ink" style={{ font: '600 15px/1.45 var(--font)' }}>{s.accuracy ?? 'Not yet validated'}</div>
               <ul className="lib-limits">
                 {s.limits.map((l: string) => <li key={l}>{l}</li>)}
               </ul>
@@ -188,7 +186,7 @@ function Detail({ s }: { s: Skill }) {
             <div className="body-sm">You have no saved places yet. Add one in Places, then come back to run this skill on it.</div>
           )}
           <div className="row wrap">
-            <Btn variant="primary" icon="play_arrow" tier={s.tier} tierLabel={s.tier === 'paid' ? s.cost : undefined} disabled={!place} onClick={run}>
+            <Btn variant="primary" icon="play_arrow" disabled={!place} onClick={run}>
               Run on {place ? place.name : 'a place'}
             </Btn>
             {!places.length && <Btn icon="add_location_alt" onClick={() => go('places')}>Add a place</Btn>}
@@ -198,7 +196,6 @@ function Detail({ s }: { s: Skill }) {
         <div className="row wrap">
           <Btn icon={isInstalled ? 'remove_circle_outline' : 'download'} onClick={install}>{isInstalled ? 'Uninstall' : 'Install'}</Btn>
           <Btn icon="edit" onClick={() => go('library', 'new', { from: s.id })}>Duplicate &amp; edit</Btn>
-          <Btn icon="ios_share" onClick={() => open({ kind: 'export', target: { kind: 'skill', title: s.name, subtitle: `v${s.version} · by ${s.publisherName}` } })}>Export</Btn>
           <Btn icon="visibility" onClick={() => open({ kind: 'watchBuilder', skillId: s.id })}>Keep watching with this skill</Btn>
         </div>
       </div>

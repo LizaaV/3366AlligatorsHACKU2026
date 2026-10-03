@@ -27,6 +27,17 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 
+  /**
+   * The backend's own explanation of a 4xx, when it wrote one for people: `{detail: "..."}` or
+   * `{detail: {message: "..."}}`. Validation errors (a list) are not shown.
+   */
+  get serverDetail(): string | null {
+    const d = (this.body as { detail?: unknown } | null)?.detail;
+    if (typeof d === 'string' && d.trim()) return d;
+    const m = (d as { message?: unknown } | null)?.message;
+    return typeof m === 'string' && m.trim() ? m : null;
+  }
+
   /** Message safe to show a user. */
   get userMessage(): string {
     switch (this.kind) {
@@ -40,7 +51,7 @@ export class ApiError extends Error {
         if (this.status === 404) return 'That could not be found.';
         if (this.status === 401 || this.status === 403) return 'You do not have access to that.';
         if (this.status && this.status >= 500) return 'Something went wrong on the server. Try again shortly.';
-        return 'That request could not be completed.';
+        return this.serverDetail ?? 'That request could not be completed.';
       default:
         return 'Something went wrong. Try again.';
     }
@@ -81,6 +92,8 @@ export interface RequestOptions<T = unknown> {
   signal?: AbortSignal;
   /** Multipart upload. Mutually exclusive with `body`. */
   form?: FormData;
+  /** Override REQUEST_TIMEOUT_MS for a call that legitimately takes longer (satellite reads). */
+  timeoutMs?: number;
   /**
    * TEMPORARY local stand-in, used while `VITE_API_SOURCE=fixture` and this endpoint has no
    * backend yet. Delete this property to put the endpoint live.
@@ -89,7 +102,7 @@ export interface RequestOptions<T = unknown> {
 }
 
 export async function request<T>(opts: RequestOptions<T>): Promise<T> {
-  const { method, path, query, body, form, signal, fixture } = opts;
+  const { method, path, query, body, form, signal, fixture, timeoutMs } = opts;
 
   if (fixture && usingFixtures()) {
     await sleep(FIXTURE_LATENCY_MS, signal);
@@ -100,7 +113,7 @@ export async function request<T>(opts: RequestOptions<T>): Promise<T> {
   }
 
   const timeout = new AbortController();
-  const timer = setTimeout(() => timeout.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => timeout.abort(), timeoutMs ?? REQUEST_TIMEOUT_MS);
   const onAbort = () => timeout.abort();
   signal?.addEventListener('abort', onAbort);
 

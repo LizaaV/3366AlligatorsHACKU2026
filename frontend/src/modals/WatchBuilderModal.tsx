@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { ApiError, api, toApiError } from '../api';
 import type { ChannelId, Feasibility } from '../model';
-import { LANGS } from '../data/i18n';
-import { Btn, Check, Modal, ModalHead, Ms, Tier } from '../components/ui';
+import type { WatchRecurrence } from '../api/types';
+import { useResource } from '../hooks/useResource';
+import { Btn, Check, Modal, ModalHead, Ms } from '../components/ui';
 import { ErrorState } from '../components/async';
 
 const EXAMPLES = [
@@ -17,8 +18,8 @@ const CHECK_STEPS = ['Reading your request', 'Matching a skill', 'Checking satel
 
 type Stage = 'ask' | 'check' | 'deliver';
 
-export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean }) {
-  const { places, skills, channels: catalogChannels, category, close, addWatch, notify, go, connectors, setConnectors, lang, open } = useStore();
+export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashboardId }: { prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean; dashboardId?: string }) {
+  const { places, skills, channels: catalogChannels, category, close, addWatch, notify, go, connectors, setConnectors, open } = useStore();
   const presetSkill = skillId ? skills.find((x) => x.id === skillId) : undefined;
   const autoText = presetSkill ? `Tell me when ${presetSkill.name.toLowerCase()} finds something new` : '';
 
@@ -27,13 +28,14 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
   const [place, setPlace] = useState<string>(placeId === undefined ? (places[0]?.id ?? '') : placeId ?? '');
   const [checking, setChecking] = useState(0); // steps done; CHECK_STEPS.length = finished
   const [feas, setFeas] = useState<Feasibility | null>(null);
-  const [option, setOption] = useState<'free' | 'paid'>('free');
   const [condition, setCondition] = useState('');
   const [channels, setChannels] = useState<ChannelId[]>(['email']);
   const [error, setError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
   const [waNumber, setWaNumber] = useState('');
-  const [alertLang, setAlertLang] = useState(lang);
+  const [recurrence, setRecurrence] = useState<WatchRecurrence>('recurring');
+  const [dashId, setDashId] = useState<string>(dashboardId ?? '');
+  const dashboards = useResource(useCallback((signal) => api.dashboards.list(signal), []), []);
   const timers = useRef<number[]>([]);
 
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
@@ -70,8 +72,12 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
       }
       // Use the threshold the person typed, if there is one.
       const num = query.match(/(\d+(?:\.\d+)?)\s*(ha|km|%|\u00b0C|\u00b5g\/L)/i);
-      setCondition(num && f.ok ? `${f.metric} above ${num[1]} ${num[2]}` : f.condition);
-      setOption(f.partial ? 'free' : f.tier);
+      // Keep the direction the person asked for: "drops by 20%" is a fall, not "above 20%".
+      const down = /\b(drops?|dropp|falls?|fell|decreas|shrinks?|below|under|less|loses?|lost|declin)/i.test(query);
+      // "by 20%" is a change; "above 30%" is a level.
+      const change = /\bby\s+(?:more than\s+|over\s+)?\d/i.test(query);
+      const rel = change ? (down ? 'falls by more than' : 'rises by more than') : down ? 'below' : 'above';
+      setCondition(num && f.ok ? `${f.metric} ${rel} ${num[1]} ${num[2]}` : f.condition);
       setFeas(f);
     } catch (err) {
       setError(toApiError(err));
@@ -81,16 +87,12 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
     }
   };
 
-  const effTier: 'free' | 'paid' =
-    (feas?.partial ? option : feas?.tier) === 'paid' || channels.some((c) => catalogChannels.find((x) => x.id === c)?.tier === 'paid') ? 'paid' : 'free';
-
   const toggle = (c: ChannelId) => setChannels((s) => (s.includes(c) ? s.filter((x) => x !== c) : [...s, c]));
 
   const create = async () => {
     if (!feas || saving) return;
     setSaving(true);
     setError(null);
-    const lowFree = feas.partial && option === 'free';
     try {
       const created = await addWatch({
         name: `${feas.title} \u00b7 ${placeObj?.name ?? 'all my places'}`,
@@ -101,14 +103,11 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
         condition: condition || feas.condition,
         channels,
         cadence: feas.cadence,
+        recurrence,
+        dashboardId: dashId || null,
       });
       close();
-      notify(
-        lowFree ? 'Watch created with free imagery at low confidence' : 'Watch created',
-        'Open',
-        () => go('triggers', created.id),
-        'visibility',
-      );
+      notify('Trigger created', 'Open', () => go('triggers', created.id), 'visibility');
     } catch (err) {
       setError(toApiError(err));
     } finally {
@@ -119,10 +118,10 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
   const stepIdx = stage === 'ask' ? 0 : stage === 'check' ? 1 : 2;
 
   return (
-    <Modal onClose={close} size="wide" label="Build a watch">
+    <Modal onClose={close} size="wide" label="Build a trigger">
       <ModalHead
-        eyebrow={fromAnswer ? 'Watch this answer' : 'New watch'}
-        title={stage === 'ask' ? 'What should we watch?' : stage === 'check' ? 'Can satellites see this?' : 'Where should alerts go?'}
+        eyebrow={fromAnswer ? 'Trigger from this answer' : 'New trigger'}
+        title={stage === 'ask' ? 'What should we look out for?' : stage === 'check' ? 'Can satellites see this?' : 'Where should alerts go?'}
         sub={stage === 'ask' ? 'Say it in your own words. The agent checks if it can be watched from space before you commit.' : undefined}
         onClose={close}
       />
@@ -150,7 +149,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
             placeholder="Tell me when…"
             rows={3}
             style={{ fontSize: 18, lineHeight: 1.5 }}
-            aria-label="What should we watch?"
+            aria-label="What should we look out for?"
           />
           <div className="row wrap">
             {EXAMPLES.map((ex) => (
@@ -164,9 +163,27 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
               <option value="">No specific place / all my places</option>
             </select>
           </label>
+          <div className="row wrap" style={{ gap: 16, alignItems: 'flex-start' }}>
+            <div className="field" style={{ flex: '1 1 220px' }}>
+              Repeat
+              <div className="seg" role="radiogroup" aria-label="Repeat" style={{ alignSelf: 'flex-start' }}>
+                <button type="button" role="radio" aria-checked={recurrence === 'recurring'} className={recurrence === 'recurring' ? 'on' : ''} onClick={() => setRecurrence('recurring')}><Ms n="autorenew" size={16} />Recurring</button>
+                <button type="button" role="radio" aria-checked={recurrence === 'once'} className={recurrence === 'once' ? 'on' : ''} onClick={() => setRecurrence('once')}><Ms n="looks_one" size={16} />One time</button>
+              </div>
+              <span className="tiny">{recurrence === 'once' ? 'Tell me the first time it happens, then stop.' : 'Keep telling me every time it happens.'}</span>
+            </div>
+            <label className="field" style={{ flex: '1 1 260px' }}>
+              Based on a dashboard <span className="tiny">(optional)</span>
+              <select className="input" value={dashId} onChange={(e) => setDashId(e.target.value)}>
+                <option value="">None, just watch the place</option>
+                {dashboards.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+              <span className="tiny">Tell me when this dashboard&rsquo;s state changes.</span>
+            </label>
+          </div>
           <div className="modal-foot">
             <Btn variant="text" onClick={close}>Cancel</Btn>
-            <Btn variant="primary" icon="travel_explore" tier="free" disabled={!text.trim()} onClick={() => runCheck(text)}>Check if it’s possible</Btn>
+            <Btn variant="primary" icon="travel_explore" disabled={!text.trim()} onClick={() => runCheck(text)}>Check if it’s possible</Btn>
           </div>
         </>
       )}
@@ -189,7 +206,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
             </div>
           )}
 
-          {feas && <Result feas={feas} option={option} setOption={setOption} condition={condition} setCondition={setCondition} onAlternative={runCheck} />}
+          {feas && <Result feas={feas} condition={condition} setCondition={setCondition} onAlternative={runCheck} />}
 
           <div className="modal-foot">
             <Btn variant="text" icon="arrow_back" onClick={() => { setStage('ask'); setFeas(null); }}>Edit request</Btn>
@@ -215,7 +232,6 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
                         {c.id === 'email' && connectors.email.connected ? connectors.email.address : c.id === 'whatsapp' && connectors.whatsapp.connected ? connectors.whatsapp.number : c.note}
                       </span>
                     </span>
-                    <Tier tier={c.tier} label={c.tier === 'paid' ? c.note.split(' ')[0] === 'Pro' ? 'Pro' : c.note.split(' / ')[0] : undefined} />
                   </button>
                   {on && waMissing && (
                     <div className="row wrap" style={{ gap: 8, paddingLeft: 30 }}>
@@ -244,19 +260,9 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
             })}
           </div>
 
-          <div className="row wrap" style={{ gap: 16, alignItems: 'flex-end' }}>
-            <label className="field" style={{ flex: '1 1 220px' }}>
-              Alert language
-              <select className="input" value={alertLang} onChange={(e) => setAlertLang(e.target.value)}>
-                {LANGS.map((l) => <option key={l.code} value={l.code}>{l.name}{l.name !== l.english ? ` · ${l.english}` : ''}</option>)}
-              </select>
-            </label>
-            <div className="tiny" style={{ flex: '1 1 220px', paddingBottom: 10 }}>Messages, maps and PDF reports are written in this language — including regional languages.</div>
-          </div>
-
           <div className="sunk" style={{ padding: '12px 16px' }}>
             <div className="body-sm">
-              <span className="ink">Checks {feas.cadence.charAt(0).toLowerCase() + feas.cadence.slice(1)}</span> with {feas.partial && option === 'free' ? 'Sentinel-2' : feas.satellites}. You’ll hear from us when <span className="ink">{condition || feas.condition}</span>
+              <span className="ink">Checks {feas.cadence.charAt(0).toLowerCase() + feas.cadence.slice(1)}</span> with {feas.satellites}. You’ll hear from us when <span className="ink">{condition || feas.condition}</span>
               {placeObj ? ` on ${placeObj.name}` : ' on any of your places'}. First result after the next pass.
             </div>
           </div>
@@ -270,12 +276,12 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
             <Btn
               variant="primary"
               icon="visibility"
-              tier={effTier}
-              tierLabel={effTier === 'paid' ? (feas.partial && option === 'paid' ? feas.cost.split(' · ').pop() : 'Paid') : 'Free'}
+             
+             
               disabled={channels.length === 0 || (channels.includes('whatsapp') && !connectors.whatsapp.connected)}
               onClick={create}
             >
-              Start watching
+              {recurrence === 'once' ? 'Create one-time trigger' : 'Create trigger'}
             </Btn>
           </div>
         </>
@@ -284,10 +290,8 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
   );
 }
 
-function Result({ feas, option, setOption, condition, setCondition, onAlternative }: {
+function Result({ feas, condition, setCondition, onAlternative }: {
   feas: Feasibility;
-  option: 'free' | 'paid';
-  setOption: (o: 'free' | 'paid') => void;
   condition: string;
   setCondition: (s: string) => void;
   onAlternative: (q: string) => void;
@@ -314,34 +318,14 @@ function Result({ feas, option, setOption, condition, setCondition, onAlternativ
           <div><div className="l">Satellite</div><div className="v" style={{ fontSize: 14 }}>{feas.satellites}</div></div>
           <div><div className="l">How often</div><div className="v" style={{ fontSize: 14 }}>{feas.cadence}</div></div>
           <div><div className="l">Confidence</div><div className="v" style={{ fontSize: 14 }}>{feas.confidence}</div></div>
-          <div><div className="l">Cost</div><div className="v row" style={{ fontSize: 14, gap: 4 }}>{feas.cost}<Tier tier={feas.tier} /></div></div>
         </div>
       )}
 
       {feas.partial && (
-        <div className="col" style={{ gap: 8 }} role="radiogroup" aria-label="Choose data source">
-          {([
-            ['free', 'Free · Sentinel-2 10 m', 'Low confidence on a plot this small. Every ~5 days.', 'Free'],
-            ['paid', `Paid · ${feas.satellites}`, `${feas.confidence} confidence. ${feas.cadence}.`, feas.cost],
-          ] as const).map(([k, t, d, cost]) => (
-            <button
-              key={k}
-              role="radio"
-              aria-checked={option === k}
-              onClick={() => setOption(k)}
-              className="row"
-              style={{ gap: 12, padding: '12px 14px', textAlign: 'left', borderRadius: 'var(--r)', background: option === k ? 'var(--s2)' : 'transparent', border: `1px solid ${option === k ? '#fff' : 'var(--hair)'}` }}
-            >
-              <span style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid ${option === k ? '#fff' : 'var(--subtle)'}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-                {option === k && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
-              </span>
-              <span className="grow">
-                <span className="body-sm ink" style={{ display: 'block', fontWeight: 600 }}>{t}</span>
-                <span className="tiny">{d}</span>
-              </span>
-              <Tier tier={k} label={k === 'paid' ? cost.split(' · ').pop() : 'Free'} />
-            </button>
-          ))}
+        <div className="stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
+          <div><div className="l">Satellite</div><div className="v" style={{ fontSize: 14 }}>{feas.satellites}</div></div>
+          <div><div className="l">How often</div><div className="v" style={{ fontSize: 14 }}>{feas.cadence}</div></div>
+          <div><div className="l">Confidence</div><div className="v" style={{ fontSize: 14 }}>{feas.confidence}</div></div>
         </div>
       )}
 
