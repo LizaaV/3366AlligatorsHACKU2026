@@ -51,7 +51,7 @@ export function UploadMethod({ onChange }: MethodProps) {
 
   return (
     <div className="col" style={{ gap: 10 }}>
-      <input ref={fileRef} type="file" hidden accept=".kml,.kmz,.geojson,.json,.zip,.shp,.csv,.gpx" onChange={(e) => pickFile(e.target.files?.[0])} />
+      <input ref={fileRef} type="file" hidden accept=".kml,.kmz,.geojson,.json,.csv,.gpx" onChange={(e) => pickFile(e.target.files?.[0])} />
       <div
         role="button"
         tabIndex={0}
@@ -67,7 +67,7 @@ export function UploadMethod({ onChange }: MethodProps) {
       >
         <Ms n="upload_file" size={28} className="muted" />
         <div className="ink" style={{ font: '600 14px/1.4 var(--font)' }}>Drop a file here or click to choose</div>
-        <div className="caption">KML / KMZ, GeoJSON, Shapefile (.zip), GPX or CSV with lat/lon columns</div>
+        <div className="caption">GeoJSON, KML/KMZ, GPX or CSV with lat/lon columns</div>
       </div>
       {error && <ErrorState error={error} title="That file could not be read" compact />}
       {file && (

@@ -14,14 +14,6 @@ import { fmtC, outerRing, ringToPts } from '../../../lib/geo';
 import { toSearchHits, type AreaSearchHit } from '../../../model';
 import type { Loc, MethodProps } from '../types';
 
-/** Category guessed from a geocoder hit, so the wizard can preselect one. */
-const SEARCH_CAT: Record<string, string> = {
-  'Lake Mead': 'water',
-  'Rondônia': 'forests',
-  'Port of Rotterdam': 'finance',
-  'Great Barrier Reef': 'oceans',
-};
-
 /** Typing pause before a lookup goes out. The resolver may hit a real geocoder. */
 const DEBOUNCE_MS = 350;
 
@@ -97,7 +89,6 @@ function toLoc(hit: AreaSearchHit): Loc {
     label: hit.name,
     source: 'search',
     via: `Search · ${hit.name}, ${hit.description}`,
-    categoryKey: SEARCH_CAT[hit.name],
     ...(pts ? { pts, givenLabel: 'Outline from the place search' } : {}),
   };
 }
