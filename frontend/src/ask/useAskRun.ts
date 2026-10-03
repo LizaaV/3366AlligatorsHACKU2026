@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, DEFAULT_PIN_RADIUS_M, api, isEvent, toApiError, type StreamEvent } from '../api';
 import type { AnswerBlock, Answer, RunStep } from '../model';
 import { toAnswer } from '../model';
+import { turnFromRecord } from '../components/chat/threadTurns';
 import type { components } from '../api/schema';
 
 type S = components['schemas'];
@@ -93,6 +94,60 @@ function upsertStep(steps: RunStep[], ev: S['StepStarted'] | S['StepFinished']):
   return steps.map((s, i) => (i === at ? { ...s, ...next, done: s.done || done } : s));
 }
 
+/** Translate one stream event into the next state of the live turn. Pure, so a stream can keep
+ *  feeding a turn after the component that opened it is gone (see `detach`). */
+function applyEvent(t: AskTurn, ev: StreamEvent, startedAt: number): AskTurn {
+  if (isEvent(ev, 'run_started')) return { ...t, runId: ev.run_id, threadId: ev.thread_id };
+  // Only worth surfacing when it is not a plain "yes, answerable".
+  if (isEvent(ev, 'guard')) return { ...t, guard: ev.scope === 'answerable' ? null : ev };
+  if (isEvent(ev, 'step_started') || isEvent(ev, 'step_finished')) return { ...t, steps: upsertStep(t.steps, ev) };
+  if (isEvent(ev, 'block_ready')) return { ...t, blocks: [...t.blocks, ev.block] };
+  if (isEvent(ev, 'clarification_needed')) {
+    return {
+      ...t,
+      clarification: ev,
+      remember: ev.remember,
+      // Prefill only from the server's `value` (often the place's memory). A question with
+      // no prefill stays unanswered: defaulting to the first option would put an answer the
+      // user never gave into the request, and `remember` could then save it to the place.
+      answers: Object.fromEntries(ev.questions.flatMap((q) => (q.value ? [[q.key, q.value] as const] : []))),
+    };
+  }
+  if (isEvent(ev, 'clarification_answered')) return { ...t, clarification: null, answers: ev.answers, remember: ev.remember };
+  if (isEvent(ev, 'answer')) return { ...t, answer: toAnswer(ev.answer) };
+  if (isEvent(ev, 'error')) return { ...t, streamError: ev };
+  if (isEvent(ev, 'done')) {
+    return {
+      ...t,
+      status: ev.status,
+      // `waiting_user` keeps the clarification card open rather than ending the turn.
+      phase: ev.status === 'waiting_user' ? 'clarify' : ev.status === 'failed' ? 'error' : 'done',
+      open: ev.status === 'waiting_user',
+      durationMs: Date.now() - startedAt,
+    };
+  }
+  return t;
+}
+
+/**
+ * A stream that outlives the component that opened it. "Open in full chat" unmounts the
+ * bubble, and the server closes a run whose client has gone away, so the stream is handed to
+ * the Ask page's `useAskRun` instead of being aborted. Keyed by turn id; `hydrate` adopts it.
+ */
+interface DetachedRun {
+  turn: AskTurn;
+  ac: AbortController;
+  startedAt: number;
+  /** Set once the Ask page has adopted the run; events are forwarded to it from then on. */
+  sink: ((f: (t: AskTurn) => AskTurn) => void) | null;
+}
+let detached: DetachedRun | null = null;
+
+/** How often, and for how long, a reloaded `running` run is polled before giving up. */
+const POLL_MS = 2000;
+const POLL_MAX_MS = 4 * 60_000;
+const POLL_MAX_ERRORS = 5;
+
 export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPlaceId: string | null }) {
   const [turns, setTurns] = useState<AskTurn[]>([]);
   const inflight = useRef<AbortController | null>(null);
@@ -102,7 +157,22 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
   const turnsRef = useRef<AskTurn[]>([]);
   turnsRef.current = turns;
 
-  useEffect(() => () => inflight.current?.abort(), []);
+  /** The patch function of the stream the hook opened, so `detach` can redirect it. */
+  const route = useRef<{ apply: (f: (t: AskTurn) => AskTurn) => void } | null>(null);
+  const pollers = useRef(new Map<string, AbortController>());
+  const stopPolling = useCallback(() => {
+    pollers.current.forEach((ac) => ac.abort());
+    pollers.current.clear();
+  }, []);
+
+  useEffect(
+    () => () => {
+      // `detach` clears `inflight`, so a stream handed to the Ask page is not cut here.
+      inflight.current?.abort();
+      stopPolling();
+    },
+    [stopPolling],
+  );
 
   const patchLast = useCallback((patch: Partial<AskTurn> | ((t: AskTurn) => Partial<AskTurn>)) => {
     setTurns((all) => {
@@ -113,72 +183,19 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
     });
   }, []);
 
-  /** Translate one stream event into a patch on the live turn. */
-  const onEvent = useCallback(
-    (ev: StreamEvent) => {
-      if (isEvent(ev, 'run_started')) {
-        patchLast({ runId: ev.run_id, threadId: ev.thread_id });
-        return;
-      }
-      if (isEvent(ev, 'guard')) {
-        // Only worth surfacing when it is not a plain "yes, answerable".
-        patchLast({ guard: ev.scope === 'answerable' ? null : ev });
-        return;
-      }
-      if (isEvent(ev, 'step_started') || isEvent(ev, 'step_finished')) {
-        patchLast((t) => ({ steps: upsertStep(t.steps, ev) }));
-        return;
-      }
-      if (isEvent(ev, 'block_ready')) {
-        patchLast((t) => ({ blocks: [...t.blocks, ev.block] }));
-        return;
-      }
-      if (isEvent(ev, 'clarification_needed')) {
-        patchLast({
-          clarification: ev,
-          remember: ev.remember,
-          // Prefill only from the server's `value` (often the place's memory). A question with
-          // no prefill stays unanswered: defaulting to the first option would put an answer the
-          // user never gave into the request, and `remember` could then save it to the place.
-          answers: Object.fromEntries(
-            ev.questions.flatMap((q) => (q.value ? [[q.key, q.value] as const] : [])),
-          ),
-        });
-        return;
-      }
-      if (isEvent(ev, 'clarification_answered')) {
-        patchLast({ clarification: null, answers: ev.answers, remember: ev.remember });
-        return;
-      }
-      if (isEvent(ev, 'answer')) {
-        patchLast({ answer: toAnswer(ev.answer) });
-        return;
-      }
-      if (isEvent(ev, 'error')) {
-        patchLast({ streamError: ev });
-        return;
-      }
-      if (isEvent(ev, 'done')) {
-        patchLast({
-          status: ev.status,
-          // `waiting_user` keeps the clarification card open rather than ending the turn.
-          phase: ev.status === 'waiting_user' ? 'clarify' : ev.status === 'failed' ? 'error' : 'done',
-          open: ev.status === 'waiting_user',
-          durationMs: Date.now() - startedAt.current,
-        });
-      }
-    },
-    [patchLast],
-  );
-
   /** Open a stream. `kind` decides whether this starts a run or continues one. */
   const open = useCallback(
     async (turn: AskTurn, kind: 'start' | 'reply') => {
       inflight.current?.abort();
       const ac = new AbortController();
       inflight.current = ac;
-      startedAt.current = Date.now();
-      patchLast({ phase: 'running', error: undefined, streamError: undefined });
+      const began = Date.now();
+      startedAt.current = began;
+      // Every update from this stream goes through `stream.apply`, which `detach` can redirect.
+      const stream = { apply: (f: (t: AskTurn) => AskTurn) => patchLast(f) };
+      route.current = stream;
+      const onEvent = (ev: StreamEvent) => stream.apply((t) => applyEvent(t, ev, began));
+      stream.apply((t) => ({ ...t, phase: 'running', error: undefined, streamError: undefined }));
 
       try {
         if (kind === 'reply') {
@@ -204,10 +221,10 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
         if (ac.signal.aborted) return;
         const e = toApiError(err);
         if (e.kind === 'aborted') return;
-        patchLast({ phase: 'error', error: e });
+        stream.apply((t) => ({ ...t, phase: 'error', error: e }));
       }
     },
-    [lang, onEvent, patchLast],
+    [lang, patchLast],
   );
 
   const submit = useCallback(
@@ -282,13 +299,109 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
 
   const reset = useCallback(() => {
     inflight.current?.abort();
+    stopPolling();
     setTurns([]);
+  }, [stopPolling]);
+
+  /**
+   * Follow a run this tab is not streaming (a reloaded thread, or a run still going on the
+   * server): poll `GET /api/runs/{id}` until it is final. The API has no way to re-join a
+   * stream, so the steps and blocks arrive in whole as the record fills up.
+   */
+  const pollRun = useCallback((turnId: string, runId: string) => {
+    pollers.current.get(turnId)?.abort();
+    const ac = new AbortController();
+    pollers.current.set(turnId, ac);
+    const began = Date.now();
+    const patch = (f: (t: AskTurn) => AskTurn) => setTurns((all) => all.map((t) => (t.id === turnId ? f(t) : t)));
+    void (async () => {
+      let errors = 0;
+      while (!ac.signal.aborted) {
+        await new Promise((r) => setTimeout(r, POLL_MS));
+        if (ac.signal.aborted) return;
+        try {
+          const rec = await api.runs.get(runId, ac.signal);
+          errors = 0;
+          if (rec.status === 'running') {
+            if (Date.now() - began > POLL_MAX_MS) break;
+            const n = turnFromRecord(rec);
+            patch((t) => ({ ...t, steps: n.steps, blocks: n.blocks }));
+            continue;
+          }
+          const n = turnFromRecord(rec);
+          patch((t) => ({
+            ...t,
+            steps: n.steps, blocks: n.blocks, answer: n.answer, status: n.status, phase: n.phase,
+            clarification: n.clarification, answers: n.answers, remember: n.remember,
+            guard: n.guard, streamError: n.streamError, open: n.open, durationMs: n.durationMs,
+          }));
+          pollers.current.delete(turnId);
+          return;
+        } catch (err) {
+          if (ac.signal.aborted) return;
+          if (++errors >= POLL_MAX_ERRORS) {
+            const e = toApiError(err);
+            patch((t) => ({ ...t, phase: 'error', error: e }));
+            pollers.current.delete(turnId);
+            return;
+          }
+        }
+      }
+      if (ac.signal.aborted) return;
+      pollers.current.delete(turnId);
+      patch((t) => ({
+        ...t,
+        phase: 'error',
+        error: new ApiError('This run stopped making progress. Ask again to retry.', 'http', 504),
+      }));
+    })();
   }, []);
 
-  /** Replace the conversation with already-finished turns (a reloaded thread, or a hand-off from the mini chat). */
-  const hydrate = useCallback((next: AskTurn[]) => {
-    inflight.current?.abort();
-    setTurns(next);
+  /**
+   * Replace the conversation with existing turns (a reloaded thread, or a hand-off from the
+   * mini chat). A stream handed off by `detach` is re-attached to its turn; any other turn
+   * that is still `running` on the server is polled until it is final.
+   */
+  const hydrate = useCallback(
+    (next: AskTurn[]) => {
+      inflight.current?.abort();
+      stopPolling();
+      let list = next;
+      const live = detached;
+      const at = live ? next.findIndex((t) => t.id === live.turn.id) : -1;
+      if (live && at !== -1) {
+        detached = null;
+        list = next.map((t, i) => (i === at ? live.turn : t));
+        inflight.current = live.ac;
+        startedAt.current = live.startedAt;
+        // Events keep landing on the same turn, now through this hook.
+        live.sink = (f) => setTurns((all) => all.map((t) => (t.id === live.turn.id ? f(t) : t)));
+        route.current = { apply: live.sink };
+      }
+      setTurns(list);
+      for (const t of list) {
+        if (t.phase === 'running' && t.runId && !(live && t.id === live.turn.id)) pollRun(t.id, t.runId);
+      }
+    },
+    [pollRun, stopPolling],
+  );
+
+  /**
+   * Let the open stream keep running while this hook goes away ("Open in full chat" from the
+   * bubble). The server ends a run whose client disconnects, so aborting would leave the turn
+   * unfinished for good. The next `hydrate` containing this turn takes the stream over.
+   */
+  const detach = useCallback((): void => {
+    const turn = turnsRef.current[turnsRef.current.length - 1];
+    const stream = route.current;
+    if (!turn || turn.phase !== 'running' || !inflight.current || !stream) return;
+    const live: DetachedRun = { turn, ac: inflight.current, startedAt: startedAt.current, sink: null };
+    detached = live;
+    inflight.current = null;
+    stream.apply = (f) => {
+      live.turn = f(live.turn);
+      live.sink?.(f);
+    };
   }, []);
 
   const last = turns[turns.length - 1];
@@ -325,6 +438,7 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
     retry,
     reset,
     hydrate,
+    detach,
     isBusy: last?.phase === 'running',
   };
 }

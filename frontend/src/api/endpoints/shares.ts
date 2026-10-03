@@ -14,19 +14,14 @@
 
 import { request } from '../http';
 import { API_BASE } from '../config';
+import type { components } from '../schema';
 import type { PlaceDto } from './places';
 
-export interface ShareCreated {
-  slug: string;
-  /** Public page, `<PUBLIC_BASE_URL>/proof/<slug>`, built by the server. */
-  url: string;
-  expires_at: string;
-}
+type S = components['schemas'];
 
-export interface ShareInfo extends ShareCreated {
-  shared_at: string;
-  revoked: boolean;
-}
+/** `url` is the public page, `<PUBLIC_BASE_URL>/proof/<slug>`, built by the server. */
+export type ShareCreated = S['ShareCreated'];
+export type ShareInfo = S['ShareInfo'];
 
 const runPath = (runId: string) => `/runs/${encodeURIComponent(runId)}`;
 
