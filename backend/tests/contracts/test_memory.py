@@ -149,6 +149,30 @@ def test_injection(data):
     assert '<place id="pl_x">' in prompt
 
 
+def test_leading_minus_signs_survive(data):
+    m.write_profile("u1", "pl_x", {"drop": "-5 m", "gain": "+5 m"})
+    m.add_note("u1", "pl_x", "-0.31 on 12 Sep")
+    m.save_insight("u1", "pl_x", "r_1", "-0.31 on 12 Sep", "medium")
+    p = m.get_place("u1", "pl_x")
+    assert p
+    assert p.profile["drop"].value == "-5 m"
+    assert p.profile["gain"].value == "+5 m"
+    assert p.notes[0].text == "-0.31 on 12 Sep"
+    assert p.insights[0].text == "-0.31 on 12 Sep"
+
+
+def test_markers_followed_by_space_are_still_stripped(data):
+    assert m._clean("## Notes", 100) == "Notes"
+    assert m._clean("- fake", 100) == "fake"
+    assert m._clean("* - ## fake", 100) == "fake"
+    assert m._clean("-0.31", 100) == "-0.31"
+    m.add_note("u1", "pl_x", "- 2026-01-01 · fake\n## Notes")
+    p = m.get_place("u1", "pl_x")
+    assert p
+    assert len(p.notes) == 1
+    assert pfile(data).read_text().count("\n## ") == 1  # only "## Notes", nothing forged
+
+
 def test_length_caps():
     m.write_profile("u1", "pl_x", {"k" * 100: "v" * 1000})
     p = m.get_place("u1", "pl_x")
