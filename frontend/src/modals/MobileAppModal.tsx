@@ -9,7 +9,7 @@ export function MobileAppModal() {
       <div className="row" style={{ gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div className="col grow" style={{ gap: 14, minWidth: 240 }}>
           {[
-            ['notifications_active', 'Push alerts', 'Watch alerts with a map image, even when the app is closed.'],
+            ['notifications_active', 'Push alerts', 'Trigger alerts with a map image, even when the app is closed.'],
             ['offline_pin', 'Offline maps', 'Your places and last layers are saved for areas with no signal.'],
             ['directions_walk', 'Field mode', 'GPS walks you to the dry patch; add a photo to confirm what the satellite saw.'],
             ['mic', 'Ask by voice', 'Speak your question in your own language.'],

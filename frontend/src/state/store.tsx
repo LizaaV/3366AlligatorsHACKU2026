@@ -29,7 +29,7 @@ import {
 } from 'react';
 import { ApiError, api, toApiError } from '../api';
 import type { ChannelId, CreateWatchRequest, WatchDto } from '../api/types';
-import type { NewPlace } from '../api/endpoints/places';
+import type { NewPlace, PlacePatch } from '../api/endpoints/places';
 import type { CreateSkillRequest } from '../api/endpoints/skills';
 import {
   categoryOf,
@@ -56,7 +56,9 @@ export type Modal =
   | { kind: 'app' }
   | { kind: 'addPlace'; prefill?: { lat: number; lon: number; name?: string; method?: 'pin' } }
   | { kind: 'watchBuilder'; prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean; dashboardId?: string }
-  | { kind: 'knowledgeCard'; cardId: string };
+  | { kind: 'knowledgeCard'; cardId: string }
+  | { kind: 'editPlace'; placeId: string; tab?: 'details' | 'memory' }
+  | { kind: 'aboutYou' };
 
 export interface Connectors {
   email: { connected: boolean; address: string };
@@ -113,6 +115,7 @@ interface Store {
   /* mutations */
   addPlace: (req: NewPlace) => Promise<Place>;
   removePlace: (id: string) => Promise<void>;
+  updatePlace: (id: string, patch: PlacePatch) => Promise<Place>;
   addSkill: (req: CreateSkillRequest) => Promise<Skill>;
   addWatch: (req: CreateWatchRequest) => Promise<Watch>;
   updateWatch: (id: string, patch: Partial<Pick<WatchDto, 'enabled' | 'condition' | 'channels' | 'cadence' | 'name' | 'recurrence' | 'dashboardId'>>) => Promise<void>;
@@ -261,6 +264,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return created;
   }, []);
 
+  const updatePlace = useCallback(async (id: string, patch: PlacePatch) => {
+    const updated = await api.places.update(id, patch);
+    setPlaces((all) => all.map((p) => (p.id === id ? updated : p)));
+    return updated;
+  }, []);
+
   const removePlace = useCallback(async (id: string) => {
     await api.places.remove(id);
     setPlaces((all) => all.filter((p) => p.id !== id));
@@ -322,6 +331,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       addPlace,
       removePlace,
+      updatePlace,
       addSkill,
       addWatch,
       updateWatch,
@@ -357,6 +367,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       reload,
       addPlace,
       removePlace,
+      updatePlace,
       addSkill,
       addWatch,
       updateWatch,

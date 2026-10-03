@@ -6,6 +6,8 @@ import { MobileAppModal } from './MobileAppModal';
 import { AddPlaceModal } from './AddPlaceModal';
 import { WatchBuilderModal } from './WatchBuilderModal';
 import { KnowledgeCardModal } from './KnowledgeCardModal';
+import { EditPlaceModal } from './EditPlaceModal';
+import { AboutYouModal } from './AboutYouModal';
 
 export function ModalHost() {
   const { modal } = useStore();
@@ -18,5 +20,7 @@ export function ModalHost() {
     case 'addPlace': return <AddPlaceModal prefill={modal.prefill} />;
     case 'watchBuilder': return <WatchBuilderModal prefill={modal.prefill} placeId={modal.placeId} skillId={modal.skillId} fromAnswer={modal.fromAnswer} dashboardId={modal.dashboardId} />;
     case 'knowledgeCard': return <KnowledgeCardModal cardId={modal.cardId} />;
+    case 'editPlace': return <EditPlaceModal placeId={modal.placeId} initialTab={modal.tab} />;
+    case 'aboutYou': return <AboutYouModal />;
   }
 }

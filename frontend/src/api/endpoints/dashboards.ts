@@ -87,6 +87,16 @@ export const dashboardsApi = {
       ...fx(() => fixtures.createDashboard(name)),
     }).then(toDashboard),
 
+  /** PATCH /api/dashboards/{id} — rename. */
+  rename: (id: string, name: string, signal?: AbortSignal): Promise<Dashboard> =>
+    request<S['DashboardOut']>({
+      method: 'PATCH',
+      path: `/dashboards/${enc(id)}`,
+      body: { name } satisfies S['DashboardUpdate'],
+      signal,
+      ...fx(() => fixtures.renameDashboard(id, name)),
+    }).then(toDashboard),
+
   /** DELETE /api/dashboards/{id} */
   remove: (id: string, signal?: AbortSignal): Promise<void> =>
     request<void>({ method: 'DELETE', path: `/dashboards/${enc(id)}`, signal, ...fx(() => fixtures.deleteDashboard(id)) }),

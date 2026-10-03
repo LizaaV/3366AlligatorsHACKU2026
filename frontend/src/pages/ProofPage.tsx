@@ -24,6 +24,19 @@ export const proofSlug = (path = window.location.pathname): string | null => {
   return m ? m[1] : null;
 };
 
+const LAYER_URL = /^(.*)\/layers\/[^/?#]+\/([a-z_]+)\/([^/?#]+\.png)(\?.*)?$/;
+
+/** Point `/api/layers/{run}/{measure}/{scene}.png` urls at the share's own route; other values stay as they are. */
+export function toShareUrls<T>(value: T, slug: string): T {
+  if (typeof value === 'string') {
+    const m = value.match(LAYER_URL);
+    return (m && m[1].endsWith('/api') ? `${m[1]}/shares/${encodeURIComponent(slug)}/layers/${m[2]}/${m[3]}${m[4] ?? ''}` : value) as T;
+  }
+  if (Array.isArray(value)) return value.map((v) => toShareUrls(v, slug)) as T;
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toShareUrls(v, slug)])) as T;
+  return value;
+}
+
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 export function ProofPage({ slug }: { slug: string }) {
@@ -35,7 +48,7 @@ export function ProofPage({ slug }: { slug: string }) {
   const gone = shared.error instanceof ApiError && (shared.error.status === 410 || shared.error.status === 404);
   const run = shared.data;
   const answer = run?.answer ? toAnswer(run.answer) : null;
-  const blocks = run?.blocks?.length ? run.blocks : answer?.blocks ?? [];
+  const blocks = toShareUrls(run?.blocks?.length ? run.blocks : answer?.blocks ?? [], slug);
   const pdf = `${API_BASE}/shares/${encodeURIComponent(slug)}/report.pdf`;
 
   return (

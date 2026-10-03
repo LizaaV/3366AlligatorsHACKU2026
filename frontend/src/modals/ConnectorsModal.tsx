@@ -6,11 +6,11 @@ import type { ChannelId } from '../api/types';
 type RowId = ChannelId | 'api';
 
 const ROWS: { id: RowId; name: string; icon: string; desc: string; detail: string }[] = [
-  { id: 'whatsapp', name: 'WhatsApp', icon: 'chat', desc: 'Ask, add places and get alerts in chat', detail: 'Message the agent, send voice notes and get watch alerts with a map image, in your own language.' },
-  { id: 'email', name: 'Email', icon: 'mail', desc: 'Alerts and reports by email', detail: 'Watch alerts and reports delivered to your inbox, with a link and a PDF.' },
+  { id: 'whatsapp', name: 'WhatsApp', icon: 'chat', desc: 'Ask, add places and get alerts in chat', detail: 'Message the agent, send voice notes and get trigger alerts with a map image, in your own language.' },
+  { id: 'email', name: 'Email', icon: 'mail', desc: 'Alerts and reports by email', detail: 'Trigger alerts and reports delivered to your inbox, with a link and a PDF.' },
   { id: 'push', name: 'Mobile app', icon: 'smartphone', desc: 'Push alerts and field mode', detail: 'Push alerts, offline maps of your places and field mode.' },
   { id: 'sms', name: 'SMS', icon: 'sms', desc: 'For phones without data', detail: 'Text-message alerts for phones without data.' },
-  { id: 'slack', name: 'Slack', icon: 'tag', desc: 'Post alerts to a channel', detail: 'Post watch alerts to a Slack channel.' },
+  { id: 'slack', name: 'Slack', icon: 'tag', desc: 'Post alerts to a channel', detail: 'Post trigger alerts to a Slack channel.' },
   { id: 'api', name: 'API & webhooks', icon: 'api', desc: 'Send results to your systems', detail: 'Send results to your own systems with an API key and webhooks.' },
 ];
 

@@ -20,6 +20,8 @@ import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
 import { watchesApi } from './endpoints/watches';
 import { threadsApi } from './endpoints/threads';
+import { memoryApi } from './endpoints/memory';
+import { projectsApi } from './endpoints/projects';
 
 export const api = {
   catalog: catalogApi,
@@ -32,6 +34,8 @@ export const api = {
   knowledge: knowledgeApi,
   shares: sharesApi,
   threads: threadsApi,
+  memory: memoryApi,
+  projects: projectsApi,
 };
 
 export { ApiError, toApiError } from './http';
@@ -45,3 +49,4 @@ export type { ShareCreated, ShareInfo } from './endpoints/shares';
 export type { SkillQuery } from './endpoints/skills';
 export type { Dashboard, DashboardBlock, DashboardSummary } from './endpoints/dashboards';
 export type { ThreadSummary, ThreadDetail } from './endpoints/threads';
+export type { Project } from './endpoints/projects';

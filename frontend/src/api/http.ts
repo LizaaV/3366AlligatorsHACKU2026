@@ -29,11 +29,17 @@ export class ApiError extends Error {
 
   /**
    * The backend's own explanation of a 4xx, when it wrote one for people: `{detail: "..."}` or
-   * `{detail: {message: "..."}}`. Validation errors (a list) are not shown.
+   * `{detail: {message: "..."}}`, or the first of a list of validation errors.
    */
   get serverDetail(): string | null {
     const d = (this.body as { detail?: unknown } | null)?.detail;
     if (typeof d === 'string' && d.trim()) return d;
+    // FastAPI validation errors: a list of {loc, msg}. Show the first, named by its field.
+    if (Array.isArray(d) && d.length) {
+      const first = d[0] as { loc?: unknown[]; msg?: unknown };
+      const field = Array.isArray(first.loc) ? first.loc.filter((x) => typeof x === 'string' && x !== 'body').pop() : null;
+      if (typeof first.msg === 'string') return field ? `${field}: ${first.msg}` : first.msg;
+    }
     const m = (d as { message?: unknown } | null)?.message;
     return typeof m === 'string' && m.trim() ? m : null;
   }
