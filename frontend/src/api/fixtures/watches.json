@@ -2,9 +2,9 @@
   {
     "id": "w-dry",
     "name": "Dry patches · North Pivot",
-    "categoryKey": "agriculture",
-    "placeId": "np",
-    "skillId": "dry-patch-finder",
+    "category_key": "agriculture",
+    "place_id": "np",
+    "skill_id": "dry-patch-finder",
     "question": "Where are the dry patches in my field?",
     "condition": "Dry area larger than 5 ha",
     "metric": "Dry area",
@@ -15,7 +15,7 @@
       5.3
     ],
     "confidence": "Medium",
-    "baselineLabel": "5-yr avg, same week",
+    "baseline_label": "5-yr avg, same week",
     "baseline": 1.2,
     "delta": "+2.5 ha in 3 passes",
     "status": "warn",
@@ -41,7 +41,7 @@
         0.6,
         0.74
       ],
-      "bandLow": [
+      "band_low": [
         0.04,
         0.05,
         0.04,
@@ -55,7 +55,7 @@
         0.1,
         0.12
       ],
-      "bandHigh": [
+      "band_high": [
         0.18,
         0.2,
         0.2,
@@ -90,12 +90,9 @@
     ],
     "cadence": "Every Sentinel-2 pass (~5 days)",
     "tier": "free",
-    "lastRunAt": "2026-09-28T18:04:00Z",
-    "nextRunAt": "2026-10-03T12:00:00Z",
+    "last_run_at": "2026-09-28T18:04:00Z",
+    "next_run_at": "2026-10-03T12:00:00Z",
     "satellites": "Sentinel-2 · Landsat 9",
-    "thumbnail": {
-      "zoom": 16
-    },
     "ring": true,
     "events": [
       {
@@ -120,14 +117,16 @@
       }
     ],
     "recurrence": "recurring",
-    "dashboardId": "db-np"
+    "dashboard_id": "db-np",
+    "created_at": "2026-09-01T09:00:00Z",
+    "updated_at": "2026-09-28T18:04:00Z"
   },
   {
     "id": "w-ndvi",
     "name": "Crop health · South Block",
-    "categoryKey": "agriculture",
-    "placeId": "sb",
-    "skillId": "weekly-crop-health",
+    "category_key": "agriculture",
+    "place_id": "sb",
+    "skill_id": "weekly-crop-health",
     "question": "Is South Block healthy?",
     "condition": "NDVI drops more than 0.1 between passes",
     "metric": "NDVI",
@@ -138,7 +137,7 @@
       0.74
     ],
     "confidence": "High",
-    "baselineLabel": "5-yr avg, same week",
+    "baseline_label": "5-yr avg, same week",
     "baseline": 0.66,
     "delta": "Stable",
     "status": "ok",
@@ -164,7 +163,7 @@
         0.76,
         0.75
       ],
-      "bandLow": [
+      "band_low": [
         0.3,
         0.38,
         0.46,
@@ -178,7 +177,7 @@
         0.6,
         0.58
       ],
-      "bandHigh": [
+      "band_high": [
         0.5,
         0.58,
         0.66,
@@ -212,12 +211,9 @@
     ],
     "cadence": "Weekly",
     "tier": "free",
-    "lastRunAt": "2026-09-28T18:04:00Z",
-    "nextRunAt": "2026-10-03T12:00:00Z",
+    "last_run_at": "2026-09-28T18:04:00Z",
+    "next_run_at": "2026-10-03T12:00:00Z",
     "satellites": "Sentinel-2",
-    "thumbnail": {
-      "zoom": 16
-    },
     "ring": false,
     "events": [
       {
@@ -232,14 +228,16 @@
       }
     ],
     "recurrence": "recurring",
-    "dashboardId": "db-np"
+    "dashboard_id": "db-np",
+    "created_at": "2026-09-01T09:00:00Z",
+    "updated_at": "2026-09-28T18:04:00Z"
   },
   {
     "id": "w-heat",
     "name": "Heat stress · both fields",
-    "categoryKey": "agriculture",
-    "placeId": null,
-    "skillId": "dry-patch-finder",
+    "category_key": "agriculture",
+    "place_id": null,
+    "skill_id": "dry-patch-finder",
     "question": "Are my fields under heat stress?",
     "condition": "Surface temperature above 34 °C on 2 passes",
     "metric": "Surface temp.",
@@ -250,7 +248,7 @@
       32.6
     ],
     "confidence": "Medium",
-    "baselineLabel": "5-yr avg, same week",
+    "baseline_label": "5-yr avg, same week",
     "baseline": 29.8,
     "delta": "+1.6 °C vs normal",
     "status": "ok",
@@ -276,7 +274,7 @@
         0.74,
         0.72
       ],
-      "bandLow": [
+      "band_low": [
         0.4,
         0.46,
         0.52,
@@ -290,7 +288,7 @@
         0.48,
         0.44
       ],
-      "bandHigh": [
+      "band_high": [
         0.62,
         0.68,
         0.74,
@@ -324,12 +322,9 @@
     ],
     "cadence": "Every Landsat pass (8 days)",
     "tier": "free",
-    "lastRunAt": "2026-09-26T12:00:00Z",
-    "nextRunAt": "2026-10-04T12:00:00Z",
+    "last_run_at": "2026-09-26T12:00:00Z",
+    "next_run_at": "2026-10-04T12:00:00Z",
     "satellites": "Landsat 9 TIRS",
-    "thumbnail": {
-      "zoom": 15
-    },
     "ring": false,
     "events": [
       {
@@ -339,14 +334,16 @@
       }
     ],
     "recurrence": "once",
-    "dashboardId": null
+    "dashboard_id": null,
+    "created_at": "2026-09-01T09:00:00Z",
+    "updated_at": "2026-09-28T18:04:00Z"
   },
   {
     "id": "w-mead",
     "name": "Reservoir level · Lake Mead",
-    "categoryKey": "water",
-    "placeId": "mead",
-    "skillId": "reservoir-level-tracker",
+    "category_key": "water",
+    "place_id": "mead",
+    "skill_id": "reservoir-level-tracker",
     "question": "How much water is in Lake Mead?",
     "condition": "Surface area drops 5% in 30 days",
     "metric": "Surface area",
@@ -357,7 +354,7 @@
       -2.3
     ],
     "confidence": "High",
-    "baselineLabel": "5-yr avg change",
+    "baseline_label": "5-yr avg change",
     "baseline": -2.6,
     "delta": "In line with seasonal drawdown",
     "status": "ok",
@@ -383,7 +380,7 @@
         0.49,
         0.48
       ],
-      "bandLow": [
+      "band_low": [
         0.5,
         0.49,
         0.48,
@@ -397,7 +394,7 @@
         0.4,
         0.39
       ],
-      "bandHigh": [
+      "band_high": [
         0.7,
         0.69,
         0.68,
@@ -431,12 +428,9 @@
     ],
     "cadence": "Every pass (5–21 days)",
     "tier": "free",
-    "lastRunAt": "2026-09-30T12:00:00Z",
-    "nextRunAt": null,
+    "last_run_at": "2026-09-30T12:00:00Z",
+    "next_run_at": null,
     "satellites": "Sentinel-2 · SWOT",
-    "thumbnail": {
-      "zoom": 12
-    },
     "ring": false,
     "events": [
       {
@@ -446,14 +440,16 @@
       }
     ],
     "recurrence": "recurring",
-    "dashboardId": null
+    "dashboard_id": null,
+    "created_at": "2026-09-01T09:00:00Z",
+    "updated_at": "2026-09-28T18:04:00Z"
   },
   {
     "id": "w-algae",
     "name": "Algae watch · Lake Erie",
-    "categoryKey": "water",
-    "placeId": null,
-    "skillId": "algae-red-tide-alert",
+    "category_key": "water",
+    "place_id": null,
+    "skill_id": "algae-red-tide-alert",
     "question": "Is there an algae bloom near the Toledo intake?",
     "condition": "Bloom within 5 km of intake",
     "metric": "Chlorophyll-a",
@@ -464,7 +460,7 @@
       35
     ],
     "confidence": "Low",
-    "baselineLabel": "5-yr avg, same week",
+    "baseline_label": "5-yr avg, same week",
     "baseline": 19,
     "delta": "Above normal, falling",
     "status": "warn",
@@ -490,7 +486,7 @@
         0.33,
         0.28
       ],
-      "bandLow": [
+      "band_low": [
         0.1,
         0.12,
         0.12,
@@ -504,7 +500,7 @@
         0.13,
         0.12
       ],
-      "bandHigh": [
+      "band_high": [
         0.3,
         0.32,
         0.34,
@@ -539,12 +535,9 @@
     ],
     "cadence": "Daily",
     "tier": "paid",
-    "lastRunAt": "2026-10-03T11:20:00Z",
-    "nextRunAt": "2026-10-04T12:00:00Z",
+    "last_run_at": "2026-10-03T11:20:00Z",
+    "next_run_at": "2026-10-04T12:00:00Z",
     "satellites": "Sentinel-3 OLCI",
-    "thumbnail": {
-      "zoom": 11
-    },
     "ring": false,
     "events": [
       {
@@ -559,14 +552,16 @@
       }
     ],
     "recurrence": "once",
-    "dashboardId": "db-lake"
+    "dashboard_id": "db-lake",
+    "created_at": "2026-09-01T09:00:00Z",
+    "updated_at": "2026-09-28T18:04:00Z"
   },
   {
     "id": "w-defor",
     "name": "Clearing alerts · Rondônia plot 14",
-    "categoryKey": "forests",
-    "placeId": "ro",
-    "skillId": "deforestation-alerts",
+    "category_key": "forests",
+    "place_id": "ro",
+    "skill_id": "deforestation-alerts",
     "question": "Has any forest been cleared on plot 14?",
     "condition": "Any new clearing above 0.5 ha",
     "metric": "New clearing",
@@ -577,7 +572,7 @@
       0.3
     ],
     "confidence": "High",
-    "baselineLabel": "Since Dec 31, 2020",
+    "baseline_label": "Since Dec 31, 2020",
     "baseline": 0,
     "delta": "No change since 2020",
     "status": "ok",
@@ -603,7 +598,7 @@
         0.05,
         0.05
       ],
-      "bandLow": [
+      "band_low": [
         0,
         0,
         0,
@@ -617,7 +612,7 @@
         0,
         0
       ],
-      "bandHigh": [
+      "band_high": [
         0.1,
         0.1,
         0.1,
@@ -651,12 +646,9 @@
     ],
     "cadence": "Every 6 days",
     "tier": "free",
-    "lastRunAt": "2026-09-29T12:00:00Z",
-    "nextRunAt": "2026-10-05T12:00:00Z",
+    "last_run_at": "2026-09-29T12:00:00Z",
+    "next_run_at": "2026-10-05T12:00:00Z",
     "satellites": "Sentinel-1 · Sentinel-2",
-    "thumbnail": {
-      "zoom": 14
-    },
     "ring": false,
     "events": [
       {
@@ -666,14 +658,16 @@
       }
     ],
     "recurrence": "recurring",
-    "dashboardId": null
+    "dashboard_id": null,
+    "created_at": "2026-09-01T09:00:00Z",
+    "updated_at": "2026-09-28T18:04:00Z"
   },
   {
     "id": "w-fire",
     "name": "Fire nearby · my fields",
-    "categoryKey": "disasters",
-    "placeId": null,
-    "skillId": "active-fire-map",
+    "category_key": "disasters",
+    "place_id": null,
+    "skill_id": "active-fire-map",
     "question": "Any fires within 10 km of my farm?",
     "condition": "VIIRS hotspot within 10 km of any of my places",
     "metric": "Hotspots < 10 km",
@@ -684,7 +678,7 @@
       0
     ],
     "confidence": "High",
-    "baselineLabel": "Last 30 days",
+    "baseline_label": "Last 30 days",
     "baseline": 1,
     "delta": "None this week",
     "status": "ok",
@@ -710,7 +704,7 @@
         0,
         0
       ],
-      "bandLow": [
+      "band_low": [
         0,
         0,
         0,
@@ -724,7 +718,7 @@
         0,
         0
       ],
-      "bandHigh": [
+      "band_high": [
         0.2,
         0.2,
         0.3,
@@ -759,12 +753,9 @@
     ],
     "cadence": "Every ~12 hours",
     "tier": "free",
-    "lastRunAt": "2026-10-03T06:10:00Z",
-    "nextRunAt": "2026-10-03T18:00:00Z",
+    "last_run_at": "2026-10-03T06:10:00Z",
+    "next_run_at": "2026-10-03T18:00:00Z",
     "satellites": "VIIRS / FIRMS",
-    "thumbnail": {
-      "zoom": 12
-    },
     "ring": false,
     "events": [
       {
@@ -774,6 +765,8 @@
       }
     ],
     "recurrence": "once",
-    "dashboardId": null
+    "dashboard_id": null,
+    "created_at": "2026-09-01T09:00:00Z",
+    "updated_at": "2026-09-28T18:04:00Z"
   }
 ]

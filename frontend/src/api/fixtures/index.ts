@@ -15,17 +15,13 @@ import feasibilityJson from './watch-feasibility.json';
 import mapLayersJson from './map-layers.json';
 
 import type {
-  InsightDto,
-  InsightRequest,
   CatalogDto,
-  CreateWatchRequest,
-  FeasibilityDto,
-  FeasibilityRequest,
   MapLayerDto,
   PlaceSearchResultDto,
   ProofSceneDto,
   SkillDto,
-  WatchDto,
+  WatchProofDto,
+  WatchWireDto,
 } from '../types';
 import { approxAreaHa, outerRing, ringToPts } from '../../lib/geo';
 import { ApiError } from '../http';
@@ -36,6 +32,10 @@ type PlaceDto = S['PlaceDto'];
 type CreatePlaceRequest = S['CreatePlaceRequest'];
 type PlaceMemory = S['PlaceMemory'];
 type MemoryPatch = S['MemoryPatch'];
+type FeasibilityDto = S['FeasibilityDto'];
+type FeasibilityRequest = S['FeasibilityRequest'];
+type CreateWatchRequest = S['CreateWatchRequest'];
+type PatchWatchRequest = S['PatchWatchRequest'];
 
 /* ---------------- reference data (read-only) ---------------- */
 
@@ -54,7 +54,7 @@ export const placeSearch = (q: string) => {
 // stand-in: real persistence comes with the real backend, not a localStorage patch here.
 
 let placeState: PlaceDto[] = structuredClone(placesJson as unknown as PlaceDto[]);
-let watchState: WatchDto[] = structuredClone(watchesJson as unknown as WatchDto[]);
+let watchState: WatchWireDto[] = structuredClone(watchesJson as unknown as WatchWireDto[]);
 
 const id = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`;
 
@@ -111,7 +111,7 @@ export const updatePlace = (placeId: string, patch: { name?: string; categoryKey
 export const deletePlace = (placeId: string) => {
   placeState = placeState.filter((p) => p.id !== placeId);
   // Mirrors the cascade a real backend would do: watches keep existing but lose their place.
-  watchState = watchState.map((w) => (w.placeId === placeId ? { ...w, placeId: null } : w));
+  watchState = watchState.map((w) => (w.place_id === placeId ? { ...w, place_id: null } : w));
 };
 
 /* ---------------- place memory ---------------- */
@@ -161,42 +161,47 @@ export const patchPlaceMemory = (placeId: string, patch: MemoryPatch): PlaceMemo
 
 export const watches = () => watchState;
 
-export const createWatch = (req: CreateWatchRequest): WatchDto => {
-  const template = (watchesJson as unknown as WatchDto[])[0];
-  const watch: WatchDto = {
+export const createWatch = (req: CreateWatchRequest): WatchWireDto => {
+  const template = (watchesJson as unknown as WatchWireDto[])[0];
+  const now = new Date().toISOString();
+  const watch: WatchWireDto = {
     ...template,
     id: id('w'),
     name: req.name,
-    categoryKey: req.categoryKey,
-    placeId: req.placeId,
-    skillId: req.skillId,
+    category_key: req.category_key,
+    place_id: req.place_id ?? null,
+    skill_id: req.skill_id,
     question: req.question,
     condition: req.condition,
-    channels: req.channels,
+    channels: req.channels ?? [],
     cadence: req.cadence,
     recurrence: req.recurrence ?? 'recurring',
-    dashboardId: req.dashboardId ?? null,
-    metric: 'First result',
-    value: 0,
+    dashboard_id: req.dashboard_id ?? null,
+    // Like the real backend: no measurement exists until a run has produced one.
+    metric: '',
+    value: null,
     unit: '',
-    ci: [0, 0],
-    baseline: 0,
-    delta: 'Waiting for the first pass',
-    confidence: 'Medium',
-    status: 'ok',
+    ci: null,
+    baseline: null,
+    baseline_label: '',
+    delta: '',
+    status: null,
     enabled: true,
-    series: { ...template.series, current: [...template.series.mean] },
-    lastRunAt: null,
-    nextRunAt: null,
+    series: { unit: '', labels: [], current: [], band_low: [], band_high: [], mean: [] },
+    last_run_at: null,
+    next_run_at: null,
     events: [],
+    created_at: now,
+    updated_at: now,
   };
   watchState = [watch, ...watchState];
   return watch;
 };
 
-export const updateWatch = (watchId: string, patch: Partial<WatchDto>): WatchDto => {
-  let updated: WatchDto | undefined;
-  watchState = watchState.map((w) => (w.id === watchId ? (updated = { ...w, ...patch }) : w));
+export const updateWatch = (watchId: string, patch: PatchWatchRequest): WatchWireDto => {
+  let updated: WatchWireDto | undefined;
+  const defined = Object.fromEntries(Object.entries(patch).filter(([k, v]) => v !== null || k === 'dashboard_id'));
+  watchState = watchState.map((w) => (w.id === watchId ? (updated = { ...w, ...defined, updated_at: new Date().toISOString() }) : w));
   if (!updated) throw new Error(`No watch ${watchId}`);
   return updated;
 };
@@ -242,49 +247,11 @@ export const feasibility = (req: FeasibilityRequest): FeasibilityDto => {
 };
 
 /**
- * Stand-in for POST /ask/insights. Builds a factual summary from the watch records it holds,
- * rather than returning invented prose — so the shape is exercised without the frontend
- * asserting findings it cannot know.
- */
-export const insight = (req: InsightRequest): InsightDto => {
-  const fmt = (v: number, unit: string) => `${v}${unit ? (unit.startsWith('%') || unit.startsWith('\u00b0') ? '' : ' ') + unit : ''}`;
-  const all = watchState;
-  const scoped = req.scope === 'watch' ? all.filter((w) => w.id === req.watchId) : all.filter((w) => w.enabled);
-  const basis = [`Read ${scoped.length} watch${scoped.length === 1 ? '' : 'es'}`, 'Compared the last 3 passes', 'Checked the 5-year baseline'];
-
-  if (!scoped.length) {
-    return { title: 'Nothing to report yet', body: 'There are no active watches to read. Create one and the agent will check it on every new satellite pass.', basis: [] };
-  }
-
-  const line = (w: (typeof all)[number]) =>
-    `${w.name}: ${w.metric} is ${fmt(w.value, w.unit)} (90% range ${fmt(w.ci[0], w.unit)}\u2013${fmt(w.ci[1], w.unit)}) against ${fmt(w.baseline, w.unit)} for the ${w.baselineLabel.toLowerCase()}. ${w.delta}. The rule is \u201c${w.condition}\u201d, and confidence is ${w.confidence.toLowerCase()}.`;
-
-  const attention = scoped.filter((w) => w.status !== 'ok');
-  const subject = attention[0] ?? scoped[0];
-  const title =
-    req.scope === 'watch'
-      ? `${subject.metric} is ${subject.status === 'ok' ? 'within its normal range' : 'outside its normal range'}`
-      : attention.length
-        ? `${attention.length} watch${attention.length === 1 ? '' : 'es'} need attention`
-        : 'Everything is inside its normal range';
-
-  const body = [
-    `You asked: \u201c${req.question}\u201d`,
-    ...(attention.length ? attention.map(line) : [line(subject)]),
-    attention.length
-      ? 'Everything else is inside its normal 5-year range.'
-      : `All ${scoped.length} watch${scoped.length === 1 ? '' : 'es'} are inside their normal 5-year range.`,
-  ].join(' ');
-
-  return { title, body, basis };
-};
-
-/**
  * Stand-in for GET /watches/{id}/proof. Scene identifiers are synthesised from the watch's
  * satellite in the real archive's naming conventions — plausible, but not real scenes. This is
  * exactly the kind of fabrication that should not live in a component, which is why it is here.
  */
-export const watchProof = (watchId: string): { scenes: ProofSceneDto[]; hash: string } => {
+export const watchProof = (watchId: string): WatchProofDto => {
   const w = watchState.find((x) => x.id === watchId);
   const sat = (w?.satellites ?? 'Sentinel-2').split(' \u00b7 ')[0];
   const dates = ['Sep 28', 'Sep 23', 'Sep 18', 'Sep 13', 'Sep 8'];
@@ -302,7 +269,7 @@ export const watchProof = (watchId: string): { scenes: ProofSceneDto[]; hash: st
   const optical = !/sentinel-1|viirs|firms|swot/i.test(sat);
   const scenes: ProofSceneDto[] = dates.map((date, i) => {
     const why = optical && i === 2 ? 'Skipped \u2014 64% cloud over the area' : optical && i === 3 ? 'Skipped \u2014 18 mm rain the day before' : undefined;
-    return { sceneId: sceneId(date, i), date, satellite: sat, cloudPct: why ? 64 : i * 2, used: !why, why };
+    return { id: sceneId(date, i), date, sat, cloud: why ? 64 : i * 2, used: !why, why };
   });
   let h = 2166136261;
   for (const c of `${watchId}:${sat}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;

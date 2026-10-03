@@ -39,8 +39,7 @@ export function SkillCard({ s, installed, onOpen, delay = 0 }: { s: Skill; insta
         <div className="body-sm">{s.short}</div>
         <div className="lib-card-stats">
           <span className="row" style={{ gap: 3 }}><span style={{ color: 'var(--yellow)' }}>★</span>{s.rating ? s.rating.toFixed(1) : 'New'}</span>
-          <span className="subtle">·</span>
-          <span>{fmtRuns(s.runs)} runs</span>
+          {s.runs !== null && <><span className="subtle">·</span><span>{fmtRuns(s.runs)} runs</span></>}
           <span className="subtle">·</span>
           <span>v{s.version}</span>
         </div>
