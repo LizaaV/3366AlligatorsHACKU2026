@@ -5,6 +5,7 @@
  *                                         the server's schedule and anyone with it can read the
  *                                         snapshot, so there are no access/expiry options to send.
  *   GET  /api/runs/{run_id}/shares     -> ShareInfo[]
+ *   DELETE /api/shares/{slug}          -> 204 (turns the link off; it then answers 410)
  *   GET  /api/runs/{run_id}/report.pdf -> application/pdf (a plain link; see `reportPdfUrl`)
  *
  * No fixtures: a made-up link or file would be worse than an honest error. In fixture mode these
@@ -37,6 +38,10 @@ export const sharesApi = {
   /** GET /api/runs/{run_id}/shares */
   list: (runId: string, signal?: AbortSignal): Promise<ShareInfo[]> =>
     request<ShareInfo[]>({ method: 'GET', path: `${runPath(runId)}/shares`, signal }),
+
+  /** DELETE /api/shares/{slug} — 404 for an unknown link or one that is not yours. */
+  revoke: (slug: string, signal?: AbortSignal): Promise<void> =>
+    request<void>({ method: 'DELETE', path: `/shares/${encodeURIComponent(slug)}`, signal }),
 
   /** URL of the A4 PDF report. Use as a link target: the response is an attachment. */
   reportPdfUrl: (runId: string): string => `${API_BASE}${runPath(runId)}/report.pdf`,
