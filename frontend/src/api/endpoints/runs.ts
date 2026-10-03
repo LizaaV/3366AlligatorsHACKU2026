@@ -16,8 +16,8 @@
  * always process-only descriptions, which is precisely what a step event carries.
  */
 
-import { request } from '../http';
-import { FIXTURE_CLARIFY, usingFixtures } from '../config';
+import { ApiError, request } from '../http';
+import { FIXTURE_CLARIFY, FIXTURE_ERROR_RATE, usingFixtures } from '../config';
 import { streamSse, type StreamEvent } from '../stream';
 import type { components } from '../schema';
 import { pickProgressScript } from '../../ask/progressScripts';
@@ -88,6 +88,25 @@ async function fixtureStream(
   const threadId = body.thread_id ?? fixtureId('t');
   const script = pickProgressScript();
   const answer = FIXTURE_RUN_ANSWER;
+
+  // A run can fail in two distinct ways, and the UI treats them differently, so the fixture
+  // has to be able to produce both: before the stream opens it is an HTTP error, and after it
+  // opens it is an `error` event (§8). Split the configured rate evenly between them.
+  if (FIXTURE_ERROR_RATE > 0 && Math.random() < FIXTURE_ERROR_RATE) {
+    if (Math.random() < 0.5) {
+      throw new ApiError('Simulated fixture failure for POST /runs', 'http', 503);
+    }
+    onEvent({ event: 'run_started', run_id: runId, thread_id: threadId });
+    await wait(FIXTURE_STEP_MS, signal);
+    onEvent({
+      event: 'error',
+      message: 'No clear scenes in the requested window.',
+      recoverable: false,
+      kind: 'no_clear_scenes',
+    });
+    onEvent({ event: 'done', run_id: runId, status: 'failed', tokens: 0, cost_usd: 0, ms: 0 });
+    return;
+  }
 
   onEvent({ event: 'run_started', run_id: runId, thread_id: threadId });
   onEvent({ event: 'guard', scope: 'answerable', rule_id: null, reason: null });
