@@ -1,8 +1,8 @@
 """Sandbox runner (HANDOFF B2, BUILD-PLAN I2): runs an agent-written script in a child process.
 
 Walls: (1) AST scan before anything runs, (2) a child process with a minimal environment, a
-wall-clock timeout and a CPU rlimit. A Docker implementation can replace the spawn later
-(SANDBOX_IMPL=docker); `run_script` keeps the same signature.
+wall-clock timeout and a CPU rlimit. SANDBOX_IMPL=docker (opt-in, `sandbox_docker`) runs the same
+child in a no-network container instead; `run_script` keeps the same signature.
 """
 
 from __future__ import annotations
@@ -287,23 +287,43 @@ def _shape_error(exc: ValidationError) -> ScriptError:
     )
 
 
+Final = tuple[str, str]  # (RESULT | ERROR, json payload)
+OnCall = Callable[[EarthCall], Awaitable[None]]
+
+
+def _impl() -> str:
+    """SANDBOX_IMPL from the app settings (lazy: the sandbox image has no app settings)."""
+    from app.core.config import settings
+
+    return settings.sandbox_impl
+
+
 async def run_script(
     script: str,
     params: dict,
     run_id: str,
-    on_call: Callable[[EarthCall], Awaitable[None]] | None = None,
+    on_call: OnCall | None = None,
     timeout_s: int = 60,
 ) -> RunOutcome:
     if not RUN_ID_RE.fullmatch(run_id):
         raise ValueError(f"invalid run_id: {run_id!r}")
-    calls: list[EarthCall] = []
-
-    def fail(error: ScriptError) -> RunOutcome:
-        return RunOutcome(ok=False, result=None, error=error, calls=calls)
 
     scan = scan_script(script)
     if scan:
-        return fail(scan)
+        return RunOutcome(ok=False, result=None, error=scan, calls=[])
+
+    if _impl() == "docker":
+        from app.services.sandbox_docker import run_in_docker
+
+        return await run_in_docker(script, params, run_id, on_call, timeout_s)
+
+    calls: list[EarthCall] = []
+
+    async def record(call: EarthCall) -> None:
+        calls.append(call)
+        if on_call:
+            with contextlib.suppress(Exception):  # a UI hiccup must not kill the run
+                await on_call(call)
 
     proc = await asyncio.create_subprocess_exec(
         sys.executable,
@@ -317,7 +337,30 @@ async def run_script(
         start_new_session=True,  # so the whole process group can be killed
         limit=64 * 1024 * 1024,
     )
-    job = json.dumps({"script": script, "params": params, "run_id": run_id, "timeout_s": timeout_s})
+    final, timed_out, stderr = await drive_child(
+        proc, job_json(script, params, run_id, timeout_s), timeout_s, record, lambda: _kill(proc)
+    )
+    return outcome(final, calls, timed_out, timeout_s, proc.returncode, stderr)
+
+
+def job_json(script: str, params: dict, run_id: str, timeout_s: int) -> str:
+    return json.dumps(
+        {"script": script, "params": params, "run_id": run_id, "timeout_s": timeout_s}
+    )
+
+
+async def drive_child(
+    proc: asyncio.subprocess.Process,
+    job: str,
+    timeout_s: int,
+    on_call_line: OnCall | None,
+    kill: Callable[[], object],
+) -> tuple[Final | None, bool, str]:
+    """Feeds the job on stdin and reads the stdout protocol until the end or the deadline.
+
+    `on_call_line` gets each `@@EARTH_CALL` line (None = ignore them: the docker runner takes
+    calls from the trusted earth service instead). Returns (final line, timed out, stderr).
+    """
     assert proc.stdin and proc.stdout and proc.stderr
     try:
         proc.stdin.write(job.encode())
@@ -327,7 +370,7 @@ async def run_script(
         pass
 
     stderr_task = asyncio.create_task(proc.stderr.read())
-    final: tuple[str, str] | None = None
+    final: Final | None = None
     deadline = time.monotonic() + timeout_s
     timed_out = False
 
@@ -349,33 +392,48 @@ async def run_script(
                 break
             line = raw.decode(errors="replace").rstrip("\n")
             if line.startswith(CALL):
+                if on_call_line is None:
+                    continue
                 try:
                     call = EarthCall.model_validate_json(line[len(CALL) :])
                 except ValidationError:
                     continue
-                calls.append(call)
-                if on_call:
-                    with contextlib.suppress(Exception):  # a UI hiccup must not kill the run
-                        await on_call(call)
+                await on_call_line(call)
             elif line.startswith(RESULT):
                 final = (RESULT, line[len(RESULT) :])
             elif line.startswith(ERROR):
                 final = (ERROR, line[len(ERROR) :])
             # anything else is stray output: ignored
         if timed_out:
-            _kill(proc)
+            kill()
         else:
             try:
                 await asyncio.wait_for(proc.wait(), 5)
             except TimeoutError:
-                _kill(proc)
+                kill()
     finally:
-        _kill(proc)  # no-op if already gone; reaps stragglers in the process group
+        kill()  # no-op if already gone; reaps stragglers
         await proc.wait()
 
     stderr = ""
     with contextlib.suppress(Exception):
         stderr = (await asyncio.wait_for(stderr_task, 2)).decode(errors="replace")
+    return final, timed_out, stderr
+
+
+def outcome(
+    final: Final | None,
+    calls: list[EarthCall],
+    timed_out: bool,
+    timeout_s: int,
+    code: int | None,
+    stderr: str,
+    oom: bool = False,
+) -> RunOutcome:
+    """Turns what the child printed (and how it ended) into a `RunOutcome`."""
+
+    def fail(error: ScriptError) -> RunOutcome:
+        return RunOutcome(ok=False, result=None, error=error, calls=calls)
 
     if timed_out:
         return fail(
@@ -388,11 +446,19 @@ async def run_script(
         )
 
     if final is None:
-        code = proc.returncode
         if code == -signal.SIGXCPU:
             return fail(
                 ScriptError(
                     kind="timeout", message="Script used up its CPU time.", hint="Do less work."
+                )
+            )
+        if oom:
+            return fail(
+                ScriptError(
+                    kind="crash",
+                    message="Script was killed: it ran out of memory.",
+                    hint="Hold fewer values at once; earth returns small summaries, use them.",
+                    traceback_tail=_tail(stderr) or None,
                 )
             )
         return fail(

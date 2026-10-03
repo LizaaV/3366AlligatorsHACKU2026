@@ -1,0 +1,21 @@
+# Opt-in Docker sandbox (SANDBOX_IMPL=docker). Use together with the base file and the profile:
+#   docker compose --env-file deploy/.env -f deploy/docker-compose.yml \
+#     -f deploy/docker-compose.docker-sandbox.yml --profile docker-sandbox up -d --build
+# SECURITY: mounting the Docker socket gives the backend root-equivalent control of the host.
+# See deploy/README.md, "Docker sandbox (opt-in)".
+services:
+  backend:
+    environment:
+      SANDBOX_IMPL: docker
+      SANDBOX_IMAGE: earth-sandbox:latest
+      SANDBOX_NETWORK: earth-agent-earth-only
+      EARTH_SERVICE_HOST: 0.0.0.0              # inside the container; port 8701 is never published
+      EARTH_SERVICE_URL: http://backend:8701   # as seen from the sandbox on earth-agent-earth-only
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_CLI:-/usr/bin/docker}:/usr/local/bin/docker:ro   # host docker CLI (static binary)
+    group_add:
+      - "${DOCKER_GID:-999}"                   # gid owning the socket: `stat -c %g /var/run/docker.sock`
+    depends_on:
+      sandbox-image:
+        condition: service_completed_successfully

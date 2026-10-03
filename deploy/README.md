@@ -38,7 +38,7 @@ cp deploy/.env.example deploy/.env        # then edit: PUBLIC_BASE_URL, HTTP_POR
 | Variable | Where | Default | Meaning |
 | --- | --- | --- | --- |
 | `EARTH_IMPL` | `backend/.env` | `stub` | `stub` = offline Hoo Hok Wai preset, no network. `real` = Sentinel-2 via STAC (needs outbound internet). |
-| `SANDBOX_IMPL` | `backend/.env` | `subprocess` | How agent-written scripts run. `docker` is not implemented yet. |
+| `SANDBOX_IMPL` | `backend/.env` | `subprocess` | How agent-written scripts run. `docker` = opt-in container sandbox, see "Docker sandbox" below. |
 | `ANTHROPIC_API_KEY` | `backend/.env` | unset | LLM key; only read once the LLM agent lands (see `docs/BUILD-PLAN.md` section 9). |
 | `SHARE_TTL_DAYS` | `backend/.env` | n/a yet | Planned (share links); ignored until implemented. |
 | `RUNS_DB_PATH` | `backend/.env` | `$EARTH_DATA_DIR/runs.sqlite` | Run store location. Leave unset. |
@@ -142,8 +142,32 @@ Alternative: nginx + certbot on the host in front of `localhost:8080` (keep `pro
 | Backend `OSError` loading rasterio/pyproj | Missing system library in the slim image; add only that package to `backend/Dockerfile` (`apt-get install`). |
 | Disk filling up | `docker system df`; `docker image prune`. Cache lives in the `earth-data` volume. |
 
-## Future: Docker sandbox (BUILD-PLAN M4 step 2)
+## Docker sandbox (opt-in, `SANDBOX_IMPL=docker`)
 
-Compose already defines an `internal` network, `earth-only` (no internet, no host access), joined by the backend. Sandbox containers (`earth-runner`) will join it to reach the earth service and nothing else (see `docs/HANDOFF-BACKEND.md` B2.1).
+Default is `SANDBOX_IMPL=subprocess` (scripts run in a child process of the backend). The Docker sandbox is opt-in and on the cut list; the default stack does not change.
 
-Note for that step: the backend then has to start sibling containers, which needs either the host Docker socket mounted into the backend (`/var/run/docker.sock`, effectively root on the VM; acceptable for a hackathon, not for production) or a separate small spawner service that owns the socket. The non-root `app` user in the backend image would also need access to that socket (group add). Until then `SANDBOX_IMPL=subprocess` runs scripts inside the backend container.
+```
+backend (trusted: keys, real earth, budgets) ── earth service :8701, token per run
+   │  docker run (via /var/run/docker.sock)        ▲ HTTP, internal network only
+   ▼                                               │
+earth-sandbox container: script + thin `earth` client ── network earth-agent-earth-only (internal: no internet, no host)
+   read-only FS, non-root uid 10001, no caps, 1 GB RAM, 1 CPU, 128 pids, 64 MB /tmp, no secrets
+```
+
+Enable:
+
+```bash
+# the gid owning the socket, and the host docker CLI the backend will use
+export DOCKER_GID=$(stat -c %g /var/run/docker.sock) DOCKER_CLI=$(command -v docker)
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml \
+  -f deploy/docker-compose.docker-sandbox.yml --profile docker-sandbox up -d --build
+```
+
+The profile builds `earth-sandbox:latest` (`backend/sandbox/Dockerfile`); the override file switches the backend to `SANDBOX_IMPL=docker`, mounts the Docker socket and the host `docker` CLI (a static binary on Docker CE installs; if yours is not, install `docker-ce-cli` in the backend image instead), and binds the earth service on `0.0.0.0:8701` inside the backend container (never published on the host). To switch back, run the base command without the override file and profile.
+
+**Security trade-off: the Docker socket.** Mounting `/var/run/docker.sock` into the backend makes the backend root-equivalent on the VM: anything that controls the backend process can start a privileged container that mounts `/`. The sandbox protects the host from the *script*; it does not protect the host from a compromised *backend*. Acceptable for a hackathon demo on a throw-away VM; for production use a small spawner service that owns the socket and only accepts "run this script" requests, or rootless Docker / gVisor.
+
+Other notes:
+- The earth service needs the per-run token (`Authorization: Bearer ...`, revoked when the run ends) and only dispatches the public `earth` functions. Sandbox containers can also reach the backend's public API on `:8000` (same container), which is no more than the internet can do.
+- `earth` calls from docker runs are serialised in the backend (one at a time), because `earth.calls` keeps the run's budget and listener in module globals.
+- Local development (Docker Desktop): `cd backend && sh sandbox/dev-up.sh` builds the image, creates the internal `earth-only` network and an `earth-relay` container that forwards `earth-relay:8701` to the host (internal networks cannot reach the host). Then `SANDBOX_IMPL=docker uv run uvicorn app.main:app`. Tests: `DOCKER_SANDBOX_TESTS=1 uv run pytest tests/test_docker_sandbox.py`.
