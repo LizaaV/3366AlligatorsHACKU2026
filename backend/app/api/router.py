@@ -11,6 +11,7 @@ from app.api.routes import (
     reports,
     runs,
     shares,
+    threads,
     watches,
 )
 from app.api.routes import catalog as catalog_routes
@@ -31,3 +32,4 @@ api_router.include_router(reports.router)
 api_router.include_router(watches.router)
 api_router.include_router(skills_routes.router)
 api_router.include_router(catalog_routes.router)
+api_router.include_router(threads.router)

@@ -428,7 +428,8 @@ def number_sources(
     the guard rule's policy note, script results, scoring, `extra_sources`
     (e.g. full blocks, earth call summaries). Never the model's own text or the question."""
     out: list[float] = []
-    for part in (state.findings, state.evidence, state.notes, state.place, data_results(state)):
+    parts = (state.findings, state.evidence, state.notes, state.place, data_results(state))
+    for part in (*parts, state.carried_results):
         _collect(part, out)
     for cid in _card_ids(state):
         out += card_numbers(kb, cid)

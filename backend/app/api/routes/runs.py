@@ -20,7 +20,7 @@ import typing
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
 
 import earth
@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.schemas.areas import AreaInput
 from app.schemas.runs import ID_PATTERN, ReplyRequest, RunRecord, RunRequest
 from app.schemas.stream import StreamEvent, to_sse
-from app.services import memory, places
+from app.services import memory, places, threads
 from app.services import runs as run_store
 from app.services.agent import llm, policy
 from app.services.agent.loop import (
@@ -91,6 +91,21 @@ def _check_id(value: str, what: str) -> str:
     if not _ID_RE.fullmatch(value):
         raise HTTPException(status_code=400, detail=f"Invalid {what}: use {ID_PATTERN}.")
     return value
+
+
+def _rate_gate(request: Request, user_id: str) -> None:
+    """Anti-spam: hourly caps per user and per client address (429 with Retry-After)."""
+    address = policy.client_address(
+        request.client.host if request.client else None, request.headers
+    )
+    try:
+        policy.check_rates(user_id, address)
+    except policy.RateLimited as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=exc.message,
+            headers={"Retry-After": str(max(1, math.ceil(exc.retry_after)))},
+        ) from exc
 
 
 def _own_run(run_id: str, user_id: str) -> RunRecord:
@@ -182,11 +197,14 @@ def _preset_fits(req: RunRequest, user_id: str) -> bool:
         {
             400: {"description": "Invalid area, thread id or X-User-Id, or unknown provider."},
             404: {"description": "Thread not found for this user."},
+            409: {"description": "The conversation is full: start a new one."},
             429: {"description": "Too many runs: wait `Retry-After` seconds."},
         }
     ),
 )
-async def start_run(req: RunRequest, user_id: str = Depends(current_user)) -> EventSourceResponse:
+async def start_run(
+    req: RunRequest, request: Request, user_id: str = Depends(current_user)
+) -> EventSourceResponse:
     """Stream a run: `run_started`, `guard`, `hypotheses_registered`, steps, blocks,
     `answer` (or `error`), and always `done` last. If the run needs the user it sends
     `clarification_needed` then `done{status: waiting_user}`; continue with `/reply`.
@@ -213,6 +231,12 @@ async def start_run(req: RunRequest, user_id: str = Depends(current_user)) -> Ev
         runs = run_store.list_runs(req.thread_id)
         if not runs or any(r.user_id != user_id for r in runs):
             raise HTTPException(status_code=404, detail="Thread not found.")
+        if len(runs) >= threads.MAX_RUNS_PER_THREAD:
+            raise HTTPException(
+                status_code=409,
+                detail="This conversation is full; start a new one (omit thread_id).",
+            )
+    _rate_gate(request, user_id)
     provider = await asyncio.to_thread(_agent_provider, req)
     if isinstance(provider, _NoAgent):
         if await asyncio.to_thread(_preset_fits, req, user_id):
@@ -255,7 +279,7 @@ def get_run(run_id: str, user_id: str = Depends(current_user)) -> RunRecord:
     ),
 )
 async def reply(
-    run_id: str, body: ReplyRequest, user_id: str = Depends(current_user)
+    run_id: str, body: ReplyRequest, request: Request, user_id: str = Depends(current_user)
 ) -> EventSourceResponse:
     """Accept the answers (only keys that were asked), save them to the place profile when
     `remember`, then stream the same run: `clarification_answered` first (also stored in
@@ -263,6 +287,7 @@ async def reply(
     record = await asyncio.to_thread(_own_run, run_id, user_id)
     if record.status != "waiting_user":
         raise HTTPException(status_code=409, detail=f"Run is {record.status}, not waiting_user.")
+    _rate_gate(request, user_id)
     if any(len(k) > MAX_KEY or len(v) > MAX_VALUE for k, v in body.answers.items()):
         raise HTTPException(
             status_code=400, detail=f"Keys up to {MAX_KEY} and answers up to {MAX_VALUE} chars."

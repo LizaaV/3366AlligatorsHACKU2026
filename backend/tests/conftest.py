@@ -71,3 +71,13 @@ def _offline_llm(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
         yield
     finally:
         llm.set_provider_override(None)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits() -> Iterator[None]:
+    """Each test starts with empty hourly rate windows (A4 anti-spam gate)."""
+    from app.services.agent import policy
+
+    policy.reset_rates()
+    yield
+    policy.reset_rates()
