@@ -229,6 +229,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/places/detect-boundary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Detect Boundary
+         * @description Suggest the outline of the field / pond / plot around a point (add-place wizard).
+         *
+         *     Grown from the latest clear Sentinel-2 scene; a ~1 ha square with `confidence: "Low"` when
+         *     there is no usable imagery. Never an error for imagery problems.
+         */
+        post: operations["detect_boundary_api_places_detect_boundary_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/places/parse-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Parse File
+         * @description Read one outline from an uploaded boundary file (multipart field `file`, max 5 MB).
+         */
+        post: operations["parse_file_api_places_parse_file_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/places/{place_id}": {
         parameters: {
             query?: never;
@@ -998,6 +1041,14 @@ export interface components {
             /** Title Index */
             title_index: number;
         };
+        /** Body_parse_file_api_places_parse_file_post */
+        Body_parse_file_api_places_parse_file_post: {
+            /**
+             * File
+             * @description GeoJSON, KML/KMZ, GPX or CSV
+             */
+            file: string;
+        };
         /**
          * CardDetail
          * @description A full card: index entry, validated YAML header and Markdown body.
@@ -1391,6 +1442,41 @@ export interface components {
             label: string;
             /** Value */
             value: string;
+        };
+        /** DetectBoundaryRequest */
+        DetectBoundaryRequest: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+        };
+        /**
+         * DetectBoundaryResponse
+         * @description A suggested outline for the field / pond / plot containing the point.
+         */
+        DetectBoundaryResponse: {
+            /** Geometry */
+            geometry: {
+                [key: string]: unknown;
+            };
+            /** Area Ha */
+            area_ha: number;
+            /**
+             * Confidence
+             * @enum {string}
+             */
+            confidence: "High" | "Medium" | "Low";
+            /**
+             * Method
+             * @description `sentinel2_segmentation`: grown from the latest clear Sentinel-2 scene. `fallback_square`: no usable imagery, a ~1 ha square around the point.
+             * @enum {string}
+             */
+            method: "sentinel2_segmentation" | "fallback_square";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
         };
         /**
          * Done
@@ -1983,6 +2069,26 @@ export interface components {
             date: string;
             /** Text */
             text: string;
+        };
+        /**
+         * ParseFileResponse
+         * @description The single outline read from an uploaded boundary file.
+         */
+        ParseFileResponse: {
+            /** Geometry */
+            geometry: {
+                [key: string]: unknown;
+            };
+            /** Area Ha */
+            area_ha: number;
+            /** Name */
+            name?: string | null;
+            center: components["schemas"]["LatLon"];
+            /**
+             * Note
+             * @default
+             */
+            note: string;
         };
         /** Patch */
         Patch: {
@@ -3919,6 +4025,84 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    detect_boundary_api_places_detect_boundary_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DetectBoundaryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectBoundaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    parse_file_api_places_parse_file_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_parse_file_api_places_parse_file_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParseFileResponse"];
+                };
+            };
+            /** @description File too large or too many points: `{kind, message, hint}` */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unsupported type (e.g. Shapefile): `{kind, message, hint}` */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unreadable file or no outline in it: `{kind, message, hint}` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

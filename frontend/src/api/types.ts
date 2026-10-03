@@ -164,20 +164,10 @@ export interface DetectBoundaryResponse {
   geometry: GeoJsonPolygon;
   areaHa: number;
   confidence: ConfidenceLevel;
-}
-
-export interface ParcelLookupRequest {
-  /** Registry id from `parcelSystems`, e.g. `br`, `eu`, `in`. */
-  system: string;
-  parcelId: string;
-}
-
-export interface ParcelLookupResponse {
-  geometry: GeoJsonPolygon;
-  center: LatLon;
-  areaHa: number;
-  registryLabel: string;
-  categoryKey?: CategoryKey;
+  /** `sentinel2_segmentation` when grown from imagery, `fallback_square` when there was none. */
+  method: 'sentinel2_segmentation' | 'fallback_square';
+  /** One plain sentence about how the outline was made. */
+  note: string;
 }
 
 export interface ParseBoundaryFileResponse {
