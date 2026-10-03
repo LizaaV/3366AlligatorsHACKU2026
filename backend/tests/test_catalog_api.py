@@ -35,7 +35,7 @@ def test_categories_have_no_colours() -> None:
 
 def test_only_wired_satellites_are_connected() -> None:
     sats = client.get("/api/catalog").json()["satellites"]
-    assert {s["id"] for s in sats if s["connected"]} == {"s2", "s1"}
+    assert {s["id"] for s in sats if s["connected"]} == {"s2", "s1", "l9", "viirs"}
     paid = next(s for s in sats if s["id"] == "ps")
     assert paid["tier"] == "paid" and paid["price"]
 

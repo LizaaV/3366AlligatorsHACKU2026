@@ -33,7 +33,8 @@ class SatelliteDto(BaseModel):
     note: str
     connected: bool = Field(
         description="True when the backend actually fetches scenes from this source today "
-        "(Sentinel-2 via Earth Search, Sentinel-1 via Planetary Computer). The rest are "
+        "(Sentinel-2 via Earth Search, Sentinel-1 and Landsat via Planetary Computer, VIIRS "
+        "fire hotspots via NASA FIRMS). The rest are "
         "listed for routing and pricing but are not wired up yet."
     )
 

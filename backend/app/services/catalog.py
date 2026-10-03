@@ -15,8 +15,9 @@ import earth
 from app.schemas.catalog import CatalogDto, MapLayerDto, SatelliteDto
 
 REGISTRY = Path(__file__).resolve().parents[1] / "registry"
-#: Satellites `earth` fetches scenes from today (earth/providers): the rest are not wired up.
-CONNECTED_SATELLITES = frozenset({"s2", "s1"})
+#: Satellites `earth` fetches data from today (earth/providers): the rest are not wired up.
+#: Landsat feeds `heat` (ST_B10); VIIRS feeds `earth.fires` via NASA FIRMS.
+CONNECTED_SATELLITES = frozenset({"s2", "s1", "l9", "viirs"})
 LAYER_URL = "/api/layers/{run_id}/{measure}/{scene}.png"
 
 # measure → (name, source, index). Bands as in `earth.real.INDICES` (HANDOFF B1.4).
@@ -28,6 +29,7 @@ _LAYERS: dict[str, tuple[str, str, str | None]] = {
     "bare": ("Bare or built ground", "Sentinel-2 B11 / B8", "NDBI"),
     "burn": ("Burn scars", "Sentinel-2 B8 / B12", "NBR"),
     "roughness": ("Surface roughness · radar", "Sentinel-1 VV backscatter (dB)", None),
+    "heat": ("Surface temperature", "Landsat 8/9 ST_B10 (°C)", None),
 }
 
 
