@@ -86,6 +86,8 @@ Satellite pixels never go to the language model. The model plans and explains; c
 
 ## A5. The thinking pipeline (what the agent does, in order)
 
+> **Superseded (team decision, 3 Oct):** the agent now runs as a tool-use loop with these stages kept as harness rules. See [`backend/ARCHITECTURE.md`](../backend/ARCHITECTURE.md) §4.0. The stages below remain the reference for *what* the loop must do.
+
 ```
 0. GROUND       earth.describe(area) → facts about the place; the matching SETTING card is attached automatically
 1. GUARD        policy check: answerable / partial / out_of_scope / not_allowed / emergency / off_topic (+ rule id)
@@ -124,7 +126,8 @@ Satellite pixels never go to the language model. The model plans and explains; c
 | Outputs | Typed **visual blocks**, linked through a shared time cursor | Consistent, interactive, also renderable to PDF |
 | Map delivery | PNG overlays + bounds, rendered on demand and cached | Simple |
 | Model | **Claude Opus 5.5 (`claude-opus-5-5`) for every call** | Team decision |
-| Limits (hackathon) | Per-call `max_tokens`, max 6 LLM calls per run, retries (code ×3, API ×1), per-user cooldown, daily spend cap | Keep it simple; no queues or backoff machinery |
+| Agent shape | **Tool-use loop** with harness rules (replaces the 3-call pipeline; `backend/ARCHITECTURE.md` §4.0) | Team decision: better results, flexibility and analysis |
+| Limits (hackathon) | Per-call `max_tokens`, max 12 model turns / 6 code runs per run (§4.0), retries (code ×3, API ×1), per-user cooldown, daily spend cap | Keep it simple; no queues or backoff machinery |
 | Hosting | One VM with Docker (about 4 vCPU / 8 GB) for backend + earth service + sandbox; frontend on Vercel with `/api` forwarded | Render/Railway can't start Docker containers |
 | Backend split | **@meetrk:** `earth`, providers, sandbox. **@Alex-bot16:** agent, knowledge, policy, API contract | Parallel work with a clean interface |
 | Community content | Off for the hackathon (roadmap) | Risk |
