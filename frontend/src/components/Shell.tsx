@@ -18,12 +18,29 @@ export const BigDipper = ({ width = 30 }: { width?: number }) => (
   </svg>
 );
 
-export const Logo = () => (
-  <a href={href('ask')} className="row" style={{ gap: 10, font: '600 15px/1 var(--font)', color: '#fff' }} aria-label="Constellation home">
-    <BigDipper />
-    Constellation
-  </a>
-);
+/**
+ * Home: the opening globe with nothing selected. Inside the app this resets the Ask page; from
+ * another path (a shared result at /proof/…) it is a real link to the app's root.
+ */
+export function Logo() {
+  const { goHome } = useStore();
+  return (
+    <a
+      href="/"
+      onClick={(e) => {
+        if (window.location.pathname !== '/') return; // full load of the app
+        e.preventDefault();
+        goHome();
+      }}
+      className="row"
+      style={{ gap: 10, font: '600 15px/1 var(--font)', color: '#fff' }}
+      aria-label="Constellation home"
+    >
+      <BigDipper />
+      Constellation
+    </a>
+  );
+}
 
 export function TopNav() {
   const { route, t, splash } = useStore();

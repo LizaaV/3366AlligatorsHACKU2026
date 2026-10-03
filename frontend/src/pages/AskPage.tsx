@@ -395,6 +395,10 @@ export function AskPage({ active }: { active: boolean }) {
     setCirc({ center: null, radiusM: 250, sizing: false });
   };
 
+  /** Undo the last circle step: a fixed size goes back to sizing; sizing drops the centre. */
+  const undoCircle = () =>
+    setCirc((c) => (!c.center ? c : c.sizing ? { ...c, center: null, sizing: false } : { ...c, sizing: true }));
+
   /** A click on the map while drawing: a corner, or the circle's centre / size. */
   const drawTap = (lat: number, lon: number) => {
     if (drawShape === 'polygon') return setDraft((d) => [...d, { lat, lon }]);
@@ -466,6 +470,18 @@ export function AskPage({ active }: { active: boolean }) {
   const toolClick = (k: string) => {
     if (['draw', 'contours'].includes(k)) return setPop((p) => (p === k ? null : k));
   };
+
+  // Home (the logo): back to the opening globe with nothing on the map.
+  useEffect(() => {
+    if (!splash) return;
+    setMode('globe');
+    setSpot(null);
+    setDrawing(false);
+    setDraft([]);
+    setOverlaySel(null);
+    setSheet(false);
+    setPop(null);
+  }, [splash]);
 
   /* ---------------- derived ---------------- */
 
@@ -699,6 +715,7 @@ export function AskPage({ active }: { active: boolean }) {
             </div>
           ) : (
             <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
+              <Btn size="sm" onClick={undoCircle} disabled={!circ.center}>Undo</Btn>
               <Btn size="sm" onClick={cancelDraw}>Cancel</Btn>
               <Btn size="sm" variant="primary" onClick={saveCircle} disabled={!circ.center}>Save</Btn>
             </div>

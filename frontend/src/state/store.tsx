@@ -138,6 +138,8 @@ interface Store {
   /** The opening screen (full-screen Earth) is showing; the nav hides until it is dismissed. */
   splash: boolean;
   setSplash: (on: boolean) => void;
+  /** Back to the start: the opening globe, nothing selected. */
+  goHome: () => void;
 }
 
 /** Show the opening screen on a plain visit, not on a deep link (`#/places`, `?place=`). */
@@ -367,6 +369,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dismissToast: () => setToast(null),
       splash,
       setSplash,
+      goHome: () => {
+        setAskPlaceId(null);
+        setModal(null);
+        if (window.location.hash !== '#/ask') window.location.hash = '#/ask';
+        setSplash(true);
+      },
     }),
     [
       route,

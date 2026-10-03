@@ -153,7 +153,7 @@ export function MapView({ W, H, cx, cy, center, zoom, place, contour, overlay, p
       {marker && (() => {
         const m = screen(marker.lat, marker.lon);
         return (
-          <div style={{ position: 'absolute', left: m.x - 11, top: m.y - 11, width: 22, height: 22, borderRadius: '50%', background: '#fff', border: '4px solid #000', boxShadow: '0 0 0 2px rgba(255,255,255,.55), 0 2px 8px rgba(0,0,0,.6)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', left: m.x - 16, top: m.y - 16, width: 32, height: 32, borderRadius: '50%', background: '#ef3b3b', border: '5px solid #000', boxShadow: '0 0 0 2px rgba(255,255,255,.7), 0 3px 10px rgba(0,0,0,.6)', pointerEvents: 'none' }} />
         );
       })()}
       {draft && draft.length > 0 && (() => {
