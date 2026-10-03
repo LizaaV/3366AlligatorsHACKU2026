@@ -32,7 +32,7 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
   const el = useRef<HTMLDivElement>(null);
   const live = useRef({ visible, autoRotate, offsetRight, offsetPx, onPickLocation, showSatellites });
   live.current = { visible, autoRotate, offsetRight, offsetPx, onPickLocation, showSatellites };
-  const api3d = useRef<{ setFocus: (f: GlobePick | null) => void; refreshLayout: () => void } | null>(null);
+  const api3d = useRef<{ setFocus: (f: GlobePick | null) => void; refreshLayout: () => void; refreshSats: () => void } | null>(null);
   const [hover, setHover] = useState<(SatHover & { x: number; y: number }) | null>(null);
 
   useEffect(() => {
@@ -101,12 +101,10 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
     sats.setVisible(live.current.showSatellites);
     spin.add(sats.group);
     let alive = true;
-    let ctl: AbortController | null = null;
+    // Only a visible globe that shows satellites polls; the request itself is shared across globes.
     const fetchSats = () => {
-      if (!live.current.showSatellites) return;
-      ctl?.abort();
-      ctl = new AbortController();
-      api.satellites.list(ctl.signal).then((l) => { if (alive) sats.setData(l); }).catch(() => { /* keep last known positions */ });
+      if (!live.current.showSatellites || !live.current.visible) return;
+      api.satellites.listShared().then((l) => { if (alive) sats.setData(l); }).catch(() => { /* keep last known positions */ });
     };
     fetchSats();
     const satTimer = window.setInterval(fetchSats, SAT_REFRESH_MS);
@@ -141,7 +139,7 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
       placePin(f);
       target = { lon: spinForLon(f.lon), lat: THREE.MathUtils.clamp((f.lat * Math.PI) / 180, -1.2, 1.2) };
     };
-    api3d.current = { setFocus, refreshLayout: () => resize() };
+    api3d.current = { setFocus, refreshLayout: () => resize(), refreshSats: fetchSats };
 
     // Layout
     const resize = () => {
@@ -223,7 +221,6 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
       api3d.current = null;
       cancelAnimationFrame(raf);
       window.clearInterval(satTimer);
-      ctl?.abort();
       ro.disconnect();
       ctrl.dispose();
       sats.dispose();
@@ -238,6 +235,8 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
   // Re-applied when the globe comes back into view, so returning from the map re-centres the place.
   useEffect(() => { if (visible) api3d.current?.setFocus(focus ?? null); }, [focus?.lat, focus?.lon, visible]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { api3d.current?.refreshLayout(); }, [offsetRight, offsetPx]);
+  // Becoming visible (or turning satellites on) catches up once; the shared cache keeps this cheap.
+  useEffect(() => { if (visible && showSatellites) api3d.current?.refreshSats(); }, [visible, showSatellites]);
 
   return (
     <div ref={el} style={{ position: 'absolute', inset: 0, opacity: visible ? 1 : 0, transition: 'opacity .6s ease', cursor: 'grab', pointerEvents: visible ? 'auto' : 'none', touchAction: 'none' }}>

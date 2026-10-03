@@ -17,7 +17,7 @@ import type { Loc, Method, Shape } from './types';
 export const MIN_VERTICES = 3;
 
 export function useOutline({ loc, step, method }: { loc: Loc | null; step: number; method: Method | null }) {
-  const [shape, setShapeRaw] = useState<Shape>('detected');
+  const [shape, setShapeRaw] = useState<Shape>(() => (loc?.pts ? 'given' : method === 'pin' || method === 'coords' ? 'circle' : 'detected'));
   const [radius, setRadius] = useState(300);
   const [rw, setRw] = useState(600);
   const [rh, setRh] = useState(400);

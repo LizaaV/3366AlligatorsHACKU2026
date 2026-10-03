@@ -196,7 +196,7 @@ export function PlacePicker({
                 {lq && !mine.length && !geo.isFetching && !geo.data?.length && <div className="caption" style={{ padding: '8px 10px' }}>No matches. Try coordinates instead.</div>}
                 <div className="divider" style={{ margin: '6px 4px' }} />
                 <button className="menu-item" onClick={pick(() => open({ kind: 'addPlace' }))}><Ms n="add_location_alt" />{t('cta.addPlace')}</button>
-                <button className="menu-item" onClick={pick(() => open({ kind: 'addPlace' }))}><Ms n="polyline" />Draw an area</button>
+                <button className="menu-item" onClick={pick(() => open(spot ? { kind: 'addPlace', prefill: { lat: spot.lat, lon: spot.lon, name: spot.name, method: 'pin' } } : { kind: 'addPlace' }))}><Ms n="polyline" />Draw an area</button>
                 <button className="menu-item" onClick={() => setCoordsMode(true)}><Ms n="my_location" />Go to coordinates</button>
               </div>
             </>

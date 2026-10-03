@@ -49,6 +49,9 @@ function PlaceThumb({ place, ring }: { place: Place; ring: boolean }) {
   );
 }
 
+/** Places saved without a project still need a readable label. */
+const projectLabel = (p: string) => (p.trim() ? p : 'My places');
+
 function CardMenu({ place, onClose }: { place: Place; onClose: () => void }) {
   const { open, removePlace, notify } = useStore();
   const ref = useRef<HTMLDivElement>(null);
@@ -72,8 +75,10 @@ function CardMenu({ place, onClose }: { place: Place; onClose: () => void }) {
       {item('support_agent', 'Ask an expert', () => open({ kind: 'expert', context: place.name, placeId: place.id }))}
       <div className="divider" style={{ margin: '6px 0' }} />
       {item('delete', 'Delete', () => {
-        removePlace(place.id);
-        notify(`${place.name} deleted`, undefined, undefined, 'delete');
+        removePlace(place.id).then(
+          () => notify(`${place.name} deleted`, undefined, undefined, 'delete'),
+          (err: unknown) => notify(`Could not delete ${place.name}${err instanceof Error && err.message ? `: ${err.message}` : ''}`, undefined, undefined, 'error'),
+        );
       }, true)}
     </div>
   );
@@ -104,7 +109,7 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
           <div className="grow">
             <div className="card-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</div>
             <div className="caption" style={{ marginTop: 4 }}>
-              {place.project} · {ha.toLocaleString()} ha · {sourceLabel(place.source)}
+              {projectLabel(place.project)} · {ha.toLocaleString()} ha · {sourceLabel(place.source)}
             </div>
           </div>
           <div style={{ position: 'relative', margin: '-6px -10px 0 0' }} onClick={(e) => e.stopPropagation()}>
@@ -120,7 +125,7 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
 
         <div style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--hair-soft)' }}>
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="eyebrow">Watches on this place</span>
+            <span className="eyebrow">Triggers on this place</span>
             <span className="tiny">{watches.length}</span>
           </div>
           {watches.length === 0 ? (
@@ -180,7 +185,7 @@ export function PlacesPage() {
           <div className="seg" role="tablist" aria-label="Filter by project" style={{ maxWidth: '100%', overflowX: 'auto' }}>
             {projects.map((p) => (
               <button key={p} role="tab" aria-selected={project === p} className={project === p ? 'on' : ''} onClick={() => setProject(p)} style={{ whiteSpace: 'nowrap' }}>
-                {p}
+                {projectLabel(p)}
                 <span className="tiny" style={{ color: 'inherit', opacity: 0.6 }}>
                   {p === 'All' ? places.length : places.filter((x) => x.project === p).length}
                 </span>
@@ -200,7 +205,7 @@ export function PlacesPage() {
         ) : errors.places ? (
           <ErrorState error={errors.places} onRetry={reload} title="Could not load your places" />
         ) : shown.length === 0 ? (
-          <Empty icon="travel_explore" title="No places match" body={q ? `Nothing in ${project === 'All' ? 'your places' : project} matches “${q}”.` : 'This project has no places yet.'}>
+          <Empty icon="travel_explore" title="No places match" body={q ? `Nothing in ${project === 'All' ? 'your places' : projectLabel(project)} matches “${q}”.` : 'This project has no places yet.'}>
             <Btn onClick={() => { setQ(''); setProject('All'); }}>Clear filters</Btn>
             <Btn variant="primary" icon="add_location_alt" tier="free" onClick={() => open({ kind: 'addPlace' })}>Add place</Btn>
           </Empty>
@@ -217,7 +222,7 @@ export function PlacesPage() {
             >
               <Ms n="add" size={28} />
               Add place
-              <span className="caption" style={{ fontWeight: 500, maxWidth: 220, textAlign: 'center' }}>Search, coordinates, draw, upload a file, parcel ID or a WhatsApp pin</span>
+              <span className="caption" style={{ fontWeight: 500, maxWidth: 220, textAlign: 'center' }}>Search, drop a pin on the globe, enter coordinates or upload a file</span>
             </button>
           </div>
         )}

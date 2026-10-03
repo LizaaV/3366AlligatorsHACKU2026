@@ -54,7 +54,7 @@ export type Modal =
   | { kind: 'expert'; context: string; placeId?: string | null }
   | { kind: 'connectors'; focus?: ChannelId }
   | { kind: 'app' }
-  | { kind: 'addPlace' }
+  | { kind: 'addPlace'; prefill?: { lat: number; lon: number; name?: string; method?: 'pin' } }
   | { kind: 'watchBuilder'; prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean; dashboardId?: string }
   | { kind: 'lang' }
   | { kind: 'knowledgeCard'; cardId: string };

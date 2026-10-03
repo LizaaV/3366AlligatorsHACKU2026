@@ -70,7 +70,23 @@ function fixtureSatellites(): SatelliteDto[] {
   });
 }
 
+/** Shared across every mounted globe: positions stay valid for a while, so one request serves them all. */
+const SHARED_TTL_MS = 25_000;
+let shared: { at: number; promise: Promise<SatelliteDto[]> } | null = null;
+
 export const satellitesApi = {
+  /**
+   * Like `list`, but de-duplicated: concurrent callers share one in-flight request and a fresh
+   * result is reused for ~25 s, so several globes (or a remount) never multiply GET /api/satellites.
+   */
+  listShared: (): Promise<SatelliteDto[]> => {
+    if (shared && Date.now() - shared.at < SHARED_TTL_MS) return shared.promise;
+    const entry = { at: Date.now(), promise: satellitesApi.list() };
+    shared = entry;
+    // A failed request must not be cached.
+    entry.promise.catch(() => { if (shared === entry) shared = null; });
+    return entry.promise;
+  },
   /** TODO(api): GET /api/satellites */
   list: (signal?: AbortSignal): Promise<SatelliteDto[]> =>
     request<SatelliteDto[]>({ method: 'GET', path: '/satellites', signal, fixture: fixtureSatellites }),
