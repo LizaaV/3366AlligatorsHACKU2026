@@ -46,7 +46,7 @@ npx openapi-typescript ../contracts/openapi.json -o src/api/schema.d.ts
 
 - threads list (A4)
 - watches and skills listing (A5)
-- places and memory, dashboards, share links, PDF (Meet's modules)
+- dashboards, share links, PDF (Meet's modules)
 
 ## 3. The live stream (`POST /api/runs`)
 
@@ -322,3 +322,32 @@ Once a stream has started, problems arrive as `error` events, never as HTTP erro
 - The backend changes a schema → runs `cd backend && uv run python -m app.export_openapi` → commits `contracts/openapi.json` in the same PR (CI enforces this).
 - The frontend regenerates its types (section 1) and uses only fields that exist there.
 - Need a new field or endpoint? Open a GitHub issue labelled `api` (COLLABORATION.md §6).
+
+## 10. Places and memory
+
+Saved places (the Places page) and the private notes the agent reads. Everything is **snake_case**, scoped to the caller (`X-User-Id`), and ids match `^[a-z0-9][a-z0-9_-]{0,63}$` (a bad id in the path gives **422**).
+
+| Method + path | What it does | Returns |
+|---|---|---|
+| `GET /api/places` | The caller's places, newest first. The demo user gets Hoo Hok Wai (`pl_hhw`) on first load | `PlaceDto[]` |
+| `POST /api/places` | Save a place | `PlaceDto` (**201**) |
+| `GET /api/places/{id}` | One place | `PlaceDto` |
+| `PATCH /api/places/{id}` | Change any field; sending an outline replaces it | `PlaceDto` |
+| `DELETE /api/places/{id}` | Remove it (its memory goes unreachable; ids are never reused) | **204** |
+| `GET /api/places/{id}/memory` | Profile, notes and saved insights for the timeline | `PlaceMemory` |
+| `PATCH /api/places/{id}/memory` | `{profile?: {k: v}, note?: str}`: profile keys merge, a note is appended | `PlaceMemory` |
+| `GET /api/me/memory`, `PATCH /api/me/memory` | The user's own profile (`{profile: {k: v}}`) | `{profile}` |
+| `POST /api/runs/{run_id}/insight` | "Save to place": `{place_id, text, confidence?}` | `{run_id, place_id, saved}` (**201**) |
+
+`PlaceDto`: `id, name, category_key, center{lat,lon}, geometry, area_ha, is_circle, project (nullable), tags, source, created_at, updated_at, details[{label, value}]`. `area_ha` is computed by the server; show it as is.
+
+Create/patch rules:
+
+- Send `geometry` (a GeoJSON Polygon/MultiPolygon). If you also send `center`, it is ignored: the centre is recomputed.
+- Without `geometry`, send `center` + `radius_m` (a dropped pin, `is_circle` defaults to true).
+- `is_circle` can be set explicitly on create and patch.
+- `details` (create only) are saved to the place's memory profile and come back in `details`.
+- Limits (**422**): name 120 chars, ≤ 20 tags of ≤ 40 chars, `details` ≤ 30 rows (label ≤ 40, value ≤ 300), geometry within the same size limit as `/api/runs`. A place's profile holds at most 50 keys in total.
+- An unusable outline gives **400** `{kind, message, hint}`; show the `hint` (for example "did you swap them?"). Outlines over 25 km² are refused with `kind: "budget_exceeded"`.
+- Unknown or someone else's place: **404**.
+- Not built yet: place search (use `/api/areas/resolve`), detect-boundary, parcel lookup.

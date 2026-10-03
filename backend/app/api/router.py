@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import areas, health, knowledge, layers, runs
+from app.api.routes import areas, health, knowledge, layers, memory, places, runs
 
 # One line per feature module. Add yours at the end of the list to avoid merge conflicts.
 api_router = APIRouter(prefix="/api")
@@ -9,3 +9,5 @@ api_router.include_router(runs.router)
 api_router.include_router(layers.router)
 api_router.include_router(areas.router)
 api_router.include_router(knowledge.router)
+api_router.include_router(places.router)
+api_router.include_router(memory.router)
