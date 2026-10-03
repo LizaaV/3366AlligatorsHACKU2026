@@ -51,7 +51,7 @@ function WhatsAppSetup() {
 }
 
 export function ConnectorsModal({ focus }: { focus?: ChannelId }) {
-  const { close, connectors, setConnectors, open, notify, plan } = useStore();
+  const { close, connectors, setConnectors, open, notify } = useStore();
   const [sel, setSel] = useState<keyof Connectors | 'api'>(focus ?? 'whatsapp');
   const rows: { id: keyof Connectors | 'api'; name: string; icon: string; desc: string; tier: 'free' | 'paid'; tierLabel?: string; on: boolean }[] = [
     { id: 'whatsapp', name: 'WhatsApp', icon: 'chat', desc: 'Ask, add places and get alerts in chat', tier: 'free', on: connectors.whatsapp.connected },
@@ -63,7 +63,6 @@ export function ConnectorsModal({ focus }: { focus?: ChannelId }) {
   ];
   const cur = rows.find((r) => r.id === sel)!;
   const connectSimple = (id: 'sms' | 'slack' | 'api') => {
-    if (plan === 'free' && id !== 'sms') return open({ kind: 'upgrade', feature: cur.name, price: '$29 / month (Pro)' });
     if (id === 'api') return notify('API key created', undefined, undefined, 'key');
     setConnectors({ ...connectors, [id]: id === 'sms' ? { connected: true, number: connectors.whatsapp.number || '' } : { connected: true } });
     notify(`${cur.name} connected`);

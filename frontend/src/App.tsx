@@ -22,7 +22,7 @@ function Routes() {
       */}
       <ErrorBoundary key={route.page} label={route.page}>
         {route.page === 'places' && <PlacesPage />}
-        {route.page === 'watches' && <WatchesPage />}
+        {route.page === 'triggers' && <WatchesPage />}
         {route.page === 'library' && <LibraryPage />}
       </ErrorBoundary>
       <MobileTabs />

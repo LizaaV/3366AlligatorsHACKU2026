@@ -12,9 +12,12 @@
 
 import { useEffect, useState } from 'react';
 
-export type Page = 'ask' | 'places' | 'watches' | 'library';
+export type Page = 'ask' | 'places' | 'triggers' | 'library';
 
-export const PAGES: Page[] = ['ask', 'places', 'watches', 'library'];
+export const PAGES: Page[] = ['ask', 'places', 'triggers', 'library'];
+
+/** Old route names that still resolve, so links shared before a rename keep working. */
+const ALIASES: Record<string, Page> = { watches: 'triggers' };
 
 export interface Route {
   page: Page;
@@ -26,7 +29,8 @@ export interface Route {
 export const parseHash = (hash = window.location.hash): Route => {
   const h = hash.replace(/^#\/?/, '');
   const [path, qs] = h.split('?');
-  const [page, id] = path.split('/');
+  const [name, id] = path.split('/');
+  const page = ALIASES[name] ?? name;
   const query: Record<string, string> = {};
   new URLSearchParams(qs || '').forEach((v, k) => (query[k] = v));
   return {
