@@ -72,7 +72,12 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
       }
       // Use the threshold the person typed, if there is one.
       const num = query.match(/(\d+(?:\.\d+)?)\s*(ha|km|%|\u00b0C|\u00b5g\/L)/i);
-      setCondition(num && f.ok ? `${f.metric} above ${num[1]} ${num[2]}` : f.condition);
+      // Keep the direction the person asked for: "drops by 20%" is a fall, not "above 20%".
+      const down = /\b(drops?|dropp|falls?|fell|decreas|shrinks?|below|under|less|loses?|lost|declin)/i.test(query);
+      // "by 20%" is a change; "above 30%" is a level.
+      const change = /\bby\s+(?:more than\s+|over\s+)?\d/i.test(query);
+      const rel = change ? (down ? 'falls by more than' : 'rises by more than') : down ? 'below' : 'above';
+      setCondition(num && f.ok ? `${f.metric} ${rel} ${num[1]} ${num[2]}` : f.condition);
       setFeas(f);
     } catch (err) {
       setError(toApiError(err));
