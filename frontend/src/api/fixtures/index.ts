@@ -20,6 +20,8 @@ import timelineJson from './timeline.json';
 import type {
   AnswerDto,
   AskRequest,
+  InsightDto,
+  InsightRequest,
   CatalogDto,
   ClarifyingQuestionDto,
   CreatePlaceRequest,
@@ -29,6 +31,7 @@ import type {
   MapLayerDto,
   PlaceDto,
   PlaceSearchResultDto,
+  ProofSceneDto,
   SkillDto,
   WatchDto,
 } from '../types';
@@ -167,6 +170,75 @@ export const feasibility = (req: FeasibilityRequest): FeasibilityDto => {
     }
   }
   return feasibilityCases[feasibilityCases.length - 1].response;
+};
+
+/**
+ * Stand-in for POST /ask/insights. Builds a factual summary from the watch records it holds,
+ * rather than returning invented prose — so the shape is exercised without the frontend
+ * asserting findings it cannot know.
+ */
+export const insight = (req: InsightRequest): InsightDto => {
+  const fmt = (v: number, unit: string) => `${v}${unit ? (unit.startsWith('%') || unit.startsWith('\u00b0') ? '' : ' ') + unit : ''}`;
+  const all = watchState;
+  const scoped = req.scope === 'watch' ? all.filter((w) => w.id === req.watchId) : all.filter((w) => w.enabled);
+  const basis = [`Read ${scoped.length} watch${scoped.length === 1 ? '' : 'es'}`, 'Compared the last 3 passes', 'Checked the 5-year baseline'];
+
+  if (!scoped.length) {
+    return { title: 'Nothing to report yet', body: 'There are no active watches to read. Create one and the agent will check it on every new satellite pass.', basis: [] };
+  }
+
+  const line = (w: (typeof all)[number]) =>
+    `${w.name}: ${w.metric} is ${fmt(w.value, w.unit)} (90% range ${fmt(w.ci[0], w.unit)}\u2013${fmt(w.ci[1], w.unit)}) against ${fmt(w.baseline, w.unit)} for the ${w.baselineLabel.toLowerCase()}. ${w.delta}. The rule is \u201c${w.condition}\u201d, and confidence is ${w.confidence.toLowerCase()}.`;
+
+  const attention = scoped.filter((w) => w.status !== 'ok');
+  const subject = attention[0] ?? scoped[0];
+  const title =
+    req.scope === 'watch'
+      ? `${subject.metric} is ${subject.status === 'ok' ? 'within its normal range' : 'outside its normal range'}`
+      : attention.length
+        ? `${attention.length} watch${attention.length === 1 ? '' : 'es'} need attention`
+        : 'Everything is inside its normal range';
+
+  const body = [
+    `You asked: \u201c${req.question}\u201d`,
+    ...(attention.length ? attention.map(line) : [line(subject)]),
+    attention.length
+      ? 'Everything else is inside its normal 5-year range.'
+      : `All ${scoped.length} watch${scoped.length === 1 ? '' : 'es'} are inside their normal 5-year range.`,
+  ].join(' ');
+
+  return { title, body, basis };
+};
+
+/**
+ * Stand-in for GET /watches/{id}/proof. Scene identifiers are synthesised from the watch's
+ * satellite in the real archive's naming conventions — plausible, but not real scenes. This is
+ * exactly the kind of fabrication that should not live in a component, which is why it is here.
+ */
+export const watchProof = (watchId: string): { scenes: ProofSceneDto[]; hash: string } => {
+  const w = watchState.find((x) => x.id === watchId);
+  const sat = (w?.satellites ?? 'Sentinel-2').split(' \u00b7 ')[0];
+  const dates = ['Sep 28', 'Sep 23', 'Sep 18', 'Sep 13', 'Sep 8'];
+  const MON: Record<string, string> = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06', Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
+  const sceneId = (date: string, i: number) => {
+    const [m, d] = date.split(' ');
+    const md = MON[m] + d.padStart(2, '0');
+    if (/landsat/i.test(sat)) return `LC09_L2SP_031034_2026${md}_02_T1`;
+    if (/sentinel-1/i.test(sat)) return `S1${i % 2 ? 'A' : 'C'}_IW_GRDH_1SDV_2026${md}T092114_0${54210 + i}_06A2F1`;
+    if (/sentinel-3/i.test(sat)) return `S3${i % 2 ? 'A' : 'B'}_OL_2_WFR____2026${md}T160512_0180_LN1_O_NT_003`;
+    if (/viirs|firms/i.test(sat)) return `VNP14IMG.A2026${(240 + 28 - i * 5).toString().padStart(3, '0')}.0954.002`;
+    if (/swot/i.test(sat)) return `SWOT_L2_HR_Raster_100m_2026${md}T0812_PIC0_01`;
+    return `S2${i % 2 ? 'A' : 'B'}_MSIL2A_2026${md}T172909_N0511_R055_T14SKG`;
+  };
+  const optical = !/sentinel-1|viirs|firms|swot/i.test(sat);
+  const scenes: ProofSceneDto[] = dates.map((date, i) => {
+    const why = optical && i === 2 ? 'Skipped \u2014 64% cloud over the area' : optical && i === 3 ? 'Skipped \u2014 18 mm rain the day before' : undefined;
+    return { sceneId: sceneId(date, i), date, satellite: sat, cloudPct: why ? 64 : i * 2, used: !why, why };
+  });
+  let h = 2166136261;
+  for (const c of `${watchId}:${sat}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  const hex = (n: number) => n.toString(16).padStart(8, '0');
+  return { scenes, hash: `sha256:${hex(h)}${hex(Math.imul(h, 2654435761) >>> 0)}\u2026${hex(h ^ 0x9e3779b9).slice(0, 6)}` };
 };
 
 /* ---------------- place-authoring helpers ---------------- */

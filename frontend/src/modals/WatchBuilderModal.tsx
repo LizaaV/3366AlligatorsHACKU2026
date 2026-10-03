@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { CHANNELS, WATCHES, type Channel, type Watch } from '../data/watches';
-import { checkFeasibility, type Feasibility } from '../data/agent';
-import { CATS, skillById } from '../data/catalog';
+import { ApiError, api, toApiError } from '../api';
+import type { ChannelId, Feasibility } from '../model';
 import { LANGS } from '../data/i18n';
-import { thumb } from '../data/geo';
 import { Btn, Check, Modal, ModalHead, Ms, Tier } from '../components/ui';
+import { ErrorState } from '../components/async';
 
 const EXAMPLES = [
   'Tell me when the dry patch on North Pivot passes 5 ha',
@@ -19,8 +18,8 @@ const CHECK_STEPS = ['Reading your request', 'Matching a skill', 'Checking satel
 type Stage = 'ask' | 'check' | 'deliver';
 
 export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean }) {
-  const { places, close, addWatch, notify, go, connectors, setConnectors, lang, open } = useStore();
-  const presetSkill = skillId ? skillById(skillId) : undefined;
+  const { places, skills, channels: catalogChannels, category, close, addWatch, notify, go, connectors, setConnectors, lang, open } = useStore();
+  const presetSkill = skillId ? skills.find((x) => x.id === skillId) : undefined;
   const autoText = presetSkill ? `Tell me when ${presetSkill.name.toLowerCase()} finds something new` : '';
 
   const [stage, setStage] = useState<Stage>('ask');
@@ -30,7 +29,9 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
   const [feas, setFeas] = useState<Feasibility | null>(null);
   const [option, setOption] = useState<'free' | 'paid'>('free');
   const [condition, setCondition] = useState('');
-  const [channels, setChannels] = useState<Channel[]>(['email']);
+  const [channels, setChannels] = useState<ChannelId[]>(['email']);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [saving, setSaving] = useState(false);
   const [waNumber, setWaNumber] = useState('');
   const [alertLang, setAlertLang] = useState(lang);
   const timers = useRef<number[]>([]);
@@ -39,68 +40,80 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
 
   const placeObj = places.find((p) => p.id === place);
 
-  const runCheck = (q: string) => {
+  const runCheck = async (q: string) => {
     const query = q.trim();
     if (!query) return;
     setText(query);
     setStage('check');
     setFeas(null);
+    setError(null);
     setChecking(0);
+    // Local choreography while the request is in flight — the check labels are presentation.
     timers.current.forEach((t) => window.clearTimeout(t));
     timers.current = CHECK_STEPS.map((_, i) => window.setTimeout(() => setChecking(i + 1), (i + 1) * 350));
-    timers.current.push(
-      window.setTimeout(() => {
-        let f = checkFeasibility(query);
-        // A watch started from a skill page keeps that skill when the text gives no better match.
-        if (presetSkill && f.ok && f.skillId === 'dry-patch-finder' && presetSkill.id !== f.skillId) {
-          f = { ...f, title: presetSkill.name, skillId: presetSkill.id, cat: presetSkill.cat, sat: presetSkill.sat, tier: presetSkill.tier, cost: presetSkill.cost, metric: presetSkill.name, condition: 'Any significant change vs the 5-year range' };
-        }
-        // Use the threshold the person typed if there is one.
-        const num = query.match(/(\d+(?:\.\d+)?)\s*(ha|km|%|°C|µg\/L)/i);
-        setCondition(num && f.ok ? `${f.metric} above ${num[1]} ${num[2]}` : f.condition);
-        setOption(f.partial ? 'free' : f.tier);
-        setFeas(f);
-      }, 1400),
-    );
+
+    try {
+      let f = await api.watches.checkFeasibility({ text: query, placeId: place || null });
+      // A watch started from a skill page keeps that skill when the text gives no better match.
+      if (presetSkill && f.ok && f.skillId === 'dry-patch-finder' && presetSkill.id !== f.skillId) {
+        f = {
+          ...f,
+          title: presetSkill.name,
+          skillId: presetSkill.id,
+          categoryKey: presetSkill.categoryKey,
+          satellites: presetSkill.sat,
+          tier: presetSkill.tier,
+          cost: presetSkill.cost,
+          metric: presetSkill.name,
+          condition: 'Any significant change vs the 5-year range',
+        };
+      }
+      // Use the threshold the person typed, if there is one.
+      const num = query.match(/(\d+(?:\.\d+)?)\s*(ha|km|%|\u00b0C|\u00b5g\/L)/i);
+      setCondition(num && f.ok ? `${f.metric} above ${num[1]} ${num[2]}` : f.condition);
+      setOption(f.partial ? 'free' : f.tier);
+      setFeas(f);
+    } catch (err) {
+      setError(toApiError(err));
+    } finally {
+      timers.current.forEach((t) => window.clearTimeout(t));
+      setChecking(CHECK_STEPS.length);
+    }
   };
 
   const effTier: 'free' | 'paid' =
-    (feas?.partial ? option : feas?.tier) === 'paid' || channels.some((c) => CHANNELS.find((x) => x.id === c)?.tier === 'paid') ? 'paid' : 'free';
+    (feas?.partial ? option : feas?.tier) === 'paid' || channels.some((c) => catalogChannels.find((x) => x.id === c)?.tier === 'paid') ? 'paid' : 'free';
 
-  const toggle = (c: Channel) => setChannels((s) => (s.includes(c) ? s.filter((x) => x !== c) : [...s, c]));
+  const toggle = (c: ChannelId) => setChannels((s) => (s.includes(c) ? s.filter((x) => x !== c) : [...s, c]));
 
-  const create = () => {
-    if (!feas) return;
-    const tpl = WATCHES.find((x) => x.skillId === feas.skillId) ?? WATCHES[0];
-    const id = 'w' + Date.now();
-    const paidChoice = feas.partial && option === 'paid';
+  const create = async () => {
+    if (!feas || saving) return;
+    setSaving(true);
+    setError(null);
     const lowFree = feas.partial && option === 'free';
-    const w: Watch = {
-      ...tpl,
-      id,
-      name: `${feas.title} · ${placeObj?.name ?? 'all my places'}`,
-      cat: feas.cat,
-      placeId: placeObj?.id ?? null,
-      skillId: feas.skillId,
-      question: text,
-      condition: condition || feas.condition,
-      metric: feas.metric || tpl.metric,
-      channels,
-      cadence: feas.cadence,
-      sat: lowFree ? 'Sentinel-2' : feas.sat,
-      confidence: lowFree ? 'Low' : feas.confidence,
-      tier: effTier,
-      on: true,
-      status: 'ok',
-      lastRun: 'Just now',
-      nextRun: 'Next pass',
-      img: placeObj ? thumb(placeObj.lat, placeObj.lon, placeObj.zoom) : tpl.img,
-      ring: !!placeObj?.circle && tpl.ring,
-      events: [{ date: 'Today', text: `Watch created${paidChoice ? ' with paid 3 m imagery' : ''}. First result after the next pass.`, level: 'info' }],
-    };
-    addWatch(w);
-    close();
-    notify('Watch created', 'Open', () => go('watches', id), 'visibility');
+    try {
+      const created = await addWatch({
+        name: `${feas.title} \u00b7 ${placeObj?.name ?? 'all my places'}`,
+        categoryKey: feas.categoryKey,
+        placeId: placeObj?.id ?? null,
+        skillId: feas.skillId,
+        question: text,
+        condition: condition || feas.condition,
+        channels,
+        cadence: feas.cadence,
+      });
+      close();
+      notify(
+        lowFree ? 'Watch created with free imagery at low confidence' : 'Watch created',
+        'Open',
+        () => go('watches', created.id),
+        'visibility',
+      );
+    } catch (err) {
+      setError(toApiError(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const stepIdx = stage === 'ask' ? 0 : stage === 'check' ? 1 : 2;
@@ -113,6 +126,8 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
         sub={stage === 'ask' ? 'Say it in your own words. The agent checks if it can be watched from space before you commit.' : undefined}
         onClose={close}
       />
+
+      {error && <ErrorState error={error} onRetry={() => (stage === 'check' ? void runCheck(text) : void create())} title="Could not complete that" compact />}
 
       {/* stage indicator */}
       <div className="row" style={{ gap: 6 }} aria-label={`Step ${stepIdx + 1} of 3`}>
@@ -145,7 +160,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
           <label className="field">
             Where
             <select className="input" value={place} onChange={(e) => setPlace(e.target.value)}>
-              {places.map((p) => <option key={p.id} value={p.id}>{p.name} · {CATS[p.cat].name}</option>)}
+              {places.map((p) => <option key={p.id} value={p.id}>{p.name} · {category(p.categoryKey).name}</option>)}
               <option value="">No specific place / all my places</option>
             </select>
           </label>
@@ -186,7 +201,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
       {stage === 'deliver' && feas && (
         <>
           <div className="col" style={{ gap: 2 }}>
-            {CHANNELS.map((c) => {
+            {catalogChannels.map((c) => {
               const on = channels.includes(c.id);
               const waMissing = c.id === 'whatsapp' && !connectors.whatsapp.connected;
               return (
@@ -241,7 +256,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
 
           <div className="sunk" style={{ padding: '12px 16px' }}>
             <div className="body-sm">
-              <span className="ink">Checks {feas.cadence.charAt(0).toLowerCase() + feas.cadence.slice(1)}</span> with {feas.partial && option === 'free' ? 'Sentinel-2' : feas.sat}. You’ll hear from us when <span className="ink">{condition || feas.condition}</span>
+              <span className="ink">Checks {feas.cadence.charAt(0).toLowerCase() + feas.cadence.slice(1)}</span> with {feas.partial && option === 'free' ? 'Sentinel-2' : feas.satellites}. You’ll hear from us when <span className="ink">{condition || feas.condition}</span>
               {placeObj ? ` on ${placeObj.name}` : ' on any of your places'}. First result after the next pass.
             </div>
           </div>
@@ -277,7 +292,8 @@ function Result({ feas, option, setOption, condition, setCondition, onAlternativ
   setCondition: (s: string) => void;
   onAlternative: (q: string) => void;
 }) {
-  const skill = skillById(feas.skillId);
+  const { skills } = useStore();
+  const skill = skills.find((x) => x.id === feas.skillId);
   const tone = !feas.ok ? { c: 'var(--red)', bg: 'rgba(230,43,30,.1)', icon: 'block', t: 'This can’t be watched from space' }
     : feas.partial ? { c: 'var(--yellow)', bg: 'rgba(255,207,37,.08)', icon: 'error', t: 'Yes, with a trade-off' }
     : { c: 'var(--green)', bg: 'rgba(0,202,142,.08)', icon: 'check_circle', t: 'Yes, the agent can watch this' };
@@ -295,7 +311,7 @@ function Result({ feas, option, setOption, condition, setCondition, onAlternativ
       {feas.ok && !feas.partial && (
         <div className="stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
           <div><div className="l">Skill</div><div className="v" style={{ fontSize: 14 }}>{skill?.name ?? feas.title}</div></div>
-          <div><div className="l">Satellite</div><div className="v" style={{ fontSize: 14 }}>{feas.sat}</div></div>
+          <div><div className="l">Satellite</div><div className="v" style={{ fontSize: 14 }}>{feas.satellites}</div></div>
           <div><div className="l">How often</div><div className="v" style={{ fontSize: 14 }}>{feas.cadence}</div></div>
           <div><div className="l">Confidence</div><div className="v" style={{ fontSize: 14 }}>{feas.confidence}</div></div>
           <div><div className="l">Cost</div><div className="v row" style={{ fontSize: 14, gap: 4 }}>{feas.cost}<Tier tier={feas.tier} /></div></div>
@@ -306,7 +322,7 @@ function Result({ feas, option, setOption, condition, setCondition, onAlternativ
         <div className="col" style={{ gap: 8 }} role="radiogroup" aria-label="Choose data source">
           {([
             ['free', 'Free · Sentinel-2 10 m', 'Low confidence on a plot this small. Every ~5 days.', 'Free'],
-            ['paid', `Paid · ${feas.sat}`, `${feas.confidence} confidence. ${feas.cadence}.`, feas.cost],
+            ['paid', `Paid · ${feas.satellites}`, `${feas.confidence} confidence. ${feas.cadence}.`, feas.cost],
           ] as const).map(([k, t, d, cost]) => (
             <button
               key={k}

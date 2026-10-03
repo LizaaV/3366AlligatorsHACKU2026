@@ -271,6 +271,12 @@ export interface CreateWatchRequest {
   cadence: string;
 }
 
+/** Scenes behind a watch's most recent run, plus the hash that makes it re-runnable. */
+export interface WatchProofDto {
+  scenes: ProofSceneDto[];
+  hash: string;
+}
+
 export interface FeasibilityRequest {
   text: string;
   placeId?: string | null;
@@ -368,6 +374,23 @@ export interface AskRequest {
 export interface AskResponse {
   runId: string;
   answer: AnswerDto;
+}
+
+/* ---------------- insights ("ask your watches") ---------------- */
+
+export interface InsightRequest {
+  question: string;
+  /** `watches` asks across all of them; `watch` asks about one. */
+  scope: 'watches' | 'watch';
+  watchId?: string;
+  lang: string;
+}
+
+export interface InsightDto {
+  title: string;
+  body: string;
+  /** What the answer was derived from, shown as chips: "Compared the last 3 passes". */
+  basis: string[];
 }
 
 /* ---------------- map layers / clarifying questions ---------------- */

@@ -1,44 +1,20 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
-import { FIELD, PLACE_RESULTS, SOURCE_LABEL, type Place, type PlaceSource } from '../data/places';
-import { areaHa, circlePts, fmtC, rectPts, thumb, txy, type Pt } from '../data/geo';
-import { CATS } from '../data/catalog';
-import { WATCHES, type Watch } from '../data/watches';
+import { ApiError, api, toApiError } from '../api';
+import { useResource } from '../hooks/useResource';
+import type { ParcelLookupResponse, ParseBoundaryFileResponse, PlaceSource } from '../api/types';
+import type { Place } from '../model';
+import { sourceLabel } from '../data/presentation';
+import { DEFAULT_CENTER, approxAreaHa, circlePts, fitZoom, fmtC, ptsToRing, rectPts, ringToPts, shift, type Pt } from '../lib/geo';
 import { MapView, type MapLayers } from '../components/MapView';
 import { Btn, Check, IconBtn, Modal, ModalHead, Ms, Tier } from '../components/ui';
+import { ErrorState } from '../components/async';
 
-/* ---------- geo helpers (local) ---------- */
+/* ---------- geo helpers ---------- */
+// mpp16, shift, extentOf and fitZoom moved to lib/geo.ts (mpp16 and shift were duplicated
+// there already). detectPts — the "AI boundary detector" — is now POST /places/detect-boundary.
 
 const mpp16 = (lat: number) => (156543.03 * Math.cos((lat * Math.PI) / 180)) / 65536;
-
-/** Move a lat/lon by an offset given in z16 pixels. */
-const shift = (lat: number, lon: number, dx: number, dy: number) => {
-  const n = Math.pow(2, 16);
-  const t = txy(lat, lon, 16);
-  const x = t.x + dx / 256, y = t.y + dy / 256;
-  return { lat: (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n))) * 180) / Math.PI, lon: (x / n) * 360 - 180 };
-};
-
-/** Deterministic "field-like" irregular polygon — stands in for the AI boundary detector. */
-const detectPts = (lat: number, lon: number, w = 400, h = 300): Pt[] => {
-  let seed = Math.abs(Math.round(lat * 1000 + lon * 7919)) % 233280 || 1;
-  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  const n = 11;
-  return Array.from({ length: n }, (_, i) => {
-    const a = (i / n) * Math.PI * 2;
-    // superellipse-ish so it reads as a field, not a blob
-    const c = Math.cos(a), s = Math.sin(a);
-    const k = 1 / Math.pow(Math.pow(Math.abs(c), 4) + Math.pow(Math.abs(s), 4), 0.25);
-    const j = 0.9 + rnd() * 0.16;
-    return [+((s * k * w) / 2 * j).toFixed(1), +((-c * k * h) / 2 * j).toFixed(1)] as Pt;
-  });
-};
-
-const extentOf = (pts: Pt[]) => {
-  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
-  return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 1);
-};
-const fitZoom = (pts: Pt[], box: number) => Math.max(10, Math.min(18, Math.floor(16 + Math.log2(box / extentOf(pts)))));
 
 const NO_LAYERS: MapLayers = { contour: false, ndmi: false, ndvi: false, lst: false, dry: false, clouds: false };
 const CONTOUR: MapLayers = { ...NO_LAYERS, contour: true };
@@ -58,21 +34,12 @@ const METHODS: { id: Method; icon: string; title: string; hint: string; paid?: s
   { id: 'project', icon: 'folder_open', title: 'Import from project', hint: 'Reuse a place another project has' },
 ];
 
-const SEARCH_CAT: Record<string, number> = { 'Lake Mead': 1, 'Rondônia': 2, 'Port of Rotterdam': 7, 'Great Barrier Reef': 5 };
+/** Category guessed from a geocoder hit, so the wizard can preselect one. */
+const SEARCH_CAT: Record<string, string> = { 'Lake Mead': 'water', 'Rond\u00f4nia': 'forests', 'Port of Rotterdam': 'finance', 'Great Barrier Reef': 'oceans' };
 
-const PARCEL_SYS = [
-  { id: 'br', name: 'Brazil · CAR', ph: 'RO-1100205-8F3A…', tier: 'free' as const, lat: -10.082, lon: -62.914, cat: 2 },
-  { id: 'eu', name: 'EU · INSPIRE cadastral parcel', ph: 'NL.IMKAD.KadastraalPerceel.…', tier: 'free' as const, lat: 51.982, lon: 4.418, cat: 0 },
-  { id: 'in', name: 'India · Survey number', ph: 'Anand / 214/2', tier: 'free' as const, lat: 22.552, lon: 72.968, cat: 0 },
-  { id: 'us', name: 'United States · APN (county)', ph: '055-123-04-0-00-00-001', tier: 'paid' as const, lat: 37.951, lon: -100.884, cat: 0 },
-  { id: 'ke', name: 'Kenya · LR number', ph: 'Nakuru/Block 4/112', tier: 'paid' as const, lat: -0.312, lon: 36.081, cat: 0 },
-];
-
-const WA_PINS = [
-  { id: 'wa1', from: 'You', when: '2 min ago', note: '“Lower shamba, near the borehole”', lat: -0.3021, lon: 36.0712 },
-  { id: 'wa2', from: 'Field team · Juma', when: 'Yesterday, 16:40', note: '“Maize block east of road”', lat: FIELD.lat + 0.0118, lon: FIELD.lon + 0.0094 },
-];
-const WA_NUMBER = '+1 (555) 014-7788';
+const PARCEL_SYS = api.places.parcelSystems();
+const WA_PINS = api.places.inboundPins();
+const WA_NUMBER = api.places.whatsappNumber();
 
 interface Loc {
   lat: number;
@@ -83,9 +50,9 @@ interface Loc {
   pts?: Pt[];
   circle?: boolean;
   givenLabel?: string;
-  cat?: number;
+  categoryKey?: string;
   project?: string;
-  details?: { l: string; v: string }[];
+  details?: { label: string; value: string }[];
 }
 
 type Shape = 'given' | 'detected' | 'circle' | 'rect';
@@ -163,7 +130,7 @@ const Slider = ({ label, value, min, max, step, onChange, unit }: { label: strin
 /* ---------- modal ---------- */
 
 export function AddPlaceModal() {
-  const { close, places, addPlace, addWatch, notify, go, open, connectors, skills } = useStore();
+  const { close, places, addPlace, addWatch, notify, go, open, connectors, skills, categories, category } = useStore();
   const [step, setStep] = useState(1);
   const [method, setMethod] = useState<Method | null>(null);
 
@@ -179,10 +146,12 @@ export function AddPlaceModal() {
   const [pin, setPin] = useState<Pt | null>(null);
   const [file, setFile] = useState<{ name: string; size: number } | null>(null);
   const [parsing, setParsing] = useState(false);
+  const [uploaded, setUploaded] = useState<ParseBoundaryFileResponse | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [parcelSys, setParcelSys] = useState('br');
   const [parcelId, setParcelId] = useState('');
   const [parcelState, setParcelState] = useState<'idle' | 'busy' | 'found'>('idle');
+  const [parcelResult, setParcelResult] = useState<ParcelLookupResponse | null>(null);
   const [waPin, setWaPin] = useState<string | null>(null);
   const [fromProject, setFromProject] = useState<string | null>(null);
   const [fromPlace, setFromPlace] = useState<string | null>(null);
@@ -194,18 +163,30 @@ export function AddPlaceModal() {
   const [rw, setRw] = useState(600);
   const [rh, setRh] = useState(400);
   const [zoomAdj, setZoomAdj] = useState(0);
+  /** Outline suggested by POST /places/detect-boundary, in reference-zoom pixels. */
+  const [detected, setDetected] = useState<Pt[] | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // step 3
   const projects = useMemo(() => Array.from(new Set(places.map((p) => p.project))), [places]);
   const [name, setName] = useState('');
   const [project, setProject] = useState(projects[0] ?? '__new');
   const [newProject, setNewProject] = useState('');
-  const [cat, setCat] = useState(0);
+  const [categoryKey, setCategoryKey] = useState('agriculture');
   const [tags, setTags] = useState('');
   const [startWatch, setStartWatch] = useState<string[]>([]);
 
-  const jumps = [{ n: 'My Farm, Garden City', lat: FIELD.lat, lon: FIELD.lon }, ...PLACE_RESULTS.map((r) => ({ n: r.n, lat: r.lat, lon: r.lon }))];
-  const drawCenter = jumps[drawAt];
+  // Geocoder results for the search step and the "jump to" list, from the API.
+  const geo = useResource(useCallback((signal) => api.places.search(query.trim(), signal), [query]), [query]);
+  const hits = geo.data ?? [];
+  const jumpsRes = useResource(useCallback((signal) => api.places.search('', signal), []), []);
+  const jumps = [
+    { n: 'My Farm, Garden City', lat: DEFAULT_CENTER.lat, lon: DEFAULT_CENTER.lon },
+    ...(jumpsRes.data ?? []).map((r) => ({ n: r.name, lat: r.lat, lon: r.lon })),
+  ];
+  const drawCenter = jumps[Math.min(drawAt, jumps.length - 1)] ?? jumps[0];
   const parcel = PARCEL_SYS.find((p) => p.id === parcelSys)!;
 
   /* the location the chosen method yields (null = not enough input yet) */
@@ -213,8 +194,9 @@ export function AddPlaceModal() {
     switch (method) {
       case 'search': {
         if (result === null) return null;
-        const r = PLACE_RESULTS[result];
-        return { lat: r.lat, lon: r.lon, label: r.n, source: 'search', via: `Search · ${r.n}, ${r.d}`, cat: SEARCH_CAT[r.n] };
+        const r = hits[result];
+        if (!r) return null;
+        return { lat: r.lat, lon: r.lon, label: r.name, source: 'search', via: `Search \u00b7 ${r.name}, ${r.description}`, categoryKey: SEARCH_CAT[r.name] };
       }
       case 'coords': {
         const a = parseFloat(lat), b = parseFloat(lon);
@@ -229,27 +211,38 @@ export function AddPlaceModal() {
         return { ...c, label: 'New field', source: 'drawn', via: `${verts.length} points drawn`, pts: verts.map((v) => [+(v[0] - cx).toFixed(1), +(v[1] - cy).toFixed(1)] as Pt), givenLabel: 'As drawn' };
       }
       case 'upload': {
-        if (!file || parsing) return null;
-        const base = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Uploaded field';
-        const isCsv = /\.csv$/i.test(file.name);
+        // The outline is parsed server-side (POST /places/parse-file).
+        if (!uploaded || !file) return null;
         return {
-          lat: FIELD.lat + 0.0152, lon: FIELD.lon - 0.0061, label: base.charAt(0).toUpperCase() + base.slice(1), source: 'uploaded', via: file.name,
-          pts: detectPts(FIELD.lat + 0.0152, FIELD.lon - 0.0061, 460, 330), givenLabel: isCsv ? 'Outline around points' : 'From file',
-          details: [{ l: 'File', v: file.name }],
+          lat: uploaded.center.lat,
+          lon: uploaded.center.lon,
+          label: uploaded.suggestedName,
+          source: 'uploaded',
+          via: file.name,
+          pts: ringToPts(uploaded.geometry.coordinates[0] ?? [], uploaded.center),
+          givenLabel: uploaded.note,
+          details: [{ label: 'File', value: file.name }],
         };
       }
       case 'parcel': {
-        if (parcelState !== 'found') return null;
+        // Looked up in the registry server-side (POST /places/lookup-parcel).
+        if (!parcelResult) return null;
         return {
-          lat: parcel.lat, lon: parcel.lon, label: `Parcel ${parcelId.trim()}`, source: 'parcel', via: `${parcel.name} · ${parcelId.trim()}`,
-          pts: detectPts(parcel.lat, parcel.lon, 380, 420), givenLabel: 'From parcel register', cat: parcel.cat,
-          details: [{ l: 'Parcel ID', v: `${parcel.name.split(' · ')[1]} ${parcelId.trim()}` }],
+          lat: parcelResult.center.lat,
+          lon: parcelResult.center.lon,
+          label: `Parcel ${parcelId.trim()}`,
+          source: 'parcel',
+          via: `${parcel.name} \u00b7 ${parcelId.trim()}`,
+          pts: ringToPts(parcelResult.geometry.coordinates[0] ?? [], parcelResult.center),
+          givenLabel: 'From parcel register',
+          categoryKey: parcelResult.categoryKey,
+          details: [{ label: 'Parcel ID', value: parcelResult.registryLabel }],
         };
       }
       case 'whatsapp': {
         const p = WA_PINS.find((x) => x.id === waPin);
         if (!p) return null;
-        return { lat: p.lat, lon: p.lon, label: p.note.replace(/[“”]/g, ''), source: 'whatsapp', via: `${p.from} · ${p.when}` };
+        return { lat: p.lat, lon: p.lon, label: p.note, source: 'whatsapp', via: `${p.from} \u00b7 ${p.when}` };
       }
       case 'pin': {
         if (!pin) return null;
@@ -260,14 +253,14 @@ export function AddPlaceModal() {
         const p = places.find((x) => x.id === fromPlace);
         if (!p) return null;
         return {
-          lat: p.lat, lon: p.lon, label: p.name, source: p.source, via: `Copied from ${p.project} · ${p.name}`,
-          pts: p.pts, circle: p.circle, givenLabel: `As in ${p.project}`, cat: p.cat, details: p.details,
+          lat: p.lat, lon: p.lon, label: p.name, source: p.source, via: `Copied from ${p.project} \u00b7 ${p.name}`,
+          pts: p.pts, circle: p.circle, givenLabel: `As in ${p.project}`, categoryKey: p.categoryKey, details: p.details,
         };
       }
       default:
         return null;
     }
-  }, [method, result, lat, lon, verts, drawCenter, file, parsing, parcelState, parcel, parcelId, waPin, pin, fromPlace, places]);
+  }, [method, result, hits, lat, lon, verts, drawCenter, file, uploaded, parcelResult, parcel, parcelId, waPin, pin, fromPlace, places]);
 
   /* ---------- step 2 geometry ---------- */
   const m = loc ? mpp16(loc.lat) : 1;
@@ -275,46 +268,99 @@ export function AddPlaceModal() {
     shape === 'given' && loc.pts ? loc.pts :
     shape === 'circle' ? circlePts(radius / m, 48) :
     shape === 'rect' ? rectPts(rw / m, rh / m) :
-    detectPts(loc.lat, loc.lon);
+    (detected ?? []);
   const isCircle = shape === 'circle' || (shape === 'given' && !!loc?.circle);
-  const ha = loc ? areaHa(pts, loc.lat) : 0;
+  /**
+   * PROVISIONAL area, for live feedback while the outline is still being edited. The place has
+   * no server-side identity yet, so there is no authoritative figure to show. After saving, the
+   * toast and every later view use the server's `areaHa`.
+   */
+  const ha = loc ? approxAreaHa(pts, loc.lat) : 0;
   const baseZoom = pts.length ? fitZoom(pts, 220) : 15;
   const previewZoom = Math.max(3, Math.min(18, baseZoom + zoomAdj));
   const finalName = name.trim();
   const finalProject = project === '__new' ? newProject.trim() : project;
 
-  const draft: Place | null = loc ? {
-    id: 'draft', name: finalName || loc.label, cat, lat: loc.lat, lon: loc.lon, zoom: Math.max(12, Math.min(16, baseZoom)),
-    pts, circle: isCircle, project: finalProject, tags: [], source: loc.source, created: 'Oct 2026', details: [],
-  } : null;
+  /** Preview-only place, so the map can draw the outline before it is saved. */
+  const draft: Place | null = loc
+    ? {
+        id: 'draft',
+        name: finalName || loc.label,
+        categoryKey,
+        lat: loc.lat,
+        lon: loc.lon,
+        zoom: Math.max(12, Math.min(16, baseZoom)),
+        pts,
+        circle: isCircle,
+        areaHa: ha,
+        project: finalProject,
+        tags: [],
+        source: loc.source,
+        createdAt: null,
+        details: [],
+      }
+    : null;
 
-  const suggested = useMemo(() => skills.filter((s) => s.cat === cat).slice(0, 3), [skills, cat]);
-  useEffect(() => setStartWatch([]), [cat]);
+  const suggested = useMemo(() => skills.filter((sk) => sk.categoryKey === categoryKey).slice(0, 3), [skills, categoryKey]);
+  useEffect(() => setStartWatch([]), [categoryKey]);
+
+  /** Ask the backend for a suggested outline when step 2 opens on the "detected" shape. */
+  useEffect(() => {
+    if (step !== 2 || shape !== 'detected' || !loc || detected || detecting) return;
+    let live = true;
+    setDetecting(true);
+    api.places
+      .detectBoundary(loc.lat, loc.lon)
+      .then((res) => live && setDetected(ringToPts(res.geometry.coordinates[0] ?? [], { lat: loc.lat, lon: loc.lon })))
+      .catch((err) => live && setError(toApiError(err)))
+      .finally(() => live && setDetecting(false));
+    return () => {
+      live = false;
+    };
+  }, [step, shape, loc, detected, detecting]);
 
   const goStep2 = () => {
     if (!loc) return;
     setShape(loc.pts ? 'given' : method === 'pin' || method === 'whatsapp' || method === 'coords' ? 'circle' : 'detected');
     setZoomAdj(0);
+    setDetected(null);
     setStep(2);
   };
   const goStep3 = () => {
     if (!loc) return;
     if (!name) setName(loc.label);
-    if (loc.cat !== undefined) setCat(loc.cat);
+    if (loc.categoryKey) setCategoryKey(loc.categoryKey);
     setStep(3);
   };
 
-  const pickFile = (f: File | undefined) => {
+  const pickFile = async (f: File | undefined) => {
     if (!f) return;
     setFile({ name: f.name, size: f.size });
     setParsing(true);
-    window.setTimeout(() => setParsing(false), 900);
+    setUploaded(null);
+    setError(null);
+    try {
+      setUploaded(await api.places.parseBoundaryFile(f));
+    } catch (err) {
+      setError(toApiError(err));
+      setFile(null);
+    } finally {
+      setParsing(false);
+    }
   };
 
-  const lookup = () => {
+  const lookup = async () => {
     if (!parcelId.trim()) return;
     setParcelState('busy');
-    window.setTimeout(() => setParcelState('found'), 900);
+    setParcelResult(null);
+    setError(null);
+    try {
+      setParcelResult(await api.places.lookupParcel({ system: parcelSys, parcelId: parcelId.trim() }));
+      setParcelState('found');
+    } catch (err) {
+      setError(toApiError(err));
+      setParcelState('idle');
+    }
   };
 
   const useMyLocation = () => {
@@ -327,65 +373,75 @@ export function AddPlaceModal() {
     );
   };
 
-  const save = () => {
-    if (!loc || !draft || !finalName || !finalProject) return;
-    const id = 'p' + Date.now();
-    const place: Place = {
-      ...draft,
-      id,
-      name: finalName,
-      project: finalProject,
-      tags: tags.split(',').map((s) => s.trim()).filter(Boolean),
-      details: [
-        { l: 'Added via', v: SOURCE_LABEL[loc.source] },
-        { l: 'Source', v: loc.via },
-        { l: 'Outline', v: shape === 'detected' ? 'AI-detected boundary' : shape === 'circle' ? `Circle, ${radius} m radius` : shape === 'rect' ? `Rectangle, ${rw} × ${rh} m` : loc.givenLabel ?? 'Provided' },
-        { l: 'Area', v: `${ha} ha` },
-        ...(loc.details ?? []).filter((d) => d.l !== 'Added via'),
-      ],
-    };
-    addPlace(place);
-    const base = WATCHES[0];
-    startWatch.forEach((sid, i) => {
-      const sk = skills.find((s) => s.id === sid);
-      if (!sk) return;
-      const w: Watch = {
-        ...base,
-        id: `w${Date.now()}-${i}`,
-        name: `${sk.name} · ${finalName}`,
-        cat: sk.cat,
-        placeId: id,
-        skillId: sk.id,
-        question: sk.short,
-        metric: 'First result',
-        unit: '',
-        ci: [0, 0],
-        condition: 'Any notable change since the last pass',
-        value: 0,
-        delta: 'Waiting for the first pass',
-        confidence: 'Medium',
-        status: 'ok',
-        history: [...base.histMean],
-        channels: ['email'],
-        cadence: `Every pass (${sk.revisit})`,
-        tier: sk.tier,
-        on: true,
-        lastRun: 'Not run yet',
-        nextRun: 'Next pass',
-        sat: sk.sat,
-        img: thumb(place.lat, place.lon, place.zoom),
-        ring: false,
-        events: [],
-      };
-      addWatch(w);
-    });
-    close();
-    notify(
-      startWatch.length ? `${finalName} saved · ${startWatch.length} watch${startWatch.length > 1 ? 'es' : ''} started` : `${finalName} saved`,
-      'Ask about it',
-      () => go('ask', undefined, { place: id }),
-      'check_circle',
-    );
+  const save = async () => {
+    if (!loc || !draft || !finalName || !finalProject || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      // Geometry goes up as GeoJSON in WGS84. Area is NOT sent — the backend computes it.
+      const created = await addPlace({
+        name: finalName,
+        categoryKey,
+        center: { lat: loc.lat, lon: loc.lon },
+        geometry: { type: 'Polygon', coordinates: [ptsToRing(pts, { lat: loc.lat, lon: loc.lon })] },
+        isCircle,
+        project: finalProject,
+        tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+        source: loc.source,
+        details: [
+          { label: 'Added via', value: sourceLabel(loc.source) },
+          { label: 'Source', value: loc.via },
+          {
+            label: 'Outline',
+            value:
+              shape === 'detected'
+                ? 'Detected boundary'
+                : shape === 'circle'
+                  ? `Circle, ${radius} m radius`
+                  : shape === 'rect'
+                    ? `Rectangle, ${rw} \u00d7 ${rh} m`
+                    : (loc.givenLabel ?? 'Provided'),
+          },
+          ...(loc.details ?? []).filter((d) => d.label !== 'Added via'),
+        ],
+      });
+
+      // Watches the user opted into. Each is a separate write; one failing must not lose the place.
+      const started: string[] = [];
+      for (const skillId of startWatch) {
+        const sk = skills.find((x) => x.id === skillId);
+        if (!sk) continue;
+        try {
+          await addWatch({
+            name: `${sk.name} \u00b7 ${created.name}`,
+            categoryKey: sk.categoryKey,
+            placeId: created.id,
+            skillId: sk.id,
+            question: sk.short,
+            condition: 'Any notable change since the last pass',
+            channels: ['email'],
+            cadence: `Every pass (${sk.revisit})`,
+          });
+          started.push(sk.name);
+        } catch {
+          notify(`${created.name} saved, but the \u201c${sk.name}\u201d watch could not be created`, undefined, undefined, 'error');
+        }
+      }
+
+      close();
+      notify(
+        started.length
+          ? `${created.name} saved \u00b7 ${created.areaHa} ha \u00b7 ${started.length} watch${started.length > 1 ? 'es' : ''} started`
+          : `${created.name} saved \u00b7 ${created.areaHa} ha`,
+        'Ask about it',
+        () => go('ask', undefined, { place: created.id }),
+        'check_circle',
+      );
+    } catch (err) {
+      setError(toApiError(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   /* ---------- step bodies ---------- */
@@ -393,23 +449,25 @@ export function AddPlaceModal() {
   const methodInput = (): ReactNode => {
     switch (method) {
       case 'search': {
-        const s = query.trim().toLowerCase();
-        const res = PLACE_RESULTS.map((r, i) => ({ ...r, i })).filter((r) => !s || `${r.n} ${r.d}`.toLowerCase().includes(s));
+        const s = query.trim();
+        const res = hits.map((r, i) => ({ ...r, i }));
         return (
           <div className="col" style={{ gap: 10 }}>
             <div style={{ position: 'relative' }}>
               <Ms n="search" size={18} className="subtle" style={{ position: 'absolute', left: 12, top: 12 }} />
               <input className="input" autoFocus value={query} onChange={(e) => { setQuery(e.target.value); setResult(null); }} placeholder="e.g. Lake Mead, Garden City, Port of Rotterdam" style={{ paddingLeft: 38 }} aria-label="Search a place name" />
             </div>
-            <div className="tiny">{s ? `${res.length} result${res.length === 1 ? '' : 's'}` : 'Suggestions'}</div>
-            {res.length === 0 ? (
+            <div className="tiny">{geo.isFetching ? 'Searching\u2026' : s ? `${res.length} result${res.length === 1 ? '' : 's'}` : 'Suggestions'}</div>
+            {geo.error ? (
+              <ErrorState error={geo.error} onRetry={geo.refetch} title="Search is unavailable" compact />
+            ) : res.length === 0 && !geo.isFetching ? (
               <div className="caption">No match. Try coordinates, or draw it on the map instead.</div>
             ) : (
               <div className="col" style={{ gap: 2 }}>
                 {res.map((r) => (
-                  <button key={r.n} className={`menu-item ${result === r.i ? 'on' : ''}`} onClick={() => setResult(r.i)}>
+                  <button key={r.name} className={`menu-item ${result === r.i ? 'on' : ''}`} onClick={() => setResult(r.i)}>
                     <Ms n="location_on" />
-                    <span className="grow">{r.n} <span className="caption">· {r.d}</span></span>
+                    <span className="grow">{r.name} <span className="caption">· {r.description}</span></span>
                     <span className="tiny hide-mobile">{fmtC(r.lat, r.lon)}</span>
                     {result === r.i && <Ms n="check" style={{ color: '#fff' }} />}
                   </button>
@@ -483,7 +541,7 @@ export function AddPlaceModal() {
             </MapFrame>
             <div className="caption">
               {isDraw
-                ? verts.length < 3 ? `Click the corners of your area on the map (${verts.length}/3 minimum). You can refine the outline in the next step.` : `${verts.length} points · about ${areaHa(verts, drawCenter.lat)} ha. Keep clicking to add corners.`
+                ? verts.length < 3 ? `Click the corners of your area on the map (${verts.length}/3 minimum). You can refine the outline in the next step.` : `${verts.length} points · about ${approxAreaHa(verts, drawCenter.lat)} ha. Keep clicking to add corners.`
                 : pin ? `Pin at ${loc ? fmtC(loc.lat, loc.lon) : ''}. You'll set the radius next.` : 'Click once on the map to drop a pin.'}
             </div>
           </div>
@@ -537,7 +595,7 @@ export function AddPlaceModal() {
               </label>
               <label className="field" style={{ flex: '1 1 220px' }}>
                 Parcel ID
-                <input className="input" value={parcelId} placeholder={parcel.ph} onChange={(e) => { setParcelId(e.target.value); setParcelState('idle'); }} onKeyDown={(e) => e.key === 'Enter' && lookup()} />
+                <input className="input" value={parcelId} placeholder={parcel.placeholder} onChange={(e) => { setParcelId(e.target.value); setParcelState('idle'); }} onKeyDown={(e) => e.key === 'Enter' && lookup()} />
               </label>
               <Btn variant="secondary" icon={parcelState === 'found' ? 'check' : 'travel_explore'} disabled={!parcelId.trim() || parcelState === 'busy'} onClick={lookup}
                 tier={parcel.tier} tierLabel={parcel.tier === 'paid' ? '$0.50' : undefined}>
@@ -595,8 +653,8 @@ export function AddPlaceModal() {
               <div className="col" style={{ gap: 2 }}>
                 {list.map((p) => (
                   <button key={p.id} className={`menu-item ${fromPlace === p.id ? 'on' : ''}`} onClick={() => setFromPlace(p.id)}>
-                    <span className="dot" style={{ background: CATS[p.cat].color }} />
-                    <span className="grow">{p.name} <span className="caption">· {areaHa(p.pts, p.lat)} ha</span></span>
+                    <span className="dot" style={{ background: category(p.categoryKey).color }} />
+                    <span className="grow">{p.name} <span className="caption">· {p.areaHa} ha</span></span>
                     {fromPlace === p.id && <Ms n="check" style={{ color: '#fff' }} />}
                   </button>
                 ))}
@@ -722,9 +780,9 @@ export function AddPlaceModal() {
       <div className="field">
         Category
         <div className="row wrap" style={{ gap: 6 }}>
-          {CATS.map((c, i) => (
-            <button key={c.key} className={`chip ${cat === i ? 'on' : ''}`} onClick={() => setCat(i)} aria-pressed={cat === i}>
-              <span className="dot" style={{ background: c.color, boxShadow: cat === i ? '0 0 0 1px #000' : undefined }} />
+          {categories.map((c) => (
+            <button key={c.key} className={`chip ${categoryKey === c.key ? 'on' : ''}`} onClick={() => setCategoryKey(c.key)} aria-pressed={categoryKey === c.key}>
+              <span className="dot" style={{ background: c.color, boxShadow: categoryKey === c.key ? '0 0 0 1px #000' : undefined }} />
               {c.name}
             </button>
           ))}
@@ -756,7 +814,7 @@ export function AddPlaceModal() {
         </div>
       )}
       <div className="well row wrap" style={{ padding: '10px 14px', gap: 12 }}>
-        <span className="caption">{SOURCE_LABEL[loc.source]}</span>
+        <span className="caption">{sourceLabel(loc.source)}</span>
         <span className="caption">·</span>
         <span className="caption">{fmtC(loc.lat, loc.lon)}</span>
         <span className="caption">·</span>
@@ -772,11 +830,13 @@ export function AddPlaceModal() {
       {step === 1 && step1}
       {step === 2 && step2}
       {step === 3 && step3}
+      {error && <ErrorState error={error} onRetry={step === 3 ? () => void save() : undefined} title="Could not complete that" compact />}
+
       <div className="modal-foot" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         {step === 1 ? <Btn variant="text" onClick={close}>Cancel</Btn> : <Btn variant="text" icon="arrow_back" onClick={() => setStep(step - 1)}>Back</Btn>}
         {step === 1 && <Btn variant="primary" trailing="arrow_forward" disabled={!loc} onClick={goStep2}>Continue</Btn>}
         {step === 2 && <Btn variant="primary" trailing="arrow_forward" disabled={!loc || ha <= 0} onClick={goStep3}>Continue</Btn>}
-        {step === 3 && <Btn variant="primary" icon="check" tier="free" disabled={!finalName || !finalProject} onClick={save}>Save place</Btn>}
+        {step === 3 && <Btn variant="primary" icon="check" tier="free" disabled={!finalName || !finalProject || saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save place'}</Btn>}
       </div>
     </Modal>
   );

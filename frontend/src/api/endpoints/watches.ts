@@ -2,7 +2,7 @@
 
 import { request } from '../http';
 import * as fixtures from '../fixtures';
-import type { CreateWatchRequest, FeasibilityDto, FeasibilityRequest, WatchDto } from '../types';
+import type { CreateWatchRequest, FeasibilityDto, FeasibilityRequest, WatchDto, WatchProofDto } from '../types';
 import { toWatch, type Feasibility, type Watch } from '../../model';
 
 export const watchesApi = {
@@ -37,6 +37,18 @@ export const watchesApi = {
       path: `/watches/${encodeURIComponent(id)}`,
       signal,
       fixture: () => fixtures.deleteWatch(id),
+    }),
+
+  /**
+   * TODO(api): GET /api/watches/{id}/proof
+   * The scenes behind the most recent run, including the ones that were rejected and why.
+   */
+  proof: (id: string, signal?: AbortSignal): Promise<WatchProofDto> =>
+    request<WatchProofDto>({
+      method: 'GET',
+      path: `/watches/${encodeURIComponent(id)}/proof`,
+      signal,
+      fixture: () => fixtures.watchProof(id),
     }),
 
   /**

@@ -13,6 +13,7 @@
 import { askApi } from './endpoints/ask';
 import { catalogApi } from './endpoints/catalog';
 import { exportsApi } from './endpoints/exports';
+import { insightsApi } from './endpoints/insights';
 import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
 import { watchesApi } from './endpoints/watches';
@@ -23,6 +24,7 @@ export const api = {
   places: placesApi,
   watches: watchesApi,
   ask: askApi,
+  insights: insightsApi,
   exports: exportsApi,
 };
 

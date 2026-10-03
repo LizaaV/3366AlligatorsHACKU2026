@@ -35,6 +35,7 @@ import {
   type Catalog,
   type Category,
   type ClarifyingQuestion,
+  type DeliveryChannel,
   type MapLayer,
   type Place,
   type Skill,
@@ -105,6 +106,8 @@ interface Store {
   clarifyingQuestions: ClarifyingQuestion[];
   /** Shortcut for `catalog.modules` — the building blocks a skill is composed from. */
   modules: SkillModule[];
+  /** Shortcut for `catalog.channels` — email / push / WhatsApp / SMS / Slack. */
+  channels: DeliveryChannel[];
   loading: LoadState;
   errors: LoadErrors;
   reload: () => void;
@@ -340,6 +343,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       mapLayers,
       clarifyingQuestions,
       modules: catalog?.modules ?? [],
+      channels: catalog?.channels ?? [],
       loading,
       errors,
       reload,

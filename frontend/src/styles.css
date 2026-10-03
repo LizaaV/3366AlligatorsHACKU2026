@@ -53,7 +53,7 @@ input[type='range'] { accent-color: #fff; }
 [dir='rtl'] .ms-flip { transform: scaleX(-1); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes shimmer { 0% { background-position: -240px 0; } 100% { background-position: 240px 0; } }
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 @keyframes rise { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -85,6 +85,13 @@ input[type='range'] { accent-color: #fff; }
   animation: shimmer 1.6s linear infinite;
 }
 .spinner { width: 12px; height: 12px; border: 2px solid var(--s3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; flex: none; display: inline-block; }
+
+/* loading placeholder — pairs with components/async.tsx */
+.skeleton {
+  background: linear-gradient(90deg, var(--s1) 0%, var(--s2) 50%, var(--s1) 100%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
 
 /* ---------- Surfaces ---------- */
 .panel { background: var(--s1); border: 1px solid var(--hair); border-radius: var(--r-lg); }
@@ -214,3 +221,22 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
   .hide-mobile { display: none !important; }
 }
 @media (min-width: 761px) { .show-mobile { display: none !important; } }
+
+/*
+ * Respect the OS "reduce motion" setting. The app leans on shimmer, pulse, spin and slide
+ * animations; for anyone who has asked for less movement they become near-instant rather than
+ * disappearing, so state changes are still visible.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton { animation: none; background: var(--s2); }
+  .spinner { animation: spin 1.2s linear infinite !important; }
+  .shimmer-text { animation: none; background: none; color: var(--muted); -webkit-text-fill-color: currentColor; }
+}

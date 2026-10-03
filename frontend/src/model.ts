@@ -61,6 +61,7 @@ export type SkillModule = SkillModuleDto;
 export type DeliveryChannel = DeliveryChannelDto;
 export type Language = LanguageDto;
 export type ClarifyingQuestion = ClarifyingQuestionDto;
+export type { ChannelId } from './api/types';
 
 export interface MapLayer {
   id: string;
