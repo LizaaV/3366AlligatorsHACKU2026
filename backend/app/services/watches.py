@@ -42,6 +42,7 @@ __all__ = [
     "get_proof",
     "get_watch",
     "list_watches",
+    "record_event",
     "update_watch",
 ]
 
@@ -402,6 +403,8 @@ def create_watch(user_id: str, req: CreateWatchRequest, area_ha: float | None = 
             "tier": spec.tier,
             "satellites": spec.satellites.replace("—", ""),
             "enabled": True,
+            "recurrence": req.recurrence,
+            "dashboard_id": req.dashboard_id,
             "events": [_event("Watch created. No passes measured yet.")],
             "proof": {"scenes": [], "hash": ""},
             "created_at": now,
@@ -427,6 +430,28 @@ def update_watch(user_id: str, watch_id: str, req: PatchWatchRequest) -> WatchDt
             if not changes["enabled"]:
                 row["next_run_at"] = None
         row.update(changes)
+        row["updated_at"] = _now()
+        _save(path, rows)
+    return _dto(row)
+
+
+def record_event(user_id: str, watch_id: str, text: str, level: str = "info") -> WatchDto | None:
+    """Append an event (newest first). A `once` watch disables itself on its first `alert`."""
+    if not ID_RE.fullmatch(watch_id):
+        return None
+    path = _path(user_id)
+    with _lock(path):
+        rows = _load(path)
+        row = next((r for r in rows if r["id"] == watch_id), None)
+        if row is None:
+            return None
+        row["events"].insert(0, _event(text, level))
+        if level == "alert":
+            row["status"] = "alert"
+            if row.get("recurrence", "recurring") == "once" and row.get("enabled", True):
+                row["enabled"] = False
+                row["next_run_at"] = None
+                row["events"].insert(0, _event("One-time trigger fired; now disabled."))
         row["updated_at"] = _now()
         _save(path, rows)
     return _dto(row)
