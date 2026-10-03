@@ -271,3 +271,22 @@ def test_real_place_context(lat, lon, country, steep):
     assert parts.rain_mm_30d is not None and parts.rain_mm_30d >= 0
     if country == "Brazil":
         assert parts.land_cover["cropland"] > 0.8
+
+
+def test_place_context_degrades_slow_providers_to_warnings(monkeypatch):
+    import time
+
+    from earth import settings
+    from earth.presets import HOO_HOK_WAI
+    from earth.providers import context, nominatim, openmeteo, planetary
+
+    monkeypatch.setattr(settings, "CONTEXT_TIMEOUT_S", 0.3)
+    monkeypatch.setattr(nominatim, "reverse", lambda lat, lon: None)
+    monkeypatch.setattr(planetary, "terrain", lambda area: time.sleep(2))
+    monkeypatch.setattr(planetary, "worldcover", lambda area: None)
+    monkeypatch.setattr(openmeteo, "rain", lambda area, last: None)
+
+    start = time.perf_counter()
+    parts = context.place_context(HOO_HOK_WAI)
+    assert time.perf_counter() - start < 1.5
+    assert any("Terrain unavailable: took too long" in w for w in parts.warnings)

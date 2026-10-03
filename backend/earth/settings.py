@@ -34,3 +34,6 @@ OPENMETEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 OPENMETEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 OPENMETEO_MAX_PAST_DAYS = 92
 CONTEXT_MAX_READ_PIXELS = 1_500_000  # per raster read for DEM / WorldCover
+
+# place_context: max seconds to wait for all context providers before degrading to warnings
+CONTEXT_TIMEOUT_S = 15

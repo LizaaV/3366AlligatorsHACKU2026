@@ -11,10 +11,11 @@ Providers run in parallel; each failure degrades to None plus a warning, never a
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 
 from pydantic import BaseModel
 
+from earth import settings
 from earth.errors import EarthError
 from earth.providers import nominatim, openmeteo, planetary
 from earth.types import Area, Range, SlopeStats
@@ -37,27 +38,29 @@ def _why(exc: Exception) -> str:
 def place_context(area: Area) -> ContextParts:
     """Name, country, land cover, elevation, slope and 30-day rain for the area."""
     lat, lon = area.centroid()
-    with ThreadPoolExecutor(max_workers=4, thread_name_prefix="ctx") as pool:
-        futures = {
-            "place": pool.submit(nominatim.reverse, lat, lon),
-            "terrain": pool.submit(planetary.terrain, area),
-            "land": pool.submit(planetary.worldcover, area),
-            "rain": pool.submit(openmeteo.rain, area, "30d"),
-        }
+    pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="ctx")
+    futures = {
+        "place": pool.submit(nominatim.reverse, lat, lon),
+        "terrain": pool.submit(planetary.terrain, area),
+        "land": pool.submit(planetary.worldcover, area),
+        "rain": pool.submit(openmeteo.rain, area, "30d"),
+    }
+    # Don't let one slow provider (cold Planetary Computer reads can take 50 s) stall describe:
+    # late ones become a warning; they keep running and fill the disk cache for next time.
+    wait(futures.values(), timeout=settings.CONTEXT_TIMEOUT_S)
+    pool.shutdown(wait=False)
+    labels = {"place": "Place name", "terrain": "Terrain", "land": "Land cover", "rain": "Rain"}
     parts = ContextParts(name=area.name)
     results: dict[str, object] = {}
     for key, fut in futures.items():
+        results[key] = None
+        if not fut.done():
+            parts.warnings.append(f"{labels[key]} unavailable: took too long, try again shortly")
+            continue
         try:
             results[key] = fut.result()
         except Exception as exc:  # noqa: BLE001 — any provider failure must degrade, not raise
-            results[key] = None
-            label = {
-                "place": "Place name",
-                "terrain": "Terrain",
-                "land": "Land cover",
-                "rain": "Rain",
-            }[key]
-            parts.warnings.append(f"{label} unavailable: {_why(exc)}")
+            parts.warnings.append(f"{labels[key]} unavailable: {_why(exc)}")
 
     if hit := results["place"]:
         parts.name = area.name or hit.name
