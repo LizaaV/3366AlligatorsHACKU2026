@@ -8,6 +8,7 @@ from app.api.routes import (
     layers,
     memory,
     places,
+    projects,
     reports,
     runs,
     shares,
@@ -35,3 +36,4 @@ api_router.include_router(skills_routes.router)
 api_router.include_router(catalog_routes.router)
 api_router.include_router(threads.router)
 api_router.include_router(satellites_routes.router)
+api_router.include_router(projects.router)

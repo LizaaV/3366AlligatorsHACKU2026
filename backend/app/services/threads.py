@@ -16,6 +16,7 @@ from typing import Any
 
 from app.schemas.runs import RunRecord
 from app.schemas.threads import ThreadDetail, ThreadSummary
+from app.services import projects as project_store
 from app.services import runs as run_store
 from app.services.agent.state import AGENT_KEY, AgentState
 
@@ -48,7 +49,9 @@ def owned_runs(user_id: str, thread_id: str) -> list[RunRecord] | None:
     return runs
 
 
-def summarise(thread_id: str, runs: list[RunRecord]) -> ThreadSummary:
+def summarise(
+    thread_id: str, runs: list[RunRecord], project_id: str | None = None
+) -> ThreadSummary:
     first, last = runs[0], runs[-1]
     place = next((r.area.name for r in reversed(runs) if r.area and r.area.name), None)
     return ThreadSummary(
@@ -61,6 +64,7 @@ def summarise(thread_id: str, runs: list[RunRecord]) -> ThreadSummary:
         run_count=len(runs),
         started_at=first.created_at,
         updated_at=last.created_at,
+        project_id=project_id,
     )
 
 
@@ -68,10 +72,11 @@ def list_threads(user_id: str, limit: int = 20) -> list[ThreadSummary]:
     """The user's conversations, most recent first (at most `MAX_LIST`)."""
     limit = max(1, min(limit, MAX_LIST))
     out: list[ThreadSummary] = []
+    filed = project_store.project_ids_by_thread(user_id)
     for thread_id, _ in run_store.list_threads(user_id)[:limit]:
         runs = owned_runs(user_id, thread_id)
         if runs:
-            out.append(summarise(thread_id, runs))
+            out.append(summarise(thread_id, runs, filed.get(thread_id)))
     return out
 
 
@@ -80,7 +85,20 @@ def get_thread(user_id: str, thread_id: str) -> ThreadDetail | None:
     runs = owned_runs(user_id, thread_id)
     if runs is None:
         return None
-    return ThreadDetail(thread_id=thread_id, runs=[public(r) for r in runs])
+    filed = project_store.project_ids_by_thread(user_id)
+    return ThreadDetail(
+        thread_id=thread_id, runs=[public(r) for r in runs], project_id=filed.get(thread_id)
+    )
+
+
+def set_project(user_id: str, thread_id: str, project_id: str | None) -> ThreadSummary | None:
+    """File the thread in a project (None unfiles). None when the thread is unknown or not the
+    user's; raises `projects.ProjectNotFound` for an unknown project."""
+    runs = owned_runs(user_id, thread_id)
+    if runs is None:
+        return None
+    project_store.assign_thread(user_id, thread_id, project_id)
+    return summarise(thread_id, runs, project_id)
 
 
 def previous_agent_run(runs: list[RunRecord]) -> tuple[RunRecord, AgentState] | None:
