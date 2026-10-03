@@ -10,7 +10,7 @@
  * means deleting its `fixture` property — no call site changes.
  */
 
-import { askApi } from './endpoints/ask';
+import { runsApi } from './endpoints/runs';
 import { catalogApi } from './endpoints/catalog';
 import { exportsApi } from './endpoints/exports';
 import { insightsApi } from './endpoints/insights';
@@ -23,12 +23,14 @@ export const api = {
   skills: skillsApi,
   places: placesApi,
   watches: watchesApi,
-  ask: askApi,
+  runs: runsApi,
   insights: insightsApi,
   exports: exportsApi,
 };
 
 export { ApiError, toApiError } from './http';
 export { API_BASE, API_SOURCE, usingFixtures } from './config';
-export type { AskResult } from './endpoints/ask';
+export type { RunRequest, ReplyRequest, RunRecord, BackendAnswer } from './endpoints/runs';
+export { isEvent } from './stream';
+export type { StreamEvent, StreamEventName } from './stream';
 export type { SkillQuery } from './endpoints/skills';

@@ -11,19 +11,13 @@ import skillManifestsJson from './skill-manifests.json';
 import placesJson from './places.json';
 import placeSearchJson from './place-search-results.json';
 import watchesJson from './watches.json';
-import askAnswersJson from './ask-answers.json';
 import feasibilityJson from './watch-feasibility.json';
 import mapLayersJson from './map-layers.json';
-import clarifyingJson from './clarifying-questions.json';
-import timelineJson from './timeline.json';
 
 import type {
-  AnswerDto,
-  AskRequest,
   InsightDto,
   InsightRequest,
   CatalogDto,
-  ClarifyingQuestionDto,
   CreatePlaceRequest,
   CreateWatchRequest,
   FeasibilityDto,
@@ -43,7 +37,6 @@ export const catalog = () => catalogJson as unknown as CatalogDto;
 export const skills = () => skillsJson as unknown as SkillDto[];
 export const skillManifest = (id: string) => (skillManifestsJson as unknown as Record<string, unknown>)[id];
 export const mapLayers = () => mapLayersJson as unknown as MapLayerDto[];
-export const clarifyingQuestions = () => clarifyingJson as unknown as ClarifyingQuestionDto[];
 export const placeSearch = (q: string) => {
   const s = q.trim().toLowerCase();
   const all = placeSearchJson as unknown as PlaceSearchResultDto[];
@@ -127,24 +120,13 @@ export const deleteWatch = (watchId: string) => {
 
 /* ---------------- agent outputs ---------------- */
 
-const answers = askAnswersJson as unknown as Record<string, AnswerDto>;
-
 /**
- * Picks which exemplar answer to return. This selection is fixture logic standing in for the
- * backend's real routing — it is why it lives here and not in a component.
+ * The answer stand-in moved to `fixtures/run.ts`, in the contract's own shape.
+ *
+ * The regex router that used to pick between four exemplar answers is gone with it: the real
+ * `POST /api/runs` decides what to answer, and a fixture that guessed differently would only
+ * teach the UI habits the backend does not share.
  */
-export const ask = (req: AskRequest): AnswerDto => {
-  const q = req.question.toLowerCase();
-  if (!req.placeId) {
-    return /flood|rain|water|storm/.test(q) ? answers.generalFlood : answers.generalOptical;
-  }
-  if (req.skillId === 'dry-patch-finder' || /dry|water stress|irrigat|drought/.test(q)) {
-    return answers.placeDryPatch;
-  }
-  return answers.placeSkillRun;
-};
-
-export const timeline = () => timelineJson as { dates: string[]; cloudyIndices: number[]; intensity: number[] };
 
 const feasibilityCases = feasibilityJson as unknown as { match: string; response: FeasibilityDto }[];
 

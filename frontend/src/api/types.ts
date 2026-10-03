@@ -302,16 +302,15 @@ export interface FeasibilityDto {
   alternative?: string;
 }
 
-/* ---------------- ask ---------------- */
+/* ---------------- watch proof ---------------- */
 
-export type RouteStatus = 'chosen' | 'support' | 'skipped' | 'fallback';
-
-export interface RouteOptionDto {
-  satellite: string;
-  status: RouteStatus;
-  why: string;
-}
-
+/**
+ * A satellite pass behind a *watch*'s result.
+ *
+ * The answer's own proof list now comes from the contract (`ProofScene`, which uses `id`,
+ * `sat` and a 0..1 `cloud`). This stays for watches, whose endpoints are not in the contract
+ * yet — `docs/API.md` §2 lists watches under "not built yet" (module A5).
+ */
 export interface ProofSceneDto {
   sceneId: string;
   date: string;
@@ -320,60 +319,6 @@ export interface ProofSceneDto {
   used: boolean;
   /** Why it was rejected. Present when `used` is false. */
   why?: string;
-}
-
-export interface AnswerStatDto {
-  label: string;
-  value: string;
-  /** Confidence range for this number, e.g. `90% range 3.9–5.3`. */
-  ci?: string;
-}
-
-export interface AnswerTimelineDto {
-  dates: string[];
-  cloudyIndices: number[];
-  /** Per-pass 0..1 intensity, used to animate the overlays along the timeline. */
-  intensity: number[];
-}
-
-export interface AnswerDto {
-  kind: 'place' | 'general';
-  categoryKey: CategoryKey;
-  eyebrow: string;
-  title: string;
-  stats: AnswerStatDto[];
-  confidence: { level: ConfidenceLevel; pct: number; note: string };
-  findingLabel: string;
-  finding: string;
-  actionLabel: string;
-  action: string;
-  /** What could be wrong, in plain language. Never empty for a measured answer. */
-  caveats: string[];
-  /** Every source considered, including the rejected ones and why. */
-  route: RouteOptionDto[];
-  proof: ProofSceneDto[];
-  hash: string;
-  skillId: string;
-  /** For general answers: skills that could answer this properly. */
-  suggestedSkillIds?: string[];
-  /** `MapLayerDto.id`s this answer produced, switched on as the run completes. */
-  layerIds?: string[];
-  timeline?: AnswerTimelineDto;
-}
-
-export interface AskRequest {
-  question: string;
-  placeId?: string | null;
-  skillId?: string;
-  /** Answers to the clarifying questions, keyed by `ClarifyingQuestionDto.key`. */
-  context?: Record<string, string>;
-  /** BCP-47-ish code from the catalog. Answer prose comes back in this language. */
-  lang: string;
-}
-
-export interface AskResponse {
-  runId: string;
-  answer: AnswerDto;
 }
 
 /* ---------------- insights ("ask your watches") ---------------- */
@@ -393,7 +338,7 @@ export interface InsightDto {
   basis: string[];
 }
 
-/* ---------------- map layers / clarifying questions ---------------- */
+/* ---------------- map layers ---------------- */
 
 export interface MapLayerDto {
   id: string;
@@ -402,12 +347,6 @@ export interface MapLayerDto {
   color: string;
   /** Produced by the agent (as opposed to user-drawn), so it carries an "AI" badge. */
   isAgentMade: boolean;
-}
-
-export interface ClarifyingQuestionDto {
-  key: string;
-  label: string;
-  options: string[];
 }
 
 /* ---------------- export ---------------- */

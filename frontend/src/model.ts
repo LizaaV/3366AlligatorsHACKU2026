@@ -18,12 +18,11 @@
 import type { Pt } from './lib/geo';
 import { fitZoom, ringToPts } from './lib/geo';
 import { categoryStyle } from './data/presentation';
+import type { BackendAnswer } from './api/endpoints/runs';
 import type {
-  AnswerDto,
   CategoryDto,
   CategoryKey,
   ChannelId,
-  ClarifyingQuestionDto,
   ConfidenceLevel,
   DeliveryChannelDto,
   FeasibilityDto,
@@ -60,7 +59,6 @@ export type Satellite = SatelliteDto;
 export type SkillModule = SkillModuleDto;
 export type DeliveryChannel = DeliveryChannelDto;
 export type Language = LanguageDto;
-export type ClarifyingQuestion = ClarifyingQuestionDto;
 export type { ChannelId } from './api/types';
 
 export interface MapLayer {
@@ -266,10 +264,154 @@ export const toWatch = (d: WatchDto): Watch => ({
 /* ---------------- answers ---------------- */
 
 /**
- * Answers need no mapping: the card resolves its accent colour from `categoryKey` through
- * `categoryOf()`, so the wire shape is already the view shape.
+ * The answer, mapped from the contract's `Answer` (`contracts/openapi.json`).
+ *
+ * The wire shape is close to the view shape by design — `docs/API.md` §5 lists the intended
+ * mapping — but not identical, so this is where the differences are absorbed:
+ *
+ *   - `l1`/`cause`/`l2`/`todo` become `findingLabel`/`finding`/`actionLabel`/`action`
+ *   - `StatItem`'s terse `l`/`v` become `label`/`value`
+ *   - `skill_id`/`suggested_skills` become `skillId`/`suggested`
+ *   - the accent colour now arrives as `color`, so the card no longer resolves it from a
+ *     category key (the backend has no notion of our category list)
+ *
+ * `finding` and `action` are nullable: a *measure-only* answer is one where no knowledge card
+ * matched, so there is a measurement but no cause. The card shows "Cause unknown" rather than
+ * inventing one.
  */
-export type Answer = AnswerDto;
+export interface AnswerStat {
+  label: string;
+  value: string;
+  ci: string | null;
+}
+
+export type AnswerBlock = NonNullable<BackendAnswer['blocks']>[number];
+
+export interface Answer {
+  kind: 'place' | 'general';
+  title: string;
+  eyebrow: string;
+  /** Accent colour, straight from the backend. */
+  color: string | null;
+  /** One-sentence answer, shown under the title. */
+  sentence: string;
+  findingLabel: string;
+  /** `null` for a measure-only answer. */
+  finding: string | null;
+  actionLabel: string;
+  action: string | null;
+  stats: AnswerStat[];
+  confidence: { level: ConfidenceLevel; pct: number; note: string };
+  caveats: string[];
+  route: NonNullable<BackendAnswer['route']>;
+  proof: NonNullable<BackendAnswer['proof']>;
+  /** The visuals, same objects that arrived as `block_ready` events. */
+  blocks: AnswerBlock[];
+  /** Up to three suggested next questions. */
+  followups: string[];
+  /** Knowledge cards and skill behind the answer, for the "Method" panel. */
+  method: BackendAnswer['method'] | null;
+  skillId: string | null;
+  suggested: string[];
+  /** No knowledge card matched: there is a measurement but no cause. */
+  measureOnly: boolean;
+  /** Served from stub/preset data — the UI shows a "demo data" tag. */
+  preset: boolean;
+  hash: string;
+}
+
+export const toAnswer = (d: BackendAnswer): Answer => ({
+  kind: d.kind,
+  title: d.title,
+  eyebrow: d.eyebrow ?? '',
+  color: d.color ?? null,
+  sentence: d.sentence,
+  findingLabel: d.l1,
+  finding: d.cause ?? null,
+  actionLabel: d.l2,
+  action: d.todo ?? null,
+  stats: (d.stats ?? []).map((s) => ({ label: s.l, value: s.v, ci: s.ci ?? null })),
+  confidence: d.confidence,
+  caveats: d.caveats ?? [],
+  route: d.route ?? [],
+  proof: d.proof ?? [],
+  blocks: d.blocks ?? [],
+  followups: d.followups ?? [],
+  method: d.method ?? null,
+  skillId: d.skill_id ?? null,
+  suggested: d.suggested_skills ?? [],
+  measureOnly: d.measure_only,
+  preset: d.preset,
+  hash: d.hash,
+});
+
+/**
+ * Per-pass series for the map's date scrubber.
+ *
+ * The pre-contract proposal had the answer carry a `timeline` object directly. The contract
+ * instead streams a `timeline` *block* whose points each name their scene, so this derives the
+ * scrubber's three parallel arrays from the first such block.
+ *
+ * `clean_px` is the fraction of the area that was unobscured on that pass, so a pass is
+ * treated as cloudy below half — that is the same judgement the old `cloudyIndices` encoded,
+ * now taken from a real measurement rather than a fixture's say-so.
+ */
+export interface PassTimeline {
+  dates: string[];
+  cloudyIndices: number[];
+  /** Per-pass 0..1, used to animate the overlays along the timeline. */
+  intensity: number[];
+}
+
+const CLEAN_ENOUGH = 0.5;
+
+export function passTimelineFrom(blocks: AnswerBlock[]): PassTimeline | null {
+  const block = blocks.find((b): b is Extract<AnswerBlock, { type: 'timeline' }> => b.type === 'timeline');
+  if (!block || !block.data.length) return null;
+
+  const values = block.data.map((p) => p.value);
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const span = hi - lo;
+
+  return {
+    dates: block.data.map((p) => p.date),
+    cloudyIndices: block.data.flatMap((p, i) => (p.clean_px < CLEAN_ENOUGH ? [i] : [])),
+    // A flat series would divide by zero; show it as uniformly mid-intensity instead.
+    intensity: block.data.map((p) => (span === 0 ? 0.5 : (p.value - lo) / span)),
+  };
+}
+
+/**
+ * Map layers an answer produced, so the layer panel can switch them on as the run completes.
+ *
+ * The pre-contract proposal had the answer carry `layerIds` directly. The contract instead
+ * attaches a `layer_id` to each rendered `Image` inside a block, which is the better shape —
+ * the id travels with the thing it draws — so this collects them.
+ */
+export function layerIdsFrom(blocks: AnswerBlock[]): string[] {
+  const ids = new Set<string>();
+  for (const b of blocks) {
+    if (b.type === 'then_now') {
+      ids.add(b.before.layer_id);
+      ids.add(b.after.layer_id);
+    }
+  }
+  return [...ids];
+}
+
+/** A step the backend actually ran, from `step_started` / `step_finished`. */
+export interface RunStep {
+  index: number;
+  tool: string;
+  title: string;
+  desc: string;
+  result: string | null;
+  ms: number | null;
+  error: string | null;
+  /** False until the matching `step_finished` arrives. */
+  done: boolean;
+}
 
 export type Feasibility = FeasibilityDto;
 

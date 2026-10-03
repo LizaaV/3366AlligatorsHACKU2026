@@ -1,5 +1,5 @@
 import { DRY_PATH, TILE, txy } from '../lib/geo';
-import type { AnswerTimelineDto } from '../api/types';
+import type { PassTimeline } from '../model';
 import type { Place } from '../model';
 import { Ms, hideBroken } from './ui';
 
@@ -20,7 +20,7 @@ interface Props {
    * Per-pass timeline from the answer: which passes were cloudy and how strong the detected
    * feature was on each. Previously hardcoded in the frontend; now part of the API response.
    */
-  timeline?: AnswerTimelineDto | null;
+  timeline?: PassTimeline | null;
 }
 
 /** Sentinel-2 tile map with the AI overlay stack from the prototype. */
