@@ -16,7 +16,7 @@
  */
 
 import type { Pt } from './lib/geo';
-import { fitZoom, ringToPts } from './lib/geo';
+import { fitZoom, outerRing, ringToPts } from './lib/geo';
 import { categoryStyle } from './data/presentation';
 import type { BackendAnswer } from './api/endpoints/runs';
 import type { Area as AreaDto, AreaResolveResponse as AreaResolveResponseDto } from './api/endpoints/areas';
@@ -330,17 +330,6 @@ const meanOf = (ring: [number, number][]) => {
   return { lon: sum.lon / ring.length, lat: sum.lat / ring.length };
 };
 
-/** The outer ring of a Polygon, MultiPolygon, Feature or FeatureCollection. */
-function outerRing(geojson: unknown): [number, number][] | null {
-  const g = geojson as { type?: string; coordinates?: unknown; geometry?: unknown; features?: unknown[] };
-  if (!g || typeof g !== 'object') return null;
-  if (g.type === 'Feature') return outerRing(g.geometry);
-  if (g.type === 'FeatureCollection') return outerRing((g.features ?? [])[0]);
-  if (g.type === 'Polygon') return (g.coordinates as [number, number][][])?.[0] ?? null;
-  if (g.type === 'MultiPolygon') return (g.coordinates as [number, number][][][])?.[0]?.[0] ?? null;
-  return null;
-}
-
 /* ---------------- answers ---------------- */
 
 /**
@@ -441,6 +430,14 @@ export interface PassTimeline {
   cloudyIndices: number[];
   /** Per-pass 0..1, used to animate the overlays along the timeline. */
   intensity: number[];
+  /**
+   * Scene id per pass, parallel to `dates`.
+   *
+   * §6: "Each point carries its `scene`, so clicking a point can move the map's time cursor."
+   * Keeping them here is what lets a timeline block address the cursor by scene rather than by
+   * an index the block cannot know.
+   */
+  scenes: string[];
 }
 
 const CLEAN_ENOUGH = 0.5;
@@ -459,6 +456,7 @@ export function passTimelineFrom(blocks: AnswerBlock[]): PassTimeline | null {
     cloudyIndices: block.data.flatMap((p, i) => (p.clean_px < CLEAN_ENOUGH ? [i] : [])),
     // A flat series would divide by zero; show it as uniformly mid-intensity instead.
     intensity: block.data.map((p) => (span === 0 ? 0.5 : (p.value - lo) / span)),
+    scenes: block.data.map((p) => p.scene),
   };
 }
 

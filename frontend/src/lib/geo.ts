@@ -170,3 +170,22 @@ export const pts2 = (arr: number[], w = 300, h = 100, pad = 90) =>
  */
 export const DEFAULT_CENTER = { lat: 37.9785, lon: -100.9155 };
 export const DEFAULT_ZOOM = 16;
+
+/**
+ * The outer ring of a GeoJSON Polygon, MultiPolygon, Feature or FeatureCollection.
+ *
+ * The contract passes geometry as a bare `{[key: string]: unknown}`, so every caller that wants
+ * coordinates has to narrow it. Doing that once here keeps the narrowing in one place — it was
+ * briefly duplicated between the area mapper and the highlight overlay.
+ *
+ * Returns `[lon, lat]` pairs, GeoJSON's own axis order.
+ */
+export function outerRing(geojson: unknown): [number, number][] | null {
+  const g = geojson as { type?: string; coordinates?: unknown; geometry?: unknown; features?: unknown[] };
+  if (!g || typeof g !== 'object') return null;
+  if (g.type === 'Feature') return outerRing(g.geometry);
+  if (g.type === 'FeatureCollection') return outerRing((g.features ?? [])[0]);
+  if (g.type === 'Polygon') return (g.coordinates as [number, number][][])?.[0] ?? null;
+  if (g.type === 'MultiPolygon') return (g.coordinates as [number, number][][][])?.[0]?.[0] ?? null;
+  return null;
+}
