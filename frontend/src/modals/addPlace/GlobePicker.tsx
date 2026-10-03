@@ -5,23 +5,10 @@
  * coordinates come back through `onPick`; `onBack` (optional) returns to the map.
  */
 
-import { Suspense, lazy, type ComponentType } from 'react';
+import { Suspense, lazy } from 'react';
 import { Btn } from '../../components/ui';
 
-/** The props stream C adds to Globe. */
-interface GlobeProps {
-  visible: boolean;
-  autoRotate?: boolean;
-  offsetRight?: boolean;
-  onPickLocation?: (p: { lat: number; lon: number }) => void;
-  focus?: { lat: number; lon: number } | null;
-  showSatellites?: boolean;
-}
-
-// TODO: remove cast after stream C merges (Globe then declares these props itself).
-const Globe = lazy(() =>
-  import('../../components/Globe').then((m) => ({ default: m.Globe as unknown as ComponentType<GlobeProps> })),
-);
+const Globe = lazy(() => import('../../components/Globe').then((m) => ({ default: m.Globe })));
 
 export function GlobePicker({ H, onPick, focus, onBack, hint }: {
   H: number;
