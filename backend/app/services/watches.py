@@ -231,6 +231,33 @@ RULES: tuple[Rule, ...] = (
         confidence="Low",
         notes=("300 m pixels — fine near open water, unreliable within ~600 m of the shore.",),
     ),
+    Rule(
+        pattern=_rx(
+            r"ponds?\b",
+            r"fish ?ponds?",
+            r"wetlands?",
+            r"open water",
+            r"water (?:area|level|extent)",
+            r"reservoirs?",
+            r"lakes?\b",
+            r"fill(?:ed|ing)? in",
+            r"reclaim",
+            r"shrink",
+        ),
+        title="Open water at my ponds or wetland",
+        skill_id="pond-filling-check",
+        category_key="water",
+        metric="Open water area",
+        condition="Open water falls clearly below its usual range",
+        satellites="Sentinel-2 · Sentinel-1",
+        cadence="Every ~5 days",
+        confidence="Medium",
+        notes=(
+            "Ponds narrower than about 50 m, or filling along one bund, may be missed at 10 m.",
+            "A pond drained for the season looks like a filled one; only persistence across "
+            "many passes separates them.",
+        ),
+    ),
     _SMALL_PLOT,
     Rule(
         pattern=_rx(r"dry", r"drought", r"moisture", r"irrigat", r"water stress"),
