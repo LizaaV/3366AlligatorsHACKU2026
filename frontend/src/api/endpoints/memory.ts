@@ -4,8 +4,8 @@
  *   GET/PATCH /api/me/memory            -> what you told it about yourself (units, crops you grow)
  *   POST      /api/runs/{id}/insight    -> save one answer to a place's memory
  *
- * Place memory itself lives in `places.ts` (`memory` / `patchMemory`). The backend merges
- * profile keys and never deletes them, so a PATCH can add or overwrite but not remove.
+ * Place memory itself lives in `places.ts` (`memory` / `patchMemory`). A PATCH merges profile
+ * keys: a new value adds or overwrites, and a blank value makes the server forget that key.
  */
 
 import { request } from '../http';
@@ -20,6 +20,10 @@ export type InsightSaved = S['InsightSaved'];
 
 let fixtureMe: Record<string, string> = { units: 'metric', crops: 'Maize, soybean' };
 
+/** Same rule as the server: a blank value forgets the key. */
+const mergeProfile = (base: Record<string, string>, patch: Record<string, string>) =>
+  Object.fromEntries(Object.entries({ ...base, ...patch }).filter(([, v]) => v.trim() !== ''));
+
 export const memoryApi = {
   /** GET /api/me/memory */
   getMe: (signal?: AbortSignal): Promise<MeMemory> =>
@@ -30,14 +34,14 @@ export const memoryApi = {
       ...(usingFixtures() ? { fixture: () => ({ profile: fixtureMe }) } : {}),
     }),
 
-  /** PATCH /api/me/memory — merges keys; blank values are ignored by the server. */
+  /** PATCH /api/me/memory — merges keys; a blank value forgets that key. */
   patchMe: (profile: Record<string, string>, signal?: AbortSignal): Promise<MeMemory> =>
     request<MeMemory>({
       method: 'PATCH',
       path: '/me/memory',
       body: { profile },
       signal,
-      ...(usingFixtures() ? { fixture: () => ({ profile: (fixtureMe = { ...fixtureMe, ...profile }) }) } : {}),
+      ...(usingFixtures() ? { fixture: () => ({ profile: (fixtureMe = mergeProfile(fixtureMe, profile)) }) } : {}),
     }),
 
   /** POST /api/runs/{run_id}/insight — 201; 400 if the place is not one of the run's places. */

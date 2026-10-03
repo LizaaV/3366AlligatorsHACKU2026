@@ -220,7 +220,4 @@ export const placesApi = {
         : {}),
     }).then((d) => fromParseDto(d, file.name));
   },
-
-  /** Phone number shown in the connectors modal. TODO(api): comes with the WhatsApp channel. */
-  whatsappNumber: () => fixtures.WHATSAPP_NUMBER,
 };
