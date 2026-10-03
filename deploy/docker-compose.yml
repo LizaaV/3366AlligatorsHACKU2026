@@ -11,12 +11,15 @@ services:
         required: false
     environment:
       EARTH_DATA_DIR: /data
+      # Read by the backend for share links (#22); also the CORS origin below.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}
       # Overrides backend/.env. Same-origin through nginx, but allow the public URL anyway.
       CORS_ORIGINS: '["${PUBLIC_BASE_URL:-http://localhost}"]'
     volumes:
       - earth-data:/data
     networks: [web, earth-only]
     expose: ["8000"]               # internal only: not published on the host
+    init: true                     # reap leftover sandbox child processes
     restart: unless-stopped
 
   frontend:

@@ -9,6 +9,8 @@ browser ──:80──> nginx (frontend container) ──/api/*──> backend:
 
 nginx is the single public entry point; the backend is not published on the host. The SPA calls `/api` on its own origin. The frontend image is built with `VITE_API_SOURCE=http` (Vite inlines it at build time), so the deployed app talks to the real backend instead of the scripted fixtures; set `VITE_API_SOURCE=fixture` in `deploy/.env` and rebuild to get the mock-only UI.
 
+> **Product note: `VITE_API_SOURCE=http` and unbuilt routes.** With `http`, every page whose backend route is not built yet shows an error instead of sample data: catalog, map layers, watches, skills, insights and export. Only the ask flow and areas (plus places, shares and dashboards once merged) are live. The team must decide with Liza and Anna Claire whether the demo build keeps sample data on for those pages. Options: build with `VITE_API_SOURCE=fixture` (everything mocked, including the ask flow), or migrate per endpoint in the frontend so live routes use `http` and the rest keep fixtures.
+
 ## 1. VM prerequisites
 
 - Linux, about 4 vCPU / 8 GB RAM, 20 GB disk.
@@ -29,7 +31,7 @@ cp deploy/.env.example deploy/.env        # then edit: PUBLIC_BASE_URL, HTTP_POR
 
 - `backend/.env` holds the app settings and secrets (git-ignored). See `backend/.env.example` and `docs/BUILD-PLAN.md` section 9. If it is missing the stack still boots with defaults (stub earth, no LLM key).
   Do not set `EARTH_DATA_DIR` or `CORS_ORIGINS` there; compose sets them.
-- `deploy/.env` holds deploy-level values: `PUBLIC_BASE_URL` (e.g. `http://203.0.113.10` or `https://earth.example.com`, no trailing slash; it becomes the CORS origin), `HTTP_PORT` (default 80) and `VITE_API_SOURCE` (default `http`, build-time).
+- `deploy/.env` holds deploy-level values: `PUBLIC_BASE_URL` (e.g. `http://203.0.113.10` or `https://earth.example.com`, no trailing slash; it becomes the CORS origin and the base of share links), `HTTP_PORT` (default 80) and `VITE_API_SOURCE` (default `http`, build-time).
 
 ### Environment variables
 
@@ -42,7 +44,7 @@ cp deploy/.env.example deploy/.env        # then edit: PUBLIC_BASE_URL, HTTP_POR
 | `RUNS_DB_PATH` | `backend/.env` | `$EARTH_DATA_DIR/runs.sqlite` | Run store location. Leave unset. |
 | `EARTH_DATA_DIR` | compose | `/data` | Cache, rendered layers, memory, run DB (volume). Set by compose; do not override. |
 | `CORS_ORIGINS` | compose | `["$PUBLIC_BASE_URL"]` | Set by compose from `PUBLIC_BASE_URL`. |
-| `PUBLIC_BASE_URL` | `deploy/.env` | `http://localhost` | Public URL; CORS origin. |
+| `PUBLIC_BASE_URL` | `deploy/.env` | `http://localhost` | Public URL. Compose passes it to the backend (share links read it) and derives `CORS_ORIGINS` from it. |
 | `HTTP_PORT` | `deploy/.env` | `80` | Host port of nginx. |
 | `VITE_API_SOURCE` | `deploy/.env` | `http` | Frontend build arg: `http` real API, `fixture` mocks. Needs a rebuild. |
 
@@ -107,7 +109,7 @@ Open `http://<vm-public-ip>/`. For a domain with HTTPS, follow the Caddy steps b
 
 ## Data
 
-Cache, rendered PNGs and memory live in the named volume `earth-agent_earth-data`, mounted at `/data` in the backend (`EARTH_DATA_DIR=/data`). It survives rebuilds and `down`; only `down -v` deletes it.
+Cache, rendered PNGs, memory and the run store (`runs.sqlite`) live in the named volume `earth-agent_earth-data`, mounted at `/data` in the backend (`EARTH_DATA_DIR=/data`). It survives rebuilds and `down`; only `down -v` deletes it.
 
 ## HTTPS
 
