@@ -108,6 +108,18 @@ _BANNED_ATTRS = {
     "format",
     "format_map",
     "mro",
+    # pydantic v1-compat constructors on every model class: parse_raw/parse_file accept
+    # proto="pickle" (code execution) and read arbitrary files; construct skips validation.
+    "parse_file",
+    "parse_raw",
+    "parse_obj",
+    "from_orm",
+    "construct",
+    "model_construct",
+    "validate",
+    "schema_json",
+    "update_forward_refs",
+    "model_rebuild",
 }
 
 
