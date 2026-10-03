@@ -8,7 +8,7 @@ filled from the new block's numbers.
 
 from __future__ import annotations
 
-import secrets
+import asyncio
 import sqlite3
 import threading
 from collections.abc import Iterator
@@ -32,8 +32,12 @@ from earth.blocks import Block
 __all__ = [
     "BlockNotFound",
     "DashboardNotFound",
+    "LimitReached",
+    "MAX_BLOCKS_PER_DASHBOARD",
+    "MAX_DASHBOARDS_PER_USER",
     "NoMatchingBlock",
     "RefreshFailed",
+    "RefreshInProgress",
     "add_block",
     "create_dashboard",
     "delete_dashboard",
@@ -55,6 +59,10 @@ CREATE TABLE IF NOT EXISTS dashboards (
 );
 CREATE INDEX IF NOT EXISTS dashboards_user ON dashboards(user_id, created_at);
 """
+MAX_BLOCKS_PER_DASHBOARD = 50
+MAX_DASHBOARDS_PER_USER = 20
+_REFRESH_SLOTS = asyncio.Semaphore(3)  # at most 3 sandbox subprocesses from refreshes at once
+_IN_FLIGHT: set[tuple[str, str]] = set()  # (dashboard id, block id) being refreshed right now
 _WRITE_LOCK = threading.Lock()
 _INIT_LOCK = threading.Lock()
 _initialised: set[str] = set()
@@ -78,6 +86,14 @@ class RefreshFailed(Exception):
     def __init__(self, error: ScriptError) -> None:
         super().__init__(error.message)
         self.error = error
+
+
+class RefreshInProgress(Exception):
+    """This block is already being refreshed."""
+
+
+class LimitReached(ValueError):
+    """Too many dashboards for the user, or too many blocks on the dashboard."""
 
 
 class NoScript(ValueError):
@@ -153,6 +169,11 @@ def _mutate(dash_id: str, user_id: str) -> Iterator[Dashboard]:
 def create_dashboard(user_id: str, name: str) -> Dashboard:
     dash = Dashboard(id=new_dashboard_id(), user_id=user_id, name=name)
     with _WRITE_LOCK, _db() as conn:
+        (count,) = conn.execute(
+            "SELECT COUNT(*) FROM dashboards WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        if count >= MAX_DASHBOARDS_PER_USER:
+            raise LimitReached(f"At most {MAX_DASHBOARDS_PER_USER} dashboards per user.")
         _write(conn, dash)
     return dash
 
@@ -242,6 +263,9 @@ def add_block(dash_id: str, user_id: str, run: RunRecord, run_block_id: str) -> 
         )
     now = _now()
     block = run.blocks[index].model_copy(deep=True)
+    title_index = sum(
+        1 for b in run.blocks[:index] if b.type == block.type and b.title == block.title
+    )
     saved = DashboardBlock(
         block_id=new_block_id(),
         block=block,
@@ -250,13 +274,17 @@ def add_block(dash_id: str, user_id: str, run: RunRecord, run_block_id: str) -> 
             run_date=run.created_at.astimezone(UTC).date(),
             script=run.script,
             params=dict(run.params),
-            block_index=index,
             block_id=run_block_id,
+            block_type=block.type,
+            block_title=block.title,
+            title_index=title_index,
         ),
         refreshed_at=now,
         caption=_caption("Saved", now, block),
     )
     with _mutate(dash_id, user_id) as dash:
+        if len(dash.blocks) >= MAX_BLOCKS_PER_DASHBOARD:
+            raise LimitReached(f"At most {MAX_BLOCKS_PER_DASHBOARD} blocks per dashboard.")
         dash.blocks.append(saved)
     return saved
 
@@ -276,56 +304,79 @@ def move_params(params: dict[str, Any], run_date: date, today: date) -> dict[str
     """The saved params, moved forward to today.
 
     Relative params (`last="60d"`, `years=5`, ...) are returned unchanged: they already mean
-    "ending now". A top-level `after` that is the ISO date of the original run becomes today's
-    date (the run was "up to now" when it was made). `before` and every other date stay fixed.
+    "ending now". A top-level `after` within one day of the original run's date (timezone slack)
+    becomes today's date (the run was "up to now" when it was made). `before` and every other
+    date stay fixed.
     """
     moved = dict(params)
-    if moved.get("after") == run_date.isoformat():
-        moved["after"] = today.isoformat()
+    after = moved.get("after")
+    if isinstance(after, str):
+        try:
+            when = date.fromisoformat(after)
+        except ValueError:
+            return moved
+        if abs((when - run_date).days) <= 1:
+            moved["after"] = today.isoformat()
     return moved
 
 
 def _pick(blocks: list[Block], saved: DashboardBlock) -> Block:
-    """The re-run block that replaces `saved`: same type, preferring same id, then same position."""
-    kind = saved.block.type
-    same = [b for b in blocks if b.type == kind]
-    index = saved.source.block_index
-    for b in same:
-        if b.id == saved.source.block_id:
-            return b
-    if index < len(blocks) and blocks[index].type == kind:
-        return blocks[index]
-    if len(same) == 1:
-        return same[0]
-    raise NoMatchingBlock(f"The script no longer produces a '{kind}' block like the saved one.")
+    """The re-run block that replaces `saved`: same type + title, then same position among those.
+
+    Never guesses: with no such block, raises `NoMatchingBlock`.
+    """
+    src = saved.source
+    group = [b for b in blocks if b.type == src.block_type and b.title == src.block_title]
+    if src.title_index < len(group):
+        return group[src.title_index]
+    raise NoMatchingBlock(
+        "This block can't be refreshed: the saved script no longer produces it "
+        f"(a '{src.block_type}' block titled '{src.block_title}')."
+    )
 
 
 async def refresh_block(dash_id: str, user_id: str, block_id: str) -> DashboardBlock:
     """Re-run the block's script (no LLM) and swap in the new block with a template caption.
 
-    Raises `DashboardNotFound`, `BlockNotFound`, `RefreshFailed` (script failed or returned
-    nothing; the saved block is untouched) or `NoMatchingBlock`.
+    Raises `DashboardNotFound`, `BlockNotFound`, `RefreshInProgress` (same block already
+    refreshing), `RefreshFailed` (script failed or returned nothing; the saved block is
+    untouched) or `NoMatchingBlock`.
     """
-    dash = get_dashboard(dash_id, user_id)
+    dash = await asyncio.to_thread(get_dashboard, dash_id, user_id)
     saved = next((b for b in dash.blocks if b.block_id == block_id), None)
     if saved is None:
         raise BlockNotFound(block_id)
-    src = saved.source
-    params = move_params(src.params, src.run_date, _today())
-    outcome: RunOutcome = await run_script(
-        src.script, params, run_id="d_" + secrets.token_hex(5), timeout_s=60
-    )
-    if not outcome.ok or outcome.result is None:
-        raise RefreshFailed(
-            outcome.error or ScriptError(kind="crash", message="The script returned nothing.")
-        )
-    new_block = _pick(outcome.result.blocks, saved)
-    now = _now()
-    with _mutate(dash_id, user_id) as fresh:
-        target = next((b for b in fresh.blocks if b.block_id == block_id), None)
-        if target is None:  # removed while the script ran
-            raise BlockNotFound(block_id)
-        target.block = new_block
-        target.refreshed_at = now
-        target.caption = _caption("Refreshed", now, new_block)
-    return target
+    key = (dash_id, block_id)
+    if key in _IN_FLIGHT:
+        raise RefreshInProgress(block_id)
+    _IN_FLIGHT.add(key)
+    try:
+        src = saved.source
+        params = move_params(src.params, src.run_date, _today())
+        async with _REFRESH_SLOTS:
+            outcome: RunOutcome = await run_script(
+                src.script,
+                params,
+                run_id=f"d_{block_id}",  # one image folder per saved block, overwritten each time
+                timeout_s=60,
+            )
+        if not outcome.ok or outcome.result is None:
+            raise RefreshFailed(
+                outcome.error or ScriptError(kind="crash", message="The script returned nothing.")
+            )
+        new_block = _pick(outcome.result.blocks, saved)
+        now = _now()
+
+        def _store() -> DashboardBlock:
+            with _mutate(dash_id, user_id) as fresh:
+                target = next((b for b in fresh.blocks if b.block_id == block_id), None)
+                if target is None:  # removed while the script ran
+                    raise BlockNotFound(block_id)
+                target.block = new_block
+                target.refreshed_at = now
+                target.caption = _caption("Refreshed", now, new_block)
+            return target
+
+        return await asyncio.to_thread(_store)
+    finally:
+        _IN_FLIGHT.discard(key)
