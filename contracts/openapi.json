@@ -1526,6 +1526,512 @@
           }
         }
       }
+    },
+    "/api/dashboards": {
+      "get": {
+        "tags": [
+          "dashboards"
+        ],
+        "summary": "Your dashboards",
+        "operationId": "list_dashboards_api_dashboards_get",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DashboardSummary"
+                  },
+                  "title": "Response List Dashboards Api Dashboards Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "dashboards"
+        ],
+        "summary": "Create a dashboard",
+        "operationId": "create_dashboard_api_dashboards_post",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DashboardCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboards/{dashboard_id}": {
+      "get": {
+        "tags": [
+          "dashboards"
+        ],
+        "summary": "Read a dashboard with its blocks",
+        "operationId": "get_dashboard_api_dashboards__dashboard_id__get",
+        "parameters": [
+          {
+            "name": "dashboard_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dashboard Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dashboard not found (or not yours)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "dashboards"
+        ],
+        "summary": "Rename a dashboard",
+        "operationId": "rename_dashboard_api_dashboards__dashboard_id__patch",
+        "parameters": [
+          {
+            "name": "dashboard_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dashboard Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DashboardUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dashboard not found (or not yours)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "dashboards"
+        ],
+        "summary": "Delete a dashboard",
+        "operationId": "delete_dashboard_api_dashboards__dashboard_id__delete",
+        "parameters": [
+          {
+            "name": "dashboard_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dashboard Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Dashboard not found (or not yours)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboards/{dashboard_id}/blocks": {
+      "post": {
+        "tags": [
+          "dashboards"
+        ],
+        "summary": "Save a block of one of your runs to a dashboard",
+        "description": "Copies the block, plus the run's script and params, onto the dashboard.",
+        "operationId": "add_block_api_dashboards__dashboard_id__blocks_post",
+        "parameters": [
+          {
+            "name": "dashboard_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dashboard Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveBlockRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardBlockOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dashboard, run or block not found (or not yours)."
+          },
+          "422": {
+            "description": "The run has no script (its blocks cannot be refreshed), or the dashboard already has 50 blocks."
+          }
+        }
+      }
+    },
+    "/api/dashboards/{dashboard_id}/blocks/{block_id}": {
+      "delete": {
+        "tags": [
+          "dashboards"
+        ],
+        "summary": "Remove a block from a dashboard",
+        "operationId": "remove_block_api_dashboards__dashboard_id__blocks__block_id__delete",
+        "parameters": [
+          {
+            "name": "dashboard_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dashboard Id"
+            }
+          },
+          {
+            "name": "block_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Block Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Dashboard or block not found (or not yours)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboards/{dashboard_id}/blocks/{block_id}/refresh": {
+      "post": {
+        "tags": [
+          "dashboards"
+        ],
+        "summary": "Refresh a saved block (re-runs its script, no LLM)",
+        "description": "Re-runs the saved script with the saved params moved forward (an `after` within a day of\nthe original run's date becomes today; relative `last=\"60d\"` and `years` already move\nforward; `before` stays fixed), then swaps in the re-run block with the same type and title\n(position among those) with a template caption. Never guesses: no such block gives 422.",
+        "operationId": "refresh_block_api_dashboards__dashboard_id__blocks__block_id__refresh_post",
+        "parameters": [
+          {
+            "name": "dashboard_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dashboard Id"
+            }
+          },
+          {
+            "name": "block_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Block Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardBlockOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dashboard or block not found (or not yours)."
+          },
+          "409": {
+            "description": "This block is already being refreshed."
+          },
+          "422": {
+            "description": "The saved script is no longer valid (`detail` = ScriptError: kind `scan` or `shape`), hit a data outcome (`earth_kind` such as `no_clear_scenes`), or no longer produces the saved block (type + title). The old block is kept."
+          },
+          "502": {
+            "description": "The script ran and failed (`detail` = ScriptError: kind `crash`, `budget` or `timeout`, with `earth_kind` and `hint`). The old block is kept."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2005,6 +2511,51 @@
         "title": "BlockReady",
         "description": "A visual block is ready to render."
       },
+      "BlockSourceOut": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "run_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Run Date"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          },
+          "block_id": {
+            "type": "string",
+            "title": "Block Id"
+          },
+          "block_type": {
+            "type": "string",
+            "title": "Block Type"
+          },
+          "block_title": {
+            "type": "string",
+            "title": "Block Title"
+          },
+          "title_index": {
+            "type": "integer",
+            "title": "Title Index"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "run_date",
+          "block_id",
+          "block_type",
+          "block_title",
+          "title_index"
+        ],
+        "title": "BlockSourceOut",
+        "description": "`BlockSource` as the API returns it: the stored script is kept server-side only."
+      },
       "CardDetail": {
         "properties": {
           "entry": {
@@ -2391,6 +2942,178 @@
         ],
         "title": "CreatePlaceRequest",
         "description": "Send `geometry` (a GeoJSON polygon; `center` is then ignored and recomputed),\nor `center` + `radius_m` for a dropped pin."
+      },
+      "DashboardBlockOut": {
+        "properties": {
+          "block_id": {
+            "type": "string",
+            "title": "Block Id"
+          },
+          "block": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ThenNowBlock"
+              },
+              {
+                "$ref": "#/components/schemas/TimelineBlock"
+              },
+              {
+                "$ref": "#/components/schemas/SceneStripBlock"
+              },
+              {
+                "$ref": "#/components/schemas/HighlightBlock"
+              },
+              {
+                "$ref": "#/components/schemas/HypothesesBlock"
+              },
+              {
+                "$ref": "#/components/schemas/StatBlock"
+              },
+              {
+                "$ref": "#/components/schemas/LimitsBlock"
+              }
+            ],
+            "title": "Block",
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "highlight": "#/components/schemas/HighlightBlock",
+                "hypotheses": "#/components/schemas/HypothesesBlock",
+                "limits": "#/components/schemas/LimitsBlock",
+                "scene_strip": "#/components/schemas/SceneStripBlock",
+                "stat": "#/components/schemas/StatBlock",
+                "then_now": "#/components/schemas/ThenNowBlock",
+                "timeline": "#/components/schemas/TimelineBlock"
+              }
+            }
+          },
+          "source": {
+            "$ref": "#/components/schemas/BlockSourceOut"
+          },
+          "refreshed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Refreshed At"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          }
+        },
+        "type": "object",
+        "required": [
+          "block_id",
+          "block",
+          "source",
+          "refreshed_at"
+        ],
+        "title": "DashboardBlockOut",
+        "description": "A saved block as the API returns it (no script)."
+      },
+      "DashboardCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "DashboardCreate"
+      },
+      "DashboardOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardBlockOut"
+            },
+            "type": "array",
+            "title": "Blocks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "name",
+          "created_at",
+          "blocks"
+        ],
+        "title": "DashboardOut",
+        "description": "A dashboard as the API returns it."
+      },
+      "DashboardSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "block_count": {
+            "type": "integer",
+            "title": "Block Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "block_count"
+        ],
+        "title": "DashboardSummary",
+        "description": "A dashboard entry for the list."
+      },
+      "DashboardUpdate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "DashboardUpdate"
       },
       "DetailRow": {
         "properties": {
@@ -4211,6 +4934,28 @@
         ],
         "title": "RunStarted",
         "description": "The run has been accepted and started."
+      },
+      "SaveBlockRequest": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "title": "Run Id"
+          },
+          "block_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Block Id",
+            "description": "The block's `id` in the run, e.g. 'b2'."
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "block_id"
+        ],
+        "title": "SaveBlockRequest",
+        "description": "Save one block of a run to a dashboard."
       },
       "SceneCounts": {
         "properties": {
