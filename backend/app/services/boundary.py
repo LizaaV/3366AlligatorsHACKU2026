@@ -40,8 +40,9 @@ FALLBACK_SIDE_M = 100  # 1 ha
 MAX_REGION_HA = 200
 MIN_REGION_HA = 0.05
 SIMPLIFY_M = 5
+SMOOTH_M = 10  # one pixel: closes notches and drops spurs before simplifying
 SCENE_WINDOW = "90d"
-TIMEOUT_S = 25  # whole pixel read; the Earth Search reads themselves time out at 20 s each
+TIMEOUT_S = 60  # whole pixel read; cold it takes ~35 s (scene scan + 3 reads)
 TOL_MIN, TOL_MAX, TOL_NOISE = 0.06, 0.20, 2.5  # index tolerance = 2.5 x local std, clamped
 
 Confidence = Literal["High", "Medium", "Low"]
@@ -185,7 +186,11 @@ def _vectorise(grid: IndexGrid, mask: np.ndarray, lat: float, lon: float) -> Pol
 
 def _simplified(poly: Polygon, lat: float, lon: float) -> Polygon | None:
     fwd, back = _local(lat, lon)
-    metric = transform(fwd.transform, poly).simplify(SIMPLIFY_M, preserve_topology=True)
+    metric = transform(fwd.transform, poly)
+    smooth = metric.buffer(SMOOTH_M).buffer(-2 * SMOOTH_M).buffer(SMOOTH_M)  # close, then open
+    if not smooth.is_empty and smooth.area > 0.5 * metric.area:
+        metric = smooth
+    metric = metric.simplify(SIMPLIFY_M, preserve_topology=True)
     if metric.is_empty:
         return None
     if not metric.is_valid:
