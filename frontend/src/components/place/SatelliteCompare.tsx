@@ -9,22 +9,22 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { Ms, hideBroken } from '../ui';
-import { API_BASE } from '../../api/config';
 import { cloudFromFraction } from '../../lib/format';
 import { thumb } from '../../lib/geo';
 import type { AnswerBlock, Place } from '../../model';
-import { VIEWS, collectPasses, groupBySatellite, layerPngUrl, type Pass } from './passes';
+import { BASEMAP_VIEW, collectPasses, groupBySatellite, viewsFor, type Pass } from './passes';
+import { layerLook } from './layerNames';
 
 type Mode = 'side' | 'swipe';
 
 export function SatelliteCompare({
   place,
   blocks,
-  runId,
   onClose,
 }: {
   place: Place | null;
   blocks: AnswerBlock[];
+  /** Unused: views come from the images the blocks carry. Kept so existing callers still compile. */
   runId?: string;
   onClose?: () => void;
 }) {
@@ -32,9 +32,11 @@ export function SatelliteCompare({
   const groups = useMemo(() => groupBySatellite(passes), [passes]);
   const [picked, setPicked] = useState<string[]>([]);
   const [mode, setMode] = useState<Mode>('side');
-  const [viewId, setViewId] = useState('true');
+  const [viewId, setViewId] = useState(BASEMAP_VIEW.id);
 
-  const view = VIEWS.find((v) => v.id === viewId) ?? VIEWS[0];
+  // Only views whose images the run really rendered.
+  const views = useMemo(() => viewsFor(passes, (m) => layerLook(m).label), [passes]);
+  const view = views.find((v) => v.id === viewId) ?? BASEMAP_VIEW;
   const byScene = (s: string) => passes.find((p) => p.scene === s);
   const selected = picked.map(byScene).filter((p): p is Pass => !!p);
 
@@ -44,8 +46,7 @@ export function SatelliteCompare({
   const imageFor = (p: Pass): string[] => {
     // Candidate sources, best first; the Picture component falls through on a load error.
     const out: string[] = [];
-    if (view.measure && runId) out.push(layerPngUrl(API_BASE, runId, view.measure, p.scene));
-    if (!view.measure && p.imageUrl) out.push(p.imageUrl);
+    if (view.measure && p.images[view.measure]) out.push(p.images[view.measure]);
     if (place) out.push(thumb(place.lat, place.lon, Math.min(Math.max(place.zoom, 3), 17)));
     return out;
   };
@@ -78,7 +79,7 @@ export function SatelliteCompare({
               <button type="button" className={mode === 'side' ? 'on' : ''} onClick={() => setMode('side')}>Side by side</button>
               <button type="button" className={mode === 'swipe' ? 'on' : ''} onClick={() => setMode('swipe')}>Swipe</button>
             </div>
-            <label className="row tiny" style={{ gap: 6 }}>
+            {views.length > 1 ? <label className="row tiny" style={{ gap: 6 }}>
               View
               <select
                 value={viewId}
@@ -86,13 +87,13 @@ export function SatelliteCompare({
                 aria-label="Kind of picture"
                 style={{ background: 'var(--s2)', color: '#fff', border: '1px solid var(--hair)', borderRadius: 6, padding: '5px 8px', font: '500 13px/1.3 var(--font)' }}
               >
-                {VIEWS.map((v) => (
-                  <option key={v.id} value={v.id} disabled={!!v.measure && !runId}>
+                {views.map((v) => (
+                  <option key={v.id} value={v.id}>
                     {v.label}
                   </option>
                 ))}
               </select>
-            </label>
+            </label> : <span className="tiny">True colour (basemap)</span>}
           </div>
 
           <Stage selected={selected} mode={mode} imageFor={imageFor} />
