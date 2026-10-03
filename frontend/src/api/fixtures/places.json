@@ -2,7 +2,7 @@
   {
     "id": "np",
     "name": "North Pivot",
-    "categoryKey": "agriculture",
+    "category_key": "agriculture",
     "center": {
       "lat": 37.9785,
       "lon": -100.9155
@@ -210,20 +210,20 @@
         ]
       ]
     },
-    "areaHa": 49,
-    "isCircle": true,
-    "defaultZoom": 16,
+    "area_ha": 49,
+    "is_circle": true,
     "project": "My Farm",
     "tags": [
       "Maize",
       "Center pivot"
     ],
     "source": "drawn",
-    "createdAt": "2026-03-14T09:00:00Z",
+    "created_at": "2026-03-14T09:00:00Z",
+    "updated_at": "2026-03-14T09:00:00Z",
     "details": [
       {
         "label": "Crop",
-        "value": "Maize · planted Apr 28"
+        "value": "Maize \u00b7 planted Apr 28"
       },
       {
         "label": "Irrigation",
@@ -235,14 +235,14 @@
       },
       {
         "label": "Elevation",
-        "value": "880–884 m"
+        "value": "880\u2013884 m"
       }
     ]
   },
   {
     "id": "sb",
     "name": "South Block",
-    "categoryKey": "agriculture",
+    "category_key": "agriculture",
     "center": {
       "lat": 37.963899999999995,
       "lon": -100.9155
@@ -274,20 +274,20 @@
         ]
       ]
     },
-    "areaHa": 62.5,
-    "isCircle": false,
-    "defaultZoom": 16,
+    "area_ha": 62.5,
+    "is_circle": false,
     "project": "My Farm",
     "tags": [
       "Wheat",
       "Rain-fed"
     ],
     "source": "uploaded",
-    "createdAt": "2026-03-14T09:00:00Z",
+    "created_at": "2026-03-14T09:00:00Z",
+    "updated_at": "2026-03-14T09:00:00Z",
     "details": [
       {
         "label": "Crop",
-        "value": "Winter wheat · stubble"
+        "value": "Winter wheat \u00b7 stubble"
       },
       {
         "label": "Irrigation",
@@ -299,14 +299,14 @@
       },
       {
         "label": "Elevation",
-        "value": "878–881 m"
+        "value": "878\u2013881 m"
       }
     ]
   },
   {
     "id": "mead",
     "name": "Lake Mead intake",
-    "categoryKey": "water",
+    "category_key": "water",
     "center": {
       "lat": 36.13,
       "lon": -114.45
@@ -338,15 +338,15 @@
         ]
       ]
     },
-    "areaHa": 69.7,
-    "isCircle": false,
-    "defaultZoom": 12,
+    "area_ha": 69.7,
+    "is_circle": false,
     "project": "Water Ops",
     "tags": [
       "Reservoir"
     ],
     "source": "search",
-    "createdAt": "2026-06-02T09:00:00Z",
+    "created_at": "2026-06-02T09:00:00Z",
+    "updated_at": "2026-06-02T09:00:00Z",
     "details": [
       {
         "label": "Type",
@@ -354,7 +354,7 @@
       },
       {
         "label": "Full pool",
-        "value": "640 km²"
+        "value": "640 km\u00b2"
       },
       {
         "label": "Gauge",
@@ -368,8 +368,8 @@
   },
   {
     "id": "ro",
-    "name": "Rondônia plot 14",
-    "categoryKey": "forests",
+    "name": "Rond\u00f4nia plot 14",
+    "category_key": "forests",
     "center": {
       "lat": -10,
       "lon": -63
@@ -401,16 +401,16 @@
         ]
       ]
     },
-    "areaHa": 63.1,
-    "isCircle": false,
-    "defaultZoom": 14,
+    "area_ha": 63.1,
+    "is_circle": false,
     "project": "Cocoa supply chain",
     "tags": [
       "EUDR",
       "Cocoa"
     ],
     "source": "parcel",
-    "createdAt": "2026-07-21T09:00:00Z",
+    "created_at": "2026-07-21T09:00:00Z",
+    "updated_at": "2026-07-21T09:00:00Z",
     "details": [
       {
         "label": "Parcel ID",
@@ -422,7 +422,7 @@
       },
       {
         "label": "Supplier",
-        "value": "Coop. Ji-Paraná"
+        "value": "Coop. Ji-Paran\u00e1"
       },
       {
         "label": "Risk",

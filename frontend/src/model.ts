@@ -20,6 +20,7 @@ import { fitZoom, outerRing, ringToPts } from './lib/geo';
 import { categoryStyle } from './data/presentation';
 import type { BackendAnswer } from './api/endpoints/runs';
 import type { Area as AreaDto, AreaResolveResponse as AreaResolveResponseDto } from './api/endpoints/areas';
+import type { PlaceDto } from './api/endpoints/places';
 import type {
   CategoryDto,
   CategoryKey,
@@ -29,7 +30,6 @@ import type {
   FeasibilityDto,
   LanguageDto,
   MapLayerDto,
-  PlaceDto,
   PlaceSource,
   SatelliteDto,
   SkillDto,
@@ -170,26 +170,44 @@ export interface Place {
   tags: string[];
   source: PlaceSource;
   createdAt: Date | null;
+  /** Last edit, from the contract. */
+  updatedAt: Date | null;
   details: { label: string; value: string }[];
 }
 
+/**
+ * Map the contract's `PlaceDto` onto the view model.
+ *
+ * Two things the contract does differently from the frontend's old proposal:
+ *
+ *   - it is snake_case (`area_ha`, `category_key`, `is_circle`), absorbed here so no component
+ *     sees a wire name
+ *   - it has **no `default_zoom`**. That was an editorial "fly to this place at z16" value; the
+ *     zoom is now always derived by fitting the outline, which is what the fallback already did
+ *     for places that omitted it. If an editorial zoom turns out to matter, it needs an `api`
+ *     issue (§6) rather than a second client-side opinion.
+ *
+ * `geometry` arrives as an opaque object, so the ring is narrowed rather than indexed blindly.
+ */
 export const toPlace = (d: PlaceDto): Place => {
-  const pts = ringToPts(d.geometry.coordinates[0] ?? [], d.center);
+  const pts = ringToPts(outerRing(d.geometry) ?? [], d.center);
   return {
     id: d.id,
     name: d.name,
-    categoryKey: d.categoryKey,
+    categoryKey: d.category_key as CategoryKey,
     lat: d.center.lat,
     lon: d.center.lon,
-    zoom: d.defaultZoom ?? fitZoom(pts, 600),
+    zoom: fitZoom(pts, 600),
     pts,
-    circle: d.isCircle,
-    areaHa: d.areaHa,
-    project: d.project,
-    tags: d.tags,
-    source: d.source,
-    createdAt: parseIso(d.createdAt),
-    details: d.details,
+    circle: d.is_circle,
+    // AUTHORITATIVE, from the server. Never recomputed for a saved place.
+    areaHa: d.area_ha,
+    project: d.project ?? '',
+    tags: d.tags ?? [],
+    source: d.source as PlaceSource,
+    createdAt: parseIso(d.created_at),
+    updatedAt: parseIso(d.updated_at),
+    details: d.details ?? [],
   };
 };
 

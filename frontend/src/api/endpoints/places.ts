@@ -10,40 +10,138 @@
  */
 
 import { request } from '../http';
+import { usingFixtures } from '../config';
 import * as fixtures from '../fixtures';
 import type {
-  CreatePlaceRequest,
   DetectBoundaryResponse,
   ParcelLookupRequest,
   ParcelLookupResponse,
   ParseBoundaryFileResponse,
-  PlaceDto,
 } from '../types';
+import type { components } from '../schema';
 import { toPlace, type Place } from '../../model';
 import { approxAreaHa, ptsToRing } from '../../lib/geo';
 
-export const placesApi = {
-  /** TODO(api): GET /api/places */
-  list: (signal?: AbortSignal): Promise<Place[]> =>
-    request<PlaceDto[]>({ method: 'GET', path: '/places', signal, fixture: fixtures.places }).then((l) => l.map(toPlace)),
+type S = components['schemas'];
 
-  /** TODO(api): POST /api/places — returns the created place with the server's `areaHa` */
-  create: (body: CreatePlaceRequest, signal?: AbortSignal): Promise<Place> =>
+export type PlaceDto = S['PlaceDto'];
+export type PlaceMemory = S['PlaceMemory'];
+export type MemoryPatch = S['MemoryPatch'];
+
+/**
+ * What the add-place wizard produces, in the frontend's own vocabulary.
+ *
+ * The contract speaks snake_case (`category_key`, `is_circle`); mapping happens at this
+ * boundary rather than in the wizard, so components never see wire names.
+ */
+export interface NewPlace {
+  name: string;
+  categoryKey: string;
+  center: { lat: number; lon: number };
+  geometry: { type: 'Polygon'; coordinates: number[][][] };
+  isCircle: boolean;
+  project: string;
+  tags: string[];
+  source: PlaceDto['source'];
+  details?: { label: string; value: string }[];
+}
+
+/** Fields a saved place can be edited through — `PATCH /api/places/{id}`. */
+export interface PlacePatch {
+  name?: string;
+  categoryKey?: string;
+  project?: string;
+  tags?: string[];
+}
+
+const toCreateBody = (p: NewPlace): S['CreatePlaceRequest'] => ({
+  name: p.name,
+  category_key: p.categoryKey,
+  center: p.center,
+  geometry: p.geometry,
+  is_circle: p.isCircle,
+  project: p.project,
+  tags: p.tags,
+  source: p.source,
+  details: p.details ?? [],
+});
+
+export const placesApi = {
+  /** GET /api/places */
+  list: (signal?: AbortSignal): Promise<Place[]> =>
+    request<PlaceDto[]>({
+      method: 'GET',
+      path: '/places',
+      signal,
+      ...(usingFixtures() ? { fixture: fixtures.places } : {}),
+    }).then((l) => l.map(toPlace)),
+
+  /** GET /api/places/{place_id} */
+  get: (id: string, signal?: AbortSignal): Promise<Place> =>
+    request<PlaceDto>({
+      method: 'GET',
+      path: `/places/${encodeURIComponent(id)}`,
+      signal,
+      ...(usingFixtures() ? { fixture: () => fixtures.place(id) } : {}),
+    }).then(toPlace),
+
+  /** POST /api/places — the response carries the server's authoritative `area_ha`. */
+  create: (body: NewPlace, signal?: AbortSignal): Promise<Place> =>
     request<PlaceDto>({
       method: 'POST',
       path: '/places',
-      body,
+      body: toCreateBody(body),
       signal,
-      fixture: () => fixtures.createPlace(body),
+      ...(usingFixtures() ? { fixture: () => fixtures.createPlace(toCreateBody(body)) } : {}),
     }).then(toPlace),
 
-  /** TODO(api): DELETE /api/places/{id} */
+  /** PATCH /api/places/{place_id} */
+  update: (id: string, patch: PlacePatch, signal?: AbortSignal): Promise<Place> =>
+    request<PlaceDto>({
+      method: 'PATCH',
+      path: `/places/${encodeURIComponent(id)}`,
+      body: {
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.categoryKey !== undefined ? { category_key: patch.categoryKey } : {}),
+        ...(patch.project !== undefined ? { project: patch.project } : {}),
+        ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
+      },
+      signal,
+      ...(usingFixtures() ? { fixture: () => fixtures.updatePlace(id, patch) } : {}),
+    }).then(toPlace),
+
+  /** DELETE /api/places/{place_id} */
   remove: (id: string, signal?: AbortSignal): Promise<void> =>
     request<void>({
       method: 'DELETE',
       path: `/places/${encodeURIComponent(id)}`,
       signal,
-      fixture: () => fixtures.deletePlace(id),
+      ...(usingFixtures() ? { fixture: () => fixtures.deletePlace(id) } : {}),
+    }),
+
+  /**
+   * GET /api/places/{place_id}/memory
+   *
+   * What the agent has learned about a place: a profile it prefills clarifications from, the
+   * insights saved off runs, and dated notes. This is the source of the "From memory · 12 Sep"
+   * badge on a clarification card.
+   */
+  memory: (id: string, signal?: AbortSignal): Promise<PlaceMemory> =>
+    request<PlaceMemory>({
+      method: 'GET',
+      path: `/places/${encodeURIComponent(id)}/memory`,
+      signal,
+      ...(usingFixtures() ? { fixture: () => fixtures.placeMemory(id) } : {}),
+    }),
+
+  /** PATCH /api/places/{place_id}/memory — merge profile fields, or append a note. */
+  patchMemory: (id: string, patch: MemoryPatch, signal?: AbortSignal): Promise<PlaceMemory> =>
+    request<PlaceMemory>({
+      method: 'PATCH',
+      path: `/places/${encodeURIComponent(id)}/memory`,
+      body: patch,
+      signal,
+      ...(usingFixtures() ? { fixture: () => fixtures.patchPlaceMemory(id, patch) } : {}),
     }),
 
 

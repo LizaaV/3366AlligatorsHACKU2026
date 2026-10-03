@@ -124,6 +124,12 @@ export interface SkillDto {
 
 /* ---------------- places ---------------- */
 
+/**
+ * `PlaceDto` and `CreatePlaceRequest` are no longer here: the contract owns both, and they are
+ * re-exported from `endpoints/places.ts` where the snake_case→camelCase mapping lives.
+ * What remains below is the add-place wizard's helpers, which the contract has no endpoint for.
+ */
+
 export type PlaceSource = 'drawn' | 'uploaded' | 'search' | 'coords' | 'whatsapp' | 'parcel' | 'pin';
 
 export interface PlaceDto {
