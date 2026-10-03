@@ -15,7 +15,7 @@ export interface LayerLook {
 }
 
 const LOOKS: Record<string, LayerLook> = {
-  contour: { label: 'Terrain', icon: 'landscape', legend: 'Your outline and the lie of the land', ramp: ['#14c6cb', '#14c6cb'] },
+  outline: { label: 'Outline', icon: 'pentagon', legend: 'The boundary of your place', ramp: ['#ffffff', '#ffffff'] },
   truecolour: { label: 'True colour', icon: 'image', legend: 'The ground as the eye would see it', ramp: ['#3d4a2c', '#8a7a5a', '#cfc7b0'] },
   ndvi: { label: 'Plant health', icon: 'eco', legend: 'Brown is stressed or bare, green is thriving', ramp: ['#8a5a2b', '#d6c25a', '#2f9e44'] },
   ndmi: { label: 'Moisture', icon: 'water_drop', legend: 'Dry on the left, wet on the right', ramp: ['#c9a227', '#7fb7d9', '#1b5fa8'] },
