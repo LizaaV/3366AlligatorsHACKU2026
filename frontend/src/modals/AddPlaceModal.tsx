@@ -148,7 +148,7 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
           });
           started.push(sk.name);
         } catch {
-          notify(`${created.name} saved, but the “${sk.name}” watch could not be created`, undefined, undefined, 'error');
+          notify(`${created.name} saved, but the “${sk.name}” trigger could not be created`, undefined, undefined, 'error');
         }
       }
 
@@ -157,7 +157,7 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
       setAskPlace(created.id);
       notify(
         started.length
-          ? `${created.name} saved · ${fmtHa(created.areaHa)} ha · ${started.length} watch${started.length > 1 ? 'es' : ''} started`
+          ? `${created.name} saved · ${fmtHa(created.areaHa)} ha · ${started.length} trigger${started.length > 1 ? 's' : ''} started`
           : `${created.name} saved · ${fmtHa(created.areaHa)} ha`,
         'Ask about it',
         () => go('ask', undefined, { place: created.id }),
@@ -172,7 +172,7 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
 
   return (
     <Modal size="wide" onClose={close} label="Add a place">
-      <ModalHead eyebrow="New place" title="Add a place" sub="Save a field, plot, site or water body once — then ask about it or watch it." onClose={close} />
+      <ModalHead eyebrow="New place" title="Add a place" sub="Save a field, plot, site or water body once — then ask about it or set a trigger on it." onClose={close} />
       <Steps step={step} />
 
       {step === 1 && (
