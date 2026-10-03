@@ -189,19 +189,21 @@ export function AskPage({ active }: { active: boolean }) {
   // The real rendered image for the layer on show: the selected layer artifact, else the agent
   // layer most recently switched on. Taken from the newest run that rendered that measure.
   const rasterLayerId = activeLayer ?? [...layers].reverse().find((l) => l.isAgentMade && l.on && l.ready)?.id ?? null;
+  const passDate = timeline?.dates[dateIdx] ?? null;
   const raster = useMemo(() => {
     if (!rasterLayerId) return null;
     for (const turn of [...turns].reverse()) {
       for (const b of turn.blocks) {
         if (b.type !== 'then_now' && b.type !== 'highlight') continue;
-        const ref = b.type === 'then_now' ? b.after : b.base;
+        // The pass slider picks the image: passes before the "after" date show the "before" one.
+        const ref = b.type === 'then_now' ? (passDate && b.before && passDate < b.after.date ? b.before : b.after) : b.base;
         if (ref?.url && ref.bounds && catalogLayerFor(ref.layer_id, b.measure, (id) => id === rasterLayerId) === rasterLayerId) {
           return { url: ref.url, bounds: ref.bounds };
         }
       }
     }
     return null;
-  }, [rasterLayerId, turns]);
+  }, [rasterLayerId, turns, passDate]);
 
   const setLayersOn = useCallback(
     (ids: string[]) => setLayers((ls) => ls.map((l) => (ids.includes(l.id) ? { ...l, ready: true, on: true } : l))),
