@@ -122,7 +122,10 @@ export function AskPage({ active }: { active: boolean }) {
 
   const panelOpen = !mobile && artifacts.length > 0 && !collapsed;
   const expandedW = Math.max(MIN_PANEL_W, W - sideW - 24);
-  const panelWidth = expanded ? expandedW : panelW;
+  // Keep ~300px of map (and the layer rail) visible between the chat column and the panel.
+  const roomForPanel = W - sideW - 300;
+  const tight = roomForPanel < MIN_PANEL_W;
+  const panelWidth = expanded ? expandedW : Math.max(MIN_PANEL_W, Math.min(panelW, roomForPanel));
   /** Room the right-edge map controls and the map centre keep clear of the panel. */
   const rightPad = panelOpen ? panelWidth + 12 : 0;
   const cx = sideW + (W - sideW - rightPad) / 2;
@@ -164,7 +167,8 @@ export function AskPage({ active }: { active: boolean }) {
     hydrating.current = false;
     if (!pick) return;
     setSelectedId(pick.id);
-    if (!mobile) setCollapsed(false);
+    // On a narrow window the panel would cover the map: leave it as the pill.
+    if (!mobile && !tight) setCollapsed(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artifacts, last]);
 
@@ -180,6 +184,12 @@ export function AskPage({ active }: { active: boolean }) {
     const wasOn = !!(cur && cur.on && cur.ready);
     setLayers((ls) => ls.map((l) => (l.id === activeLayer ? { ...l, ready: true, on: true } : l)));
     if (selectedPlace) flyTo(selectedPlace);
+    else if (raster) {
+      // No saved place on this answer: frame the image itself.
+      const [w, s, e, n] = raster.bounds;
+      const span = Math.max(e - w, (n - s) * 1.5, 1e-6);
+      flyTo({ lat: (s + n) / 2, lon: (w + e) / 2, zoom: Math.max(3, Math.min(17, Math.floor(Math.log2(360 / span)) + 1)) });
+    }
     return () => {
       if (!wasOn) setLayers((ls) => ls.map((l) => (l.id === activeLayer ? { ...l, on: false } : l)));
     };
@@ -261,7 +271,10 @@ export function AskPage({ active }: { active: boolean }) {
   const runSkill = useCallback(
     (skillId: string, placeId?: string | null) => {
       const skill = skills.find((x) => x.id === skillId);
-      if (!skill) return;
+      if (!skill) {
+        notify('That skill is not in the library yet', undefined, undefined, 'info');
+        return;
+      }
       const pid = placeId !== undefined ? placeId : askPlaceId;
       if (!pid) {
         notify('Pick a place to run this skill on', undefined, undefined, 'pentagon');
@@ -369,14 +382,15 @@ export function AskPage({ active }: { active: boolean }) {
   ];
   // Backend layer ids are measure names; the map overlays still use the index names.
   const isMap = mode === 'map';
-  const showHero = !turns.length && !loadingThread;
+  // The title belongs on the globe; over a place's map it hides the place.
+  const showHero = !turns.length && !loadingThread && !isMap;
   const focusPt = place ?? spot;
 
   const suggestions = place
     ? [
         { icon: 'water_drop', text: 'Where are the dry patches in my field?', go: () => ask('Where are the dry patches in my field?') },
-        { icon: 'eco', text: `How healthy is ${place.name} this week?`, go: () => runSkill('weekly-crop-health') },
-        { icon: 'local_fire_department', text: 'Any fires within 10 km of this place?', go: () => runSkill('active-fire-map') },
+        { icon: 'eco', text: `How healthy is ${place.name} this week?`, go: () => ask(`How healthy is ${place.name} this week?`) },
+        { icon: 'local_fire_department', text: 'Any fires within 10 km of this place?', go: () => ask('Any fires within 10 km of this place?') },
       ]
     : [
         { icon: 'satellite_alt', text: 'Which free satellite is best for crop health?', go: () => ask('Which free satellite is best for crop health?') },
