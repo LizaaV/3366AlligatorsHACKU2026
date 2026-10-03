@@ -11,9 +11,30 @@
  */
 
 import { request } from '../http';
+import { usingFixtures } from '../config';
 import * as fixtures from '../fixtures';
 import type { CatalogDto, MapLayerDto } from '../types';
 import { toCategory, toMapLayer, type Catalog, type MapLayer } from '../../model';
+
+/** One entry of `map_layers` in `GET /api/catalog`. */
+interface CatalogLayerDto {
+  id: string;
+  name: string;
+  source: string;
+  is_agent_made: boolean;
+}
+
+/** Swatch colour per backend measure; presentation only, so it lives on this side. */
+const LAYER_COLOR: Record<string, string> = {
+  rgb: '#cfc7b0',
+  greenness: '#2f9e44',
+  moisture: '#14c6cb',
+  water: '#1d78c1',
+  bare: '#e8a33a',
+  burn: '#d9381e',
+  roughness: '#8a8f98',
+  heat: '#f2994a',
+};
 
 export const catalogApi = {
   /** TODO(api): GET /api/catalog — see docs/data/README.md */
@@ -31,12 +52,22 @@ export const catalogApi = {
       languages: d.languages,
     })),
 
-  /** TODO(api): GET /api/map-layers — could also be folded into /catalog */
+  /**
+   * Map layers. The backend folds them into `GET /api/catalog` as `map_layers` (ids are measure
+   * names such as `greenness`, matching the `layer_id` on then/now blocks); the fixture keeps the
+   * older `/map-layers` list.
+   */
   mapLayers: (signal?: AbortSignal): Promise<MapLayer[]> =>
-    request<MapLayerDto[]>({
-      method: 'GET',
-      path: '/map-layers',
-      signal,
-      fixture: fixtures.mapLayers,
-    }).then((ls) => ls.map(toMapLayer)),
+    usingFixtures()
+      ? request<MapLayerDto[]>({
+          method: 'GET',
+          path: '/map-layers',
+          signal,
+          fixture: fixtures.mapLayers,
+        }).then((ls) => ls.map(toMapLayer))
+      : request<{ map_layers: CatalogLayerDto[] }>({ method: 'GET', path: '/catalog', signal }).then((d) =>
+          (d.map_layers ?? []).map((l) =>
+            toMapLayer({ id: l.id, name: l.name, source: l.source, color: LAYER_COLOR[l.id] ?? '#b2b6bd', isAgentMade: l.is_agent_made }),
+          ),
+        ),
 };

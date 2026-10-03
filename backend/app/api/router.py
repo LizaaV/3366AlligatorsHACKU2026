@@ -15,6 +15,7 @@ from app.api.routes import (
     watches,
 )
 from app.api.routes import catalog as catalog_routes
+from app.api.routes import satellites as satellites_routes
 from app.api.routes import skills as skills_routes
 
 # One line per feature module. Add yours at the end of the list to avoid merge conflicts.
@@ -33,3 +34,4 @@ api_router.include_router(watches.router)
 api_router.include_router(skills_routes.router)
 api_router.include_router(catalog_routes.router)
 api_router.include_router(threads.router)
+api_router.include_router(satellites_routes.router)

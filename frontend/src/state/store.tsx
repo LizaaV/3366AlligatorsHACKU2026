@@ -55,7 +55,7 @@ export type Modal =
   | { kind: 'connectors'; focus?: ChannelId }
   | { kind: 'app' }
   | { kind: 'addPlace' }
-  | { kind: 'watchBuilder'; prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean }
+  | { kind: 'watchBuilder'; prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean; dashboardId?: string }
   | { kind: 'lang' }
   | { kind: 'knowledgeCard'; cardId: string };
 
@@ -116,7 +116,7 @@ interface Store {
   removePlace: (id: string) => Promise<void>;
   addSkill: (req: CreateSkillRequest) => Promise<Skill>;
   addWatch: (req: CreateWatchRequest) => Promise<Watch>;
-  updateWatch: (id: string, patch: Partial<Pick<WatchDto, 'enabled' | 'condition' | 'channels' | 'cadence' | 'name'>>) => Promise<void>;
+  updateWatch: (id: string, patch: Partial<Pick<WatchDto, 'enabled' | 'condition' | 'channels' | 'cadence' | 'name' | 'recurrence' | 'dashboardId'>>) => Promise<void>;
   removeWatch: (id: string) => Promise<void>;
 
   /* UI state */

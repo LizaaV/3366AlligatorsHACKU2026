@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { ApiError, api, toApiError } from '../api';
 import type { ChannelId, Feasibility } from '../model';
+import type { WatchRecurrence } from '../api/types';
+import { useResource } from '../hooks/useResource';
 import { LANGS } from '../data/i18n';
 import { Btn, Check, Modal, ModalHead, Ms, Tier } from '../components/ui';
 import { ErrorState } from '../components/async';
@@ -17,7 +19,7 @@ const CHECK_STEPS = ['Reading your request', 'Matching a skill', 'Checking satel
 
 type Stage = 'ask' | 'check' | 'deliver';
 
-export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean }) {
+export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashboardId }: { prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean; dashboardId?: string }) {
   const { places, skills, channels: catalogChannels, category, close, addWatch, notify, go, connectors, setConnectors, lang, open } = useStore();
   const presetSkill = skillId ? skills.find((x) => x.id === skillId) : undefined;
   const autoText = presetSkill ? `Tell me when ${presetSkill.name.toLowerCase()} finds something new` : '';
@@ -34,6 +36,9 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
   const [saving, setSaving] = useState(false);
   const [waNumber, setWaNumber] = useState('');
   const [alertLang, setAlertLang] = useState(lang);
+  const [recurrence, setRecurrence] = useState<WatchRecurrence>('recurring');
+  const [dashId, setDashId] = useState<string>(dashboardId ?? '');
+  const dashboards = useResource(useCallback((signal) => api.dashboards.list(signal), []), []);
   const timers = useRef<number[]>([]);
 
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
@@ -101,10 +106,12 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
         condition: condition || feas.condition,
         channels,
         cadence: feas.cadence,
+        recurrence,
+        dashboardId: dashId || null,
       });
       close();
       notify(
-        lowFree ? 'Watch created with free imagery at low confidence' : 'Watch created',
+        lowFree ? 'Trigger created with free imagery at low confidence' : 'Trigger created',
         'Open',
         () => go('triggers', created.id),
         'visibility',
@@ -119,10 +126,10 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
   const stepIdx = stage === 'ask' ? 0 : stage === 'check' ? 1 : 2;
 
   return (
-    <Modal onClose={close} size="wide" label="Build a watch">
+    <Modal onClose={close} size="wide" label="Build a trigger">
       <ModalHead
-        eyebrow={fromAnswer ? 'Watch this answer' : 'New watch'}
-        title={stage === 'ask' ? 'What should we watch?' : stage === 'check' ? 'Can satellites see this?' : 'Where should alerts go?'}
+        eyebrow={fromAnswer ? 'Trigger from this answer' : 'New trigger'}
+        title={stage === 'ask' ? 'What should we look out for?' : stage === 'check' ? 'Can satellites see this?' : 'Where should alerts go?'}
         sub={stage === 'ask' ? 'Say it in your own words. The agent checks if it can be watched from space before you commit.' : undefined}
         onClose={close}
       />
@@ -150,7 +157,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
             placeholder="Tell me when…"
             rows={3}
             style={{ fontSize: 18, lineHeight: 1.5 }}
-            aria-label="What should we watch?"
+            aria-label="What should we look out for?"
           />
           <div className="row wrap">
             {EXAMPLES.map((ex) => (
@@ -164,6 +171,24 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
               <option value="">No specific place / all my places</option>
             </select>
           </label>
+          <div className="row wrap" style={{ gap: 16, alignItems: 'flex-start' }}>
+            <div className="field" style={{ flex: '1 1 220px' }}>
+              Repeat
+              <div className="seg" role="radiogroup" aria-label="Repeat" style={{ alignSelf: 'flex-start' }}>
+                <button type="button" role="radio" aria-checked={recurrence === 'recurring'} className={recurrence === 'recurring' ? 'on' : ''} onClick={() => setRecurrence('recurring')}><Ms n="autorenew" size={16} />Recurring</button>
+                <button type="button" role="radio" aria-checked={recurrence === 'once'} className={recurrence === 'once' ? 'on' : ''} onClick={() => setRecurrence('once')}><Ms n="looks_one" size={16} />One time</button>
+              </div>
+              <span className="tiny">{recurrence === 'once' ? 'Tell me the first time it happens, then stop.' : 'Keep telling me every time it happens.'}</span>
+            </div>
+            <label className="field" style={{ flex: '1 1 260px' }}>
+              Based on a dashboard <span className="tiny">(optional)</span>
+              <select className="input" value={dashId} onChange={(e) => setDashId(e.target.value)}>
+                <option value="">None, just watch the place</option>
+                {dashboards.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+              <span className="tiny">Tell me when this dashboard&rsquo;s state changes.</span>
+            </label>
+          </div>
           <div className="modal-foot">
             <Btn variant="text" onClick={close}>Cancel</Btn>
             <Btn variant="primary" icon="travel_explore" tier="free" disabled={!text.trim()} onClick={() => runCheck(text)}>Check if it’s possible</Btn>
@@ -275,7 +300,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
               disabled={channels.length === 0 || (channels.includes('whatsapp') && !connectors.whatsapp.connected)}
               onClick={create}
             >
-              Start watching
+              {recurrence === 'once' ? 'Create one-time trigger' : 'Create trigger'}
             </Btn>
           </div>
         </>

@@ -140,70 +140,80 @@ function Seg<T extends string>({ value, onChange, options, label }: { value: T; 
   );
 }
 
+/**
+ * Category switcher: one horizontally scrolling row of cards.
+ *
+ * Click a card, swipe, or use the mouse wheel: a vertical wheel delta scrolls the row sideways
+ * (only while the row still has room in that direction, so the page is never trapped). Cards
+ * snap to the start edge, and the selected card is kept in view.
+ */
 function Hotbar({ cat, setCat }: { cat: number | null; setCat: React.Dispatch<React.SetStateAction<number | null>> }) {
-  const { categories } = useStore();
+  const { categories, skills } = useStore();
   const ref = useRef<HTMLDivElement>(null);
-  const lastSwitch = useRef(0);
-  const swipe = useRef(0);
+  const [edge, setEdge] = useState({ start: true, end: false });
 
-  // Sideways scrolling over the bar switches category — a trackpad swipe, or Shift + wheel on a
-  // mouse. Up/down is left alone so the page scrolls normally (design review: "side to side, not
-  // up and down"). Non-passive so the sideways gesture does not also scroll the bar or go back.
+  const measure = () => {
+    const el = ref.current;
+    if (!el) return;
+    setEdge({ start: el.scrollLeft <= 2, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 2 });
+  };
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const n = categories.length;
     const onWheel = (e: WheelEvent) => {
-      const dx = e.deltaX !== 0 ? e.deltaX : e.shiftKey ? e.deltaY : 0;
-      // Mostly-vertical scrolling is the page's, not ours.
-      if (!dx || (!e.shiftKey && Math.abs(e.deltaY) > Math.abs(dx))) return;
+      if (Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return; // already a sideways gesture
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) return;
+      const next = el.scrollLeft + e.deltaY;
+      // At an end and pushing outward: let the page scroll as usual.
+      if ((el.scrollLeft <= 0 && e.deltaY < 0) || (el.scrollLeft >= max - 1 && e.deltaY > 0)) return;
       e.preventDefault();
-      // A trackpad swipe arrives as many small events: add them up so one swipe moves one step.
-      swipe.current += dx;
-      const now = Date.now();
-      if (Math.abs(swipe.current) < 40 || now - lastSwitch.current < 250) return;
-      const dir = swipe.current > 0 ? 1 : -1;
-      swipe.current = 0;
-      lastSwitch.current = now;
-      setCat((c) => (c === null ? (dir > 0 ? 0 : n - 1) : (c + dir + n) % n));
+      el.scrollLeft = Math.max(0, Math.min(max, next));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [setCat, categories.length]);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => { el.removeEventListener('wheel', onWheel); ro.disconnect(); };
+  }, [categories.length]);
 
-  // Keep the selected block visible when the bar scrolls (phones).
+  // Keep the selected card visible. Scroll only the row: scrollIntoView would move the page too.
   useEffect(() => {
-    // Scroll only the bar itself — scrollIntoView would also scroll the page.
     const bar = ref.current;
-    const el = bar?.querySelector('.lib-hb.on') as HTMLElement | null;
+    const el = bar?.querySelector('.lib-cat.on') as HTMLElement | null;
     if (!bar || !el) return;
     const l = el.offsetLeft - bar.offsetLeft, r = l + el.offsetWidth;
     if (l < bar.scrollLeft) bar.scrollTo({ left: l - 8, behavior: 'smooth' });
     else if (r > bar.scrollLeft + bar.clientWidth) bar.scrollTo({ left: r - bar.clientWidth + 8, behavior: 'smooth' });
   }, [cat]);
 
+  const page = (dir: 1 | -1) => ref.current?.scrollBy({ left: dir * Math.max(240, (ref.current?.clientWidth ?? 0) * 0.8), behavior: 'smooth' });
   const c = cat === null ? null : categories[cat];
+  const count = (key: string) => skills.filter((x) => x.categoryKey === key).length;
 
   return (
-    <div className="lib-hotbar-row">
-      <div className="lib-hotbar" ref={ref} role="tablist" aria-label="Categories">
-        <button className={`lib-hb ${cat === null ? 'on' : ''}`} onClick={() => setCat(null)} title="All categories" role="tab" aria-selected={cat === null}
-          style={{ color: cat === null ? '#fff' : undefined }}>
-          <span className="n">0</span>
-          <Ms n="apps" />
-          <span className="bar" style={{ background: cat === null ? '#fff' : 'transparent' }} />
-        </button>
-        {categories.map((k, i) => {
-          const sel = cat === i;
-          return (
-            <button key={k.key} className={`lib-hb ${sel ? 'on' : ''}`} onClick={() => setCat(i)} title={k.name} role="tab" aria-selected={sel} aria-label={k.name}
-              style={{ color: sel ? k.color : undefined }}>
-              <span className="n">{i + 1}</span>
-              <Ms n={k.icon} />
-              <span className="bar" style={{ background: sel ? k.color : 'transparent' }} />
-            </button>
-          );
-        })}
+    <div className="lib-catwrap">
+      <div className="lib-catrail">
+        <button className="lib-cat-arrow" aria-label="Scroll categories left" disabled={edge.start} onClick={() => page(-1)}><Ms n="chevron_left" className="ms-flip" /></button>
+        <div className="lib-cats" ref={ref} role="tablist" aria-label="Categories" onScroll={measure}>
+          <button className={`lib-cat ${cat === null ? 'on' : ''}`} onClick={() => setCat(null)} role="tab" aria-selected={cat === null}>
+            <Ms n="apps" />
+            <span className="nm">All categories</span>
+            <span className="ct">{skills.length}</span>
+          </button>
+          {categories.map((k, i) => {
+            const sel = cat === i;
+            return (
+              <button key={k.key} className={`lib-cat ${sel ? 'on' : ''}`} onClick={() => setCat(i)} role="tab" aria-selected={sel} style={sel ? { borderColor: k.color } : undefined}>
+                <Ms n={k.icon} style={{ color: k.color }} />
+                <span className="nm">{k.name}</span>
+                <span className="ct">{count(k.key)}</span>
+              </button>
+            );
+          })}
+        </div>
+        <button className="lib-cat-arrow" aria-label="Scroll categories right" disabled={edge.end} onClick={() => page(1)}><Ms n="chevron_right" className="ms-flip" /></button>
       </div>
       <div className="lib-hb-info">
         <div className="row">
@@ -213,7 +223,7 @@ function Hotbar({ cat, setCat }: { cat: number | null; setCat: React.Dispatch<Re
         <div className="body-sm">{c ? c.uses : 'Farms, water, forests, disasters, cities, oceans, air, finance and public good.'}</div>
         <div className="caption">
           {c ? <>Main free satellites: {c.sats}</> : 'Main free satellites: Sentinel-1/2/3/5P, Landsat, VIIRS, MODIS'}
-          <span className="hide-mobile"> · Click, swipe sideways or use ← → and 0–9 to switch</span>
+          <span className="hide-mobile"> · Scroll or swipe the row, or use keys 0–9 and arrows</span>
         </div>
       </div>
     </div>

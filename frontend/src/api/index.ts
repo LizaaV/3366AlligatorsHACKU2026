@@ -14,22 +14,28 @@ import { areasApi } from './endpoints/areas';
 import { knowledgeApi } from './endpoints/knowledge';
 import { runsApi } from './endpoints/runs';
 import { catalogApi } from './endpoints/catalog';
+import { dashboardsApi } from './endpoints/dashboards';
 import { exportsApi } from './endpoints/exports';
 import { insightsApi } from './endpoints/insights';
 import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
+import { satellitesApi } from './endpoints/satellites';
 import { watchesApi } from './endpoints/watches';
+import { threadsApi } from './endpoints/threads';
 
 export const api = {
   catalog: catalogApi,
   skills: skillsApi,
   places: placesApi,
   watches: watchesApi,
+  dashboards: dashboardsApi,
   runs: runsApi,
   areas: areasApi,
   knowledge: knowledgeApi,
   insights: insightsApi,
   exports: exportsApi,
+  threads: threadsApi,
+  satellites: satellitesApi,
 };
 
 export { ApiError, toApiError } from './http';
@@ -40,3 +46,6 @@ export { DEFAULT_PIN_RADIUS_M } from './endpoints/areas';
 export { isEvent } from './stream';
 export type { StreamEvent, StreamEventName } from './stream';
 export type { SkillQuery } from './endpoints/skills';
+export type { Dashboard, DashboardBlock, DashboardSummary } from './endpoints/dashboards';
+export type { ThreadSummary, ThreadDetail } from './endpoints/threads';
+export type { SatelliteDto, SatellitePoint } from './endpoints/satellites';

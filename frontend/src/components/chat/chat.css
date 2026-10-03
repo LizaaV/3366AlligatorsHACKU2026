@@ -1,0 +1,14 @@
+/* Chat composer, bubble and history. Mobile (<= 760px): the bubble clears the bottom tab bar. */
+@media (max-width: 760px) {
+  .chat-bubble,
+  .chat-bubble-panel {
+    bottom: 76px !important;
+    left: 12px !important;
+  }
+  .chat-bubble-panel {
+    height: min(520px, calc(100vh - 150px)) !important;
+  }
+  .chat-composer {
+    border-radius: 20px !important;
+  }
+}

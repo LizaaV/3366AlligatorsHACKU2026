@@ -18,8 +18,8 @@ import { useStore } from '../state/store';
 import { ApiError, toApiError } from '../api';
 import type { Place } from '../model';
 import { sourceLabel } from '../data/presentation';
-import { ptsToRing } from '../lib/geo';
-import { Btn, Modal, ModalHead, Ms, Tier } from '../components/ui';
+import { fmtC, ptsToRing } from '../lib/geo';
+import { Btn, Modal, ModalHead, Ms } from '../components/ui';
 import { ErrorState } from '../components/async';
 import { Steps } from './addPlace/Steps';
 import { MethodInput } from './addPlace/methods';
@@ -39,7 +39,7 @@ export function AddPlaceModal() {
 
   const outline = useOutline({ loc, step, method });
   const form = useDetailsForm(loc);
-  const { pts, isCircle, ha, fitted, outlineLabel } = outline;
+  const { pts, isCircle, ha, fitted, outlineLabel, center } = outline;
 
   // Stable so the method components' effects don't re-fire on every render of this shell.
   const onMethodChange = useCallback((next: Loc | null) => setLoc(next), []);
@@ -72,6 +72,14 @@ export function AddPlaceModal() {
     setStep(2);
   };
 
+  /** The user picked a different spot on the globe in step 2: start over from a pin there. */
+  const relocate = (at: { lat: number; lon: number }) => {
+    const next: Loc = { ...at, label: 'Pinned site', source: 'pin', via: fmtC(at.lat, at.lon) };
+    setMethod('pin');
+    setLoc(next);
+    outline.begin(next, 'pin');
+  };
+
   const goStep3 = () => {
     if (!loc) return;
     setError(null);
@@ -93,7 +101,7 @@ export function AddPlaceModal() {
       const created = await addPlace({
         name: form.finalName,
         categoryKey: form.categoryKey,
-        center: { lat: loc.lat, lon: loc.lon },
+        center: center ?? { lat: loc.lat, lon: loc.lon },
         geometry: { type: 'Polygon', coordinates: [ptsToRing(pts, { lat: loc.lat, lon: loc.lon })] },
         isCircle,
         project: form.finalProject,
@@ -153,7 +161,7 @@ export function AddPlaceModal() {
       {step === 1 && (
         <>
           <div className="subhead">How do you want to add it?</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
             {METHODS.map((mt) => {
               const on = method === mt.id;
               return (
@@ -168,10 +176,7 @@ export function AddPlaceModal() {
                     background: on ? 'var(--s2)' : 'var(--canvas)', border: `1px solid ${on ? '#fff' : 'var(--hair-soft)'}`, color: '#fff',
                   }}
                 >
-                  <span className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
-                    <Ms n={mt.icon} size={22} style={{ color: on ? '#fff' : 'var(--muted)' }} />
-                    {mt.paid ? <Tier tier="paid" label="$0.50" /> : <Tier tier="free" />}
-                  </span>
+                  <Ms n={mt.icon} size={22} style={{ color: on ? '#fff' : 'var(--muted)' }} />
                   <span style={{ font: '600 14px/1.3 var(--font)' }}>{mt.title}</span>
                   <span className="tiny">{mt.hint}</span>
                 </button>
@@ -183,11 +188,11 @@ export function AddPlaceModal() {
               <MethodInput method={method} onChange={onMethodChange} />
             </div>
           )}
-          {!method && <div className="caption">Every method is free except official parcel lookups in a few countries (US, Kenya: $0.50 per parcel found).</div>}
+          {!method && <div className="caption">Once the place is located you can draw its outline, use the AI boundary and fine-tune every point.</div>}
         </>
       )}
 
-      {step === 2 && loc && draft && <OutlineStep loc={loc} draft={draft} outline={outline} />}
+      {step === 2 && loc && draft && <OutlineStep loc={loc} draft={draft} outline={outline} onRelocate={relocate} />}
       {step === 3 && loc && <DetailsStep loc={loc} ha={ha} form={form} />}
 
       {error && <ErrorState error={error} onRetry={step === 3 ? () => void save() : undefined} title="Could not complete that" compact />}

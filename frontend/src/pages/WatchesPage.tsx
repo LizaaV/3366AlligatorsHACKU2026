@@ -1,13 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import type { Place, Watch } from '../model';
 import { thumb } from '../lib/geo';
 import { STATUS_STYLE } from '../data/presentation';
 import { ciLabel, fmtDay, fmtVal, timeKey } from '../lib/format';
+import { api } from '../api';
+import { useResource } from '../hooks/useResource';
 import { Btn, Empty, HistoryChart, Ms, RingOverlay, Tier, Toggle } from '../components/ui';
-import { AskBar } from '../components/AskBar';
 import { ErrorState, SkeletonCard } from '../components/async';
-import { WatchDetail } from './WatchDetail';
+import { RecurrencePill, WatchDetail } from './WatchDetail';
+
+type Kind = 'all' | 'recurring' | 'once' | 'dashboard';
+
+const KINDS: { id: Kind; label: string; icon: string; test: (w: Watch) => boolean }[] = [
+  { id: 'all', label: 'All', icon: 'select_all', test: () => true },
+  { id: 'recurring', label: 'Recurring', icon: 'autorenew', test: (w) => w.recurrence === 'recurring' },
+  { id: 'once', label: 'One-time', icon: 'looks_one', test: (w) => w.recurrence === 'once' },
+  { id: 'dashboard', label: 'On a dashboard', icon: 'dashboard', test: (w) => !!w.dashboardId },
+];
 
 export function WatchesPage() {
   const { route } = useStore();
@@ -24,17 +34,21 @@ function Overview() {
   const { watches, places, open, t, categories, channels, loading, errors, reload } = useStore();
   const [cat, setCat] = useState<number | 'all'>('all');
   const [grouped, setGrouped] = useState(true);
+  const [kind, setKind] = useState<Kind>('all');
+  const dashboards = useResource(useCallback((signal) => api.dashboards.list(signal), []), []);
+  const dashName = (id: string | null) => (id ? dashboards.data?.find((d) => d.id === id)?.name ?? 'Dashboard' : undefined);
 
   const active = watches.filter((w) => w.enabled);
   const attention = active.filter((w) => w.status !== 'ok');
   const soonest = [...active].sort((a, b) => timeKey(a.nextRunAt) - timeKey(b.nextRunAt))[0];
   const channelsUsed = channels.filter((c) => active.some((w) => w.channels.includes(c.id)));
 
+  const byKind = useMemo(() => watches.filter(KINDS.find((k) => k.id === kind)!.test), [watches, kind]);
   const catsUsed = useMemo(
-    () => categories.map((c, i) => ({ c, i, n: watches.filter((w) => w.categoryKey === c.key).length })).filter((x) => x.n > 0),
-    [watches, categories],
+    () => categories.map((c, i) => ({ c, i, n: byKind.filter((w) => w.categoryKey === c.key).length })).filter((x) => x.n > 0),
+    [byKind, categories],
   );
-  const shown = cat === 'all' ? watches : watches.filter((w) => w.categoryKey === categories[cat]?.key);
+  const shown = cat === 'all' ? byKind : byKind.filter((w) => w.categoryKey === categories[cat]?.key);
   const groups = catsUsed.filter((g) => cat === 'all' || g.i === cat).map((g) => ({ ...g, list: shown.filter((w) => w.categoryKey === g.c.key) }));
 
   return (
@@ -53,16 +67,16 @@ function Overview() {
 
       <div className="page-head">
         <div>
-          <div className="eyebrow">Watches</div>
+          <div className="eyebrow">Triggers</div>
           <div className="h1" style={{ marginTop: 10 }}>{t('watches.title')}</div>
           <div className="body" style={{ marginTop: 6, maxWidth: 640 }}>{t('watches.sub')}</div>
         </div>
-        <Btn variant="primary" icon="add" tier="free" onClick={() => open({ kind: 'watchBuilder' })}>New watch</Btn>
+        <Btn variant="primary" icon="add" tier="free" onClick={() => open({ kind: 'watchBuilder' })}>{t('cta.newTrigger')}</Btn>
       </div>
 
       <div className="stats wp-stats">
         <div>
-          <div className="l">Active watches</div>
+          <div className="l">Active triggers</div>
           <div className="v">{active.length}</div>
           <div className="ci">{watches.length - active.length} paused</div>
         </div>
@@ -74,7 +88,7 @@ function Overview() {
         <div>
           <div className="l">Next update</div>
           <div className="v">{fmtDay(soonest?.nextRunAt ?? null, '—')}</div>
-          <div className="ci">{soonest ? soonest.satellites.split(' · ')[0] : 'No active watches'}</div>
+          <div className="ci">{soonest ? soonest.satellites.split(' · ')[0] : 'No active triggers'}</div>
         </div>
         <div>
           <div className="l">Delivery channels</div>
@@ -85,18 +99,20 @@ function Overview() {
         </div>
       </div>
 
-      <AskBar
-        placeholder="Ask your watches what changed and what it means for you…"
-        suggestions={['What changed since last week?', 'Which place needs attention first?', 'What does this mean for my irrigation?']}
-        scope="watches"
-        onExport={(a) => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: 'From your watches' } })}
-        onExpert={(a) => open({ kind: 'expert', context: a.title, placeId: null })}
-      />
 
       <div className="col" style={{ gap: 16 }}>
+        <div className="wp-chips" role="tablist" aria-label="Filter by type">
+          {KINDS.map((k) => (
+            <button key={k.id} role="tab" aria-selected={kind === k.id} className={`chip ${kind === k.id ? 'on' : ''}`} onClick={() => { setKind(k.id); setCat('all'); }}>
+              <Ms n={k.icon} />
+              {k.label}
+              <span style={{ opacity: 0.6 }}>{watches.filter(k.test).length}</span>
+            </button>
+          ))}
+        </div>
         <div className="row wrap" style={{ justifyContent: 'space-between', gap: 12 }}>
           <div className="wp-chips grow" role="tablist" aria-label="Filter by category">
-            <button role="tab" aria-selected={cat === 'all'} className={`chip ${cat === 'all' ? 'on' : ''}`} onClick={() => setCat('all')}>All <span style={{ opacity: 0.6 }}>{watches.length}</span></button>
+            <button role="tab" aria-selected={cat === 'all'} className={`chip ${cat === 'all' ? 'on' : ''}`} onClick={() => setCat('all')}>All <span style={{ opacity: 0.6 }}>{byKind.length}</span></button>
             {catsUsed.map(({ c, i, n }) => (
               <button key={c.key} role="tab" aria-selected={cat === i} className={`chip ${cat === i ? 'on' : ''}`} onClick={() => setCat(i)}>
                 <span className="dot" style={{ background: c.color }} />
@@ -112,14 +128,18 @@ function Overview() {
         </div>
 
         {loading.watches ? (
-          <div className="grid-cards" aria-busy="true" aria-label="Loading watches">
+          <div className="grid-cards" aria-busy="true" aria-label="Loading triggers">
             {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} height={360} />)}
           </div>
         ) : errors.watches ? (
-          <ErrorState error={errors.watches} onRetry={reload} title="Could not load your watches" />
+          <ErrorState error={errors.watches} onRetry={reload} title="Could not load your triggers" />
         ) : watches.length === 0 ? (
-          <Empty icon="visibility" title="No watches yet" body="Tell the agent what to keep an eye on. It checks whether satellites can see it, then alerts you by email, WhatsApp or push.">
-            <Btn variant="primary" icon="add" tier="free" onClick={() => open({ kind: 'watchBuilder' })}>New watch</Btn>
+          <Empty icon="visibility" title="No triggers yet" body="Tell the agent what to keep an eye on. It checks whether satellites can see it, then alerts you by email, WhatsApp or push.">
+            <Btn variant="primary" icon="add" tier="free" onClick={() => open({ kind: 'watchBuilder' })}>{t('cta.newTrigger')}</Btn>
+          </Empty>
+        ) : byKind.length === 0 ? (
+          <Empty icon="filter_alt_off" title="No triggers match" body="Try a different filter to see the rest of your triggers.">
+            <Btn onClick={() => setKind('all')}>Show all triggers</Btn>
           </Empty>
         ) : grouped ? (
           groups.map((g, gi) => (
@@ -130,14 +150,14 @@ function Overview() {
                 <span className="eyebrow" style={{ opacity: 0.7 }}>· {g.list.length}</span>
               </div>
               <div className="grid-cards">
-                {g.list.map((w) => { const pl = places.find((p) => p.id === w.placeId); return <WatchCard key={w.id} w={w} placeName={pl?.name} place={pl} />; })}
+                {g.list.map((w) => { const pl = places.find((p) => p.id === w.placeId); return <WatchCard key={w.id} w={w} placeName={pl?.name} place={pl} dashboardName={dashName(w.dashboardId)} />; })}
                 {gi === groups.length - 1 && <AddTile />}
               </div>
             </section>
           ))
         ) : (
           <div className="grid-cards">
-            {shown.map((w) => { const pl = places.find((p) => p.id === w.placeId); return <WatchCard key={w.id} w={w} placeName={pl?.name} place={pl} />; })}
+            {shown.map((w) => { const pl = places.find((p) => p.id === w.placeId); return <WatchCard key={w.id} w={w} placeName={pl?.name} place={pl} dashboardName={dashName(w.dashboardId)} />; })}
             <AddTile />
           </div>
         )}
@@ -155,7 +175,7 @@ function AddTile() {
       style={{ minHeight: 280, borderRadius: 'var(--r-lg)', border: '1px dashed var(--hair)', background: 'transparent', color: 'var(--muted)', alignItems: 'center', justifyContent: 'center', gap: 8, font: '600 14px/1.29 var(--font)', padding: 24, textAlign: 'center' }}
     >
       <Ms n="add" size={28} />
-      Ask the agent to build a watch
+      Ask the agent to build a trigger
       <span className="tiny" style={{ maxWidth: 240 }}>Describe it in a sentence — the agent checks if satellites can see it.</span>
       <Tier tier="free" />
     </button>
@@ -169,7 +189,7 @@ function AddTile() {
 const thumbFor = (w: Watch, place?: Place) =>
   place ? thumb(place.lat, place.lon, w.thumbnailZoom) : thumb(0, 0, 2);
 
-function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; place?: Place }) {
+function WatchCard({ w, placeName, place, dashboardName }: { w: Watch; placeName?: string; place?: Place; dashboardName?: string }) {
   const { go, updateWatch, notify, category, channels } = useStore();
   const cat = category(w.categoryKey);
   const accent = w.enabled && w.status !== 'ok' ? STATUS_STYLE[w.status].color : null;
@@ -203,6 +223,19 @@ function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; plac
           <span className="eyebrow">{cat.name}</span>
         </div>
         <div className="card-title">{w.name}</div>
+        <div className="row wrap" style={{ gap: 6 }}>
+          <RecurrencePill recurrence={w.recurrence} />
+          {w.dashboardId && (
+            <button
+              className="pill"
+              style={{ border: 0, background: 'var(--s2)', color: '#fff' }}
+              onClick={(e) => { stop(e); go('dashboard', w.dashboardId!); }}
+              title="The dashboard this trigger watches"
+            >
+              <Ms n="dashboard" size={14} />{dashboardName ?? 'Dashboard'}
+            </button>
+          )}
+        </div>
         {w.placeId && placeName ? (
           <button onClick={(e) => { stop(e); go('ask', undefined, { place: w.placeId! }); }} className="row" style={{ alignSelf: 'flex-start', gap: 4, padding: 0, border: 0, background: 'none', color: 'var(--blue)', font: '500 13px/1.38 var(--font)' }}>
             <Ms n="location_on" size={14} />{placeName}
@@ -233,12 +266,12 @@ function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; plac
           <span onClick={stop} onKeyDown={stop}>
             <Toggle
               on={w.enabled}
-              title={w.enabled ? 'Pause watch' : 'Resume watch'}
+              title={w.enabled ? 'Pause trigger' : 'Resume trigger'}
               onClick={() => {
                 const resuming = !w.enabled;
                 void updateWatch(w.id, { enabled: resuming })
                   .then(() => notify(resuming ? `Resumed \u201c${w.name}\u201d` : `Paused \u201c${w.name}\u201d`))
-                  .catch(() => notify('Could not change the watch', undefined, undefined, 'error'));
+                  .catch(() => notify('Could not change the trigger', undefined, undefined, 'error'));
               }}
             />
           </span>

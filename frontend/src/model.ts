@@ -36,6 +36,7 @@ import type {
   SkillModuleDto,
   Tier,
   WatchDto,
+  WatchRecurrence,
   WatchStatus,
 } from './api/types';
 
@@ -201,7 +202,8 @@ export const toPlace = (d: PlaceDto): Place => {
     pts,
     circle: d.is_circle,
     // AUTHORITATIVE, from the server. Never recomputed for a saved place.
-    areaHa: d.area_ha,
+    // One decimal is plenty for display (0.1 ha = 1,000 m²).
+    areaHa: Math.round(d.area_ha * 10) / 10,
     project: d.project ?? '',
     tags: d.tags ?? [],
     source: d.source as PlaceSource,
@@ -248,6 +250,9 @@ export interface Watch {
   thumbnailZoom: number;
   ring: boolean;
   events: WatchEvent[];
+  /** `once` triggers fire a single time, then stop. */
+  recurrence: WatchRecurrence;
+  dashboardId: string | null;
 }
 
 export const toWatch = (d: WatchDto): Watch => ({
@@ -278,6 +283,8 @@ export const toWatch = (d: WatchDto): Watch => ({
   thumbnailZoom: d.thumbnail?.zoom ?? 14,
   ring: d.ring,
   events: d.events.map((e) => ({ at: parseIso(e.at), text: e.text, level: e.level })),
+  recurrence: d.recurrence,
+  dashboardId: d.dashboardId ?? null,
 });
 
 /* ---------------- areas ---------------- */

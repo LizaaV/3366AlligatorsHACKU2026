@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { href, useStore, type Page } from '../state/store';
-import { LANGS } from '../data/i18n';
 import { Ms } from './ui';
 
 const TABS: { page: Page; icon: string; key: string }[] = [
   { page: 'ask', icon: 'forum', key: 'nav.ask' },
   { page: 'places', icon: 'pentagon', key: 'nav.places' },
   { page: 'triggers', icon: 'notifications_active', key: 'nav.triggers' },
+  { page: 'dashboard', icon: 'dashboard', key: 'nav.dashboard' },
   { page: 'library', icon: 'auto_stories', key: 'nav.library' },
 ];
 
@@ -57,8 +57,6 @@ function AccountMenu() {
             <Ms n="hub" />Connectors
             <span className="tiny" style={{ marginLeft: 'auto' }}>{Object.values(connectors).filter((c) => c.connected).length} on</span>
           </button>
-          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'app' }); }}><Ms n="smartphone" />Get the mobile app</button>
-          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'lang' }); }}><Ms n="translate" />Language</button>
         </div>
       )}
     </div>
@@ -66,8 +64,7 @@ function AccountMenu() {
 }
 
 export function TopNav() {
-  const { route, t, lang, open } = useStore();
-  const L = LANGS.find((l) => l.code === lang)!;
+  const { route, t } = useStore();
   return (
     <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'var(--nav-h)', zIndex: 90, display: 'flex', alignItems: 'center', gap: 24, padding: '0 20px', background: '#000', borderBottom: '1px solid var(--hair-soft)' }}>
       <Logo />
@@ -83,10 +80,6 @@ export function TopNav() {
         })}
       </nav>
       <div className="row" style={{ marginLeft: 'auto', gap: 6 }}>
-        <button className="btn btn-text btn-sm" onClick={() => open({ kind: 'lang' })} title="Language" aria-label={`Language: ${L.english}`}>
-          <Ms n="translate" />
-          <span className="hide-mobile">{L.name}</span>
-        </button>
         <AccountMenu />
       </div>
     </header>
@@ -114,11 +107,11 @@ export function ToastHost() {
   const { toast, dismissToast } = useStore();
   if (!toast) return null;
   return (
-    <div role="status" style={{ position: 'fixed', left: 0, right: 0, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100vw - 32px)', top: 72, zIndex: 120, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 10px 10px 16px', borderRadius: 12, background: '#fff', color: '#000', font: '600 14px/1.4 var(--font)', animation: 'fadeUp .25s ease both' }}>
+    <div role="status" className="glass glass-strong" style={{ position: 'fixed', left: 0, right: 0, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100vw - 32px)', top: 72, zIndex: 120, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 10px 10px 16px', borderRadius: 12, color: '#fff', font: '600 14px/1.4 var(--font)', animation: 'fadeUp .25s ease both' }}>
       <Ms n={toast.icon || 'check_circle'} size={18} />
       <span>{toast.text}</span>
       {toast.action && (
-        <button onClick={() => { toast.fn?.(); dismissToast(); }} style={{ padding: '6px 12px', borderRadius: 8, background: '#000', color: '#fff', border: 0, font: '600 13px/1.29 var(--font)' }}>
+        <button onClick={() => { toast.fn?.(); dismissToast(); }} style={{ padding: '6px 12px', borderRadius: 8, background: '#fff', color: '#000', border: 0, font: '600 13px/1.29 var(--font)' }}>
           {toast.action}
         </button>
       )}

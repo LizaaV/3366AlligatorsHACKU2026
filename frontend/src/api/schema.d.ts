@@ -37,6 +37,10 @@ export interface paths {
          *     `clarification_needed` then `done{status: waiting_user}`; continue with `/reply`.
          *
          *     `thread_id` must come from an earlier `run_started` for this user (404 otherwise).
+         *     Agent runs are rate-limited per user and by the number running at once (429 with
+         *     `Retry-After`). Without a configured LLM provider, or once the daily spend cap is
+         *     reached, the preset run is served for the preset's place only; any other place gets an
+         *     `error` (kind `agent_unavailable` or `spend_cap`) and `done{status: failed}`.
          */
         post: operations["start_run_api_runs_post"];
         delete?: never;
@@ -516,6 +520,246 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/watches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Watches */
+        get: operations["list_watches_api_watches_get"];
+        put?: never;
+        /** Create Watch */
+        post: operations["create_watch_api_watches_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/watches/feasibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check Feasibility */
+        post: operations["check_feasibility_api_watches_feasibility_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/watches/{watch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Watch */
+        delete: operations["delete_watch_api_watches__watch_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Watch */
+        patch: operations["patch_watch_api_watches__watch_id__patch"];
+        trace?: never;
+    };
+    "/api/watches/{watch_id}/proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Proof */
+        get: operations["get_proof_api_watches__watch_id__proof_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Skills
+         * @description Built-in skills first (implemented ones, then concepts), then user-made drafts.
+         */
+        get: operations["list_skills_api_skills_get"];
+        put?: never;
+        /**
+         * Create Skill
+         * @description Save a skill from the builder. 422 when a module or category is not in the catalog.
+         */
+        post: operations["create_skill_api_skills_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Skill
+         * @description Dry-run a draft recipe against a saved place. **Not available yet: always 501** after
+         *     validating the body (422 for unknown modules).
+         *
+         *     Draft skills are module recipes and nothing turns a recipe into `earth` calls yet, so any
+         *     "scenes usable" number here would be invented. When a recipe executor lands, this returns
+         *     `SkillTestResult` with real `ProofScene`s and `Provenance`.
+         */
+        post: operations["test_skill_api_skills_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/{skill_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Skill */
+        get: operations["get_skill_api_skills__skill_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/{skill_id}/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Manifest
+         * @description The reproducible recipe: ordered modules with params, plus `code_ref` / `code_sha256`
+         *     for skills that have a script (the same `code_ref` a run reports in `Answer.method`).
+         */
+        get: operations["get_manifest_api_skills__skill_id__manifest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Catalog
+         * @description Registry data. Colours are presentation and stay in the frontend.
+         */
+        get: operations["catalog_api_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my conversations
+         * @description The user's conversations, most recent first: title (first question), place, the
+         *     latest question, status and answer line.
+         */
+        get: operations["list_threads_api_threads_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/threads/{thread_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reload one conversation
+         * @description Every run of the conversation, oldest first, with answers, blocks, steps and the
+         *     event log, so the chat can be redrawn exactly. Private agent state is left out.
+         */
+        get: operations["get_thread_api_threads__thread_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/satellites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Satellites
+         * @description Current positions of the free Earth-observation satellites, each with a ~90 min
+         *     ground track (2-min steps) starting at `at`.
+         */
+        get: operations["list_satellites_api_satellites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -814,6 +1058,43 @@ export interface components {
              */
             status: "draft" | "tested" | "reviewed";
         };
+        /** CatalogDto */
+        CatalogDto: {
+            /** Categories */
+            categories: components["schemas"]["CategoryDto"][];
+            /** Satellites */
+            satellites: components["schemas"]["app__schemas__catalog__SatelliteDto"][];
+            /** Modules */
+            modules: components["schemas"]["SkillModuleDto"][];
+            /** Channels */
+            channels: components["schemas"]["DeliveryChannelDto"][];
+            /** Languages */
+            languages: components["schemas"]["LanguageDto"][];
+            /**
+             * Map Layers
+             * @description Layer kinds the backend renders (folded in from the proposed `GET /api/map-layers`).
+             */
+            map_layers: components["schemas"]["MapLayerDto"][];
+        };
+        /** CategoryDto */
+        CategoryDto: {
+            /**
+             * Key
+             * @description Stable category key, e.g. 'agriculture' (= `category_key`).
+             */
+            key: string;
+            /** Name */
+            name: string;
+            /**
+             * Icon
+             * @description Material Symbols glyph name.
+             */
+            icon: string;
+            /** Uses */
+            uses: string;
+            /** Sats */
+            sats: string;
+        };
         /**
          * ClarificationAnswered
          * @description The user answered the clarification card (first event of the reply stream).
@@ -946,6 +1227,82 @@ export interface components {
             details?: components["schemas"]["DetailRow"][] | null;
         };
         /**
+         * CreateSkillRequest
+         * @description Skill builder. Every step's `module` must exist in `GET /api/catalog` modules and
+         *     `category_key` in its categories; otherwise 422.
+         */
+        CreateSkillRequest: {
+            /** Name */
+            name: string;
+            /** Category Key */
+            category_key: string;
+            /** Short */
+            short: string;
+            /**
+             * Long
+             * @default
+             */
+            long: string;
+            /**
+             * Tier
+             * @default free
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /**
+             * Cost
+             * @default Free
+             */
+            cost: string;
+            /**
+             * Visibility
+             * @default private
+             * @enum {string}
+             */
+            visibility: "private" | "team" | "public";
+            /** Steps */
+            steps: components["schemas"]["SkillStep"][];
+        };
+        /** CreateWatchRequest */
+        CreateWatchRequest: {
+            /** Name */
+            name: string;
+            /**
+             * Category Key
+             * @default
+             */
+            category_key: string;
+            /** Place Id */
+            place_id?: string | null;
+            /**
+             * Skill Id
+             * @default
+             */
+            skill_id: string;
+            /** Question */
+            question: string;
+            /**
+             * Condition
+             * @default
+             */
+            condition: string;
+            /** Channels */
+            channels?: ("email" | "whatsapp" | "sms" | "push" | "slack")[];
+            /**
+             * Cadence
+             * @default
+             */
+            cadence: string;
+            /**
+             * Recurrence
+             * @default recurring
+             * @enum {string}
+             */
+            recurrence: "recurring" | "once";
+            /** Dashboard Id */
+            dashboard_id?: string | null;
+        };
+        /**
          * DashboardBlockOut
          * @description A saved block as the API returns it (no script).
          */
@@ -1008,6 +1365,25 @@ export interface components {
         DashboardUpdate: {
             /** Name */
             name: string;
+        };
+        /** DeliveryChannelDto */
+        DeliveryChannelDto: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "email" | "whatsapp" | "sms" | "push" | "slack";
+            /** Name */
+            name: string;
+            /** Icon */
+            icon: string;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /** Note */
+            note: string;
         };
         /** DetailRow */
         DetailRow: {
@@ -1095,6 +1471,82 @@ export interface components {
             verdict: "supported" | "contradicted" | "unclear" | "untested";
         };
         /**
+         * FeasibilityDto
+         * @description 'Can satellites actually watch this?', asked before a watch is created.
+         */
+        FeasibilityDto: {
+            /** Ok */
+            ok: boolean;
+            /**
+             * Partial
+             * @description Answerable only with paid imagery or lower confidence.
+             * @default false
+             */
+            partial: boolean;
+            /** Title */
+            title: string;
+            /**
+             * Skill Id
+             * @default
+             */
+            skill_id: string;
+            /**
+             * Category Key
+             * @default
+             */
+            category_key: string;
+            /**
+             * Metric
+             * @default
+             */
+            metric: string;
+            /**
+             * Condition
+             * @default
+             */
+            condition: string;
+            /**
+             * Satellites
+             * @default —
+             */
+            satellites: string;
+            /**
+             * Cadence
+             * @default —
+             */
+            cadence: string;
+            /**
+             * Tier
+             * @default free
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /**
+             * Cost
+             * @default —
+             */
+            cost: string;
+            /**
+             * Confidence
+             * @enum {string}
+             */
+            confidence: "High" | "Medium" | "Low";
+            /** Notes */
+            notes?: string[];
+            /**
+             * Alternative
+             * @description Offered when `ok` is false.
+             */
+            alternative?: string | null;
+        };
+        /** FeasibilityRequest */
+        FeasibilityRequest: {
+            /** Text */
+            text: string;
+            /** Place Id */
+            place_id?: string | null;
+        };
+        /**
          * GuardEvent
          * @description The guard's verdict on whether the question can be answered.
          */
@@ -1161,7 +1613,7 @@ export interface components {
              * Measure
              * @enum {string}
              */
-            measure: "greenness" | "moisture" | "water" | "bare" | "burn" | "roughness";
+            measure: "greenness" | "moisture" | "water" | "bare" | "burn" | "roughness" | "heat";
             /** Patches */
             patches: components["schemas"]["Patch"][];
             /** Total Ha */
@@ -1329,6 +1781,27 @@ export interface components {
              */
             saved: boolean;
         };
+        /** LanguageDto */
+        LanguageDto: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** English */
+            english: string;
+            /** Region */
+            region: string;
+            /**
+             * Ui
+             * @description Whether the interface is translated.
+             */
+            ui: boolean;
+            /**
+             * Rtl
+             * @default false
+             */
+            rtl: boolean;
+        };
         /** LatLon */
         LatLon: {
             /** Lat */
@@ -1391,6 +1864,51 @@ export interface components {
             /** Rule Id */
             rule_id?: string | null;
         };
+        /** ManifestAccuracy */
+        ManifestAccuracy: {
+            /** Resolution */
+            resolution?: string | null;
+            /** Revisit */
+            revisit?: string | null;
+            /** Statement */
+            statement?: string | null;
+            /** Known Limits */
+            known_limits?: string[];
+        };
+        /**
+         * MapLayerDto
+         * @description A kind of map layer the backend renders for a run (`RenderedLayer.measure`).
+         *
+         *     The images themselves are served at `url_template` (`GET /api/layers/{run_id}/{measure}/
+         *     {scene}.png`); the actual layers of a run come with its blocks.
+         */
+        MapLayerDto: {
+            /**
+             * Id
+             * @description 'rgb' or an `earth` measure, as used in the layer URL.
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @description Sensor and bands, e.g. 'Sentinel-2 B3 / B8'.
+             */
+            source: string;
+            /**
+             * Index
+             * @description Spectral index behind the measure, e.g. NDWI.
+             */
+            index?: string | null;
+            /**
+             * Is Agent Made
+             * @description Produced by the agent, not drawn by the user.
+             * @default true
+             */
+            is_agent_made: boolean;
+            /** Url Template */
+            url_template: string;
+        };
         /** MeMemory */
         MeMemory: {
             /** Profile */
@@ -1430,6 +1948,31 @@ export interface components {
              * @description Reference to the script that ran.
              */
             code_ref?: string | null;
+            /**
+             * Model
+             * @description LLM model id behind the answer; None for presets and templates.
+             */
+            model?: string | null;
+        };
+        /**
+         * NotAvailable
+         * @description Error detail for a feature that is not built yet (same keys as earth errors).
+         */
+        NotAvailable: {
+            /**
+             * Kind
+             * @default not_implemented
+             * @constant
+             */
+            kind: "not_implemented";
+            /** Message */
+            message: string;
+            /** Hint */
+            hint: string;
+        };
+        /** NotAvailableResponse */
+        NotAvailableResponse: {
+            detail: components["schemas"]["NotAvailable"];
         };
         /** Note */
         Note: {
@@ -1478,6 +2021,26 @@ export interface components {
             project?: string | null;
             /** Tags */
             tags?: string[] | null;
+        };
+        /**
+         * PatchWatchRequest
+         * @description Every field optional; unknown fields and explicit nulls are rejected (422).
+         */
+        PatchWatchRequest: {
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Condition */
+            condition?: string | null;
+            /** Channels */
+            channels?: ("email" | "whatsapp" | "sms" | "push" | "slack")[] | null;
+            /** Cadence */
+            cadence?: string | null;
+            /** Recurrence */
+            recurrence?: ("recurring" | "once") | null;
+            /** Dashboard Id */
+            dashboard_id?: string | null;
         };
         /**
          * PlaceContext
@@ -1597,6 +2160,16 @@ export interface components {
              */
             saved: string;
         };
+        /** Pricing */
+        Pricing: {
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /** Price */
+            price?: string | null;
+        };
         /**
          * ProofScene
          * @description A satellite scene that was looked at, and whether it was used.
@@ -1643,6 +2216,21 @@ export interface components {
             resolution_m: number;
             /** Method */
             method: string;
+        };
+        /** Publisher */
+        Publisher: {
+            /** Name */
+            name: string;
+            /**
+             * Official
+             * @default false
+             */
+            official: boolean;
+            /**
+             * Verified
+             * @default false
+             */
+            verified: boolean;
         };
         /** Range */
         Range: {
@@ -1735,6 +2323,16 @@ export interface components {
             };
             cost?: components["schemas"]["Cost"] | null;
             /**
+             * Provider
+             * @description LLM provider that ran the agent, if any.
+             */
+            provider?: string | null;
+            /**
+             * Model
+             * @description LLM model id that ran the agent, if any.
+             */
+            model?: string | null;
+            /**
              * Events
              * @description Full event log, for replay.
              */
@@ -1769,6 +2367,11 @@ export interface components {
              * @default en
              */
             lang: string;
+            /**
+             * Provider
+             * @description LLM provider for the agent. Omit for the server default; 400 if the requested provider is not configured on the server.
+             */
+            provider?: "claude" | null;
         };
         /**
          * RunStarted
@@ -1940,6 +2543,185 @@ export interface components {
             expires_at: string;
         };
         /**
+         * SkillDto
+         * @description One library entry.
+         */
+        SkillDto: {
+            /** Id */
+            id: string;
+            /** Category Key */
+            category_key: string;
+            /** Name */
+            name: string;
+            /**
+             * Sat
+             * @description Human-readable satellite list, for display.
+             */
+            sat: string;
+            /** Cost */
+            cost: string;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /** Short */
+            short: string;
+            /**
+             * Long
+             * @default
+             */
+            long: string;
+            publisher: components["schemas"]["Publisher"];
+            /** @description Where to take the card thumbnail. */
+            reference?: components["schemas"]["LatLon"] | null;
+            /** Res */
+            res?: string | null;
+            /** Revisit */
+            revisit?: string | null;
+            /**
+             * Runs
+             * @description Measured run count; null until the backend counts runs per skill.
+             */
+            runs?: number | null;
+            /**
+             * Rating
+             * @description Measured user rating; null until ratings exist.
+             */
+            rating?: number | null;
+            /**
+             * Version
+             * @description Semver of the skill recipe.
+             */
+            version: string;
+            /**
+             * Updated At
+             * @description ISO-8601 instant.
+             */
+            updated_at: string;
+            /**
+             * Steps
+             * @description Ordered module ids (see the manifest for params).
+             */
+            steps: string[];
+            /**
+             * Accuracy
+             * @description Validation statement; null when the skill has not been validated.
+             */
+            accuracy?: string | null;
+            /** Limits */
+            limits?: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "available" | "concept" | "draft";
+            /**
+             * Visibility
+             * @default public
+             * @enum {string}
+             */
+            visibility: "private" | "team" | "public";
+        };
+        /** SkillInput */
+        SkillInput: {
+            /** Key */
+            key: string;
+            /** Type */
+            type: string;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /** Accepts */
+            accepts?: string[] | null;
+        };
+        /**
+         * SkillManifest
+         * @description The reproducible recipe behind a skill.
+         *
+         *     `code_ref` is the same string a run puts in `Answer.method.code_ref` when this skill
+         *     produced it, and `code_sha256` pins the exact script. Both are null for skills with no
+         *     implementation (`status` 'concept' or 'draft').
+         */
+        SkillManifest: {
+            /** Id */
+            id: string;
+            /** Version */
+            version: string;
+            /** Name */
+            name: string;
+            /** Category Key */
+            category_key: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "available" | "concept" | "draft";
+            /**
+             * Visibility
+             * @enum {string}
+             */
+            visibility: "private" | "team" | "public";
+            publisher: components["schemas"]["Publisher"];
+            pricing: components["schemas"]["Pricing"];
+            /** Inputs */
+            inputs?: components["schemas"]["SkillInput"][];
+            /** Steps */
+            steps: components["schemas"]["SkillStep"][];
+            /** Outputs */
+            outputs?: components["schemas"]["SkillOutput"][];
+            accuracy: components["schemas"]["ManifestAccuracy"];
+            /**
+             * Code Ref
+             * @description Script that implements the skill.
+             */
+            code_ref?: string | null;
+            /**
+             * Code Sha256
+             * @description SHA-256 of that script.
+             */
+            code_sha256?: string | null;
+        };
+        /**
+         * SkillModuleDto
+         * @description A building block a skill is composed from (a step's `module`).
+         */
+        SkillModuleDto: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Icon */
+            icon: string;
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "Input" | "Data" | "Analysis" | "Output";
+            /** Desc */
+            desc: string;
+            /**
+             * Params
+             * @description Default params.
+             */
+            params?: {
+                [key: string]: string | number | boolean | (string | number | boolean)[];
+            };
+        };
+        /** SkillOutput */
+        SkillOutput: {
+            /** Key */
+            key: string;
+            /** Type */
+            type: string;
+            /** Languages */
+            languages?: string | null;
+            /** With Confidence */
+            with_confidence?: boolean | null;
+        };
+        /**
          * SkillRef
          * @description A skill used by the method, pinned to a version.
          */
@@ -1948,6 +2730,54 @@ export interface components {
             id: string;
             /** Version */
             version: number;
+        };
+        /** SkillStep */
+        SkillStep: {
+            /**
+             * Module
+             * @description A `SkillModuleDto.id` from `GET /api/catalog`.
+             */
+            module: string;
+            /** Params */
+            params?: {
+                [key: string]: string | number | boolean | (string | number | boolean)[];
+            };
+        };
+        /**
+         * SkillTestRequest
+         * @description Dry-run a draft recipe against one saved place.
+         */
+        SkillTestRequest: {
+            /** Place Id */
+            place_id: string;
+            /** Steps */
+            steps: components["schemas"]["SkillStep"][];
+        };
+        /**
+         * SkillTestResult
+         * @description Planned response of `POST /api/skills/test` (the endpoint answers 501 for now).
+         */
+        SkillTestResult: {
+            /** Ok */
+            ok: boolean;
+            /** Summary */
+            summary: string;
+            /** Issues */
+            issues?: string[];
+            /**
+             * Scenes
+             * @description Every scene looked at, used or not, and why.
+             */
+            scenes?: components["schemas"]["ProofScene"][];
+            /** Provenance */
+            provenance?: components["schemas"]["Provenance"][];
+            /**
+             * Reproducible
+             * @description Same inputs give the same hash.
+             */
+            reproducible: boolean;
+            /** Hash */
+            hash?: string | null;
         };
         /** SlopeStats */
         SlopeStats: {
@@ -2133,13 +2963,70 @@ export interface components {
              */
             type: "then_now";
             /** Measure */
-            measure: ("greenness" | "moisture" | "water" | "bare" | "burn" | "roughness") | null;
+            measure: ("greenness" | "moisture" | "water" | "bare" | "burn" | "roughness" | "heat") | null;
             before: components["schemas"]["Image"];
             after: components["schemas"]["Image"];
             /** Outline */
             outline?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * ThreadDetail
+         * @description A whole conversation, oldest run first, to reload it exactly.
+         */
+        ThreadDetail: {
+            /** Thread Id */
+            thread_id: string;
+            /**
+             * Runs
+             * @description Without the agent's private state.
+             */
+            runs: components["schemas"]["RunRecord"][];
+        };
+        /**
+         * ThreadSummary
+         * @description One conversation in the user's history list.
+         */
+        ThreadSummary: {
+            /** Thread Id */
+            thread_id: string;
+            /**
+             * Title
+             * @description The thread's first question (shortened).
+             */
+            title: string;
+            /**
+             * Place Name
+             * @description The place of the latest run, if any.
+             */
+            place_name?: string | null;
+            /** Last Question */
+            last_question: string;
+            /**
+             * Last Status
+             * @enum {string}
+             */
+            last_status: "running" | "waiting_user" | "done" | "failed" | "refused";
+            /**
+             * Last Sentence
+             * @description The latest answer's one-liner.
+             */
+            last_sentence?: string | null;
+            /** Run Count */
+            run_count: number;
+            /**
+             * Started At
+             * Format: date-time
+             * @description UTC, first run.
+             */
+            started_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description UTC, latest run.
+             */
+            updated_at: string;
         };
         /** TimelineBand */
         TimelineBand: {
@@ -2184,7 +3071,7 @@ export interface components {
              * Measure
              * @enum {string}
              */
-            measure: "greenness" | "moisture" | "water" | "bare" | "burn" | "roughness";
+            measure: "greenness" | "moisture" | "water" | "bare" | "burn" | "roughness" | "heat";
             /** Unit */
             unit?: string | null;
             /** Data */
@@ -2239,6 +3126,19 @@ export interface components {
             /** Data */
             data: components["schemas"]["TimelinePoint"][];
         };
+        /** TrackPoint */
+        TrackPoint: {
+            /**
+             * Lat
+             * @description Geodetic latitude, degrees.
+             */
+            lat: number;
+            /**
+             * Lon
+             * @description Longitude, degrees east, -180..180.
+             */
+            lon: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -2267,6 +3167,287 @@ export interface components {
              * @description When the remembered value was saved.
              */
             saved?: string | null;
+        };
+        /**
+         * WatchDto
+         * @description A saved watch.
+         *
+         *     Measurement fields (`value`, `ci`, `baseline`, `status`, `last_run_at`, `series`) are
+         *     `null`/empty until a real run has produced them — the API never invents numbers.
+         *     `enabled: false` means paused; `next_run_at: null` with `enabled: true` means "not
+         *     scheduled yet" (there is no scheduler yet, so it is always null for now).
+         */
+        WatchDto: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Category Key
+             * @default
+             */
+            category_key: string;
+            /**
+             * Place Id
+             * @description Null for a general watch, or place deleted.
+             */
+            place_id?: string | null;
+            /**
+             * Skill Id
+             * @default
+             */
+            skill_id: string;
+            /** Question */
+            question: string;
+            /**
+             * Condition
+             * @default
+             */
+            condition: string;
+            /**
+             * Metric
+             * @default
+             */
+            metric: string;
+            /** Value */
+            value?: number | null;
+            /**
+             * Unit
+             * @default
+             */
+            unit: string;
+            /**
+             * Ci
+             * @description 90% interval [low, high].
+             */
+            ci?: [
+                number,
+                number
+            ] | null;
+            /**
+             * Confidence
+             * @description Expected confidence for this question.
+             * @enum {string}
+             */
+            confidence: "High" | "Medium" | "Low";
+            /**
+             * Baseline Label
+             * @default
+             */
+            baseline_label: string;
+            /** Baseline */
+            baseline?: number | null;
+            /**
+             * Delta
+             * @default
+             */
+            delta: string;
+            /**
+             * Status
+             * @description Null until the first real run.
+             */
+            status?: ("ok" | "warn" | "alert") | null;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Recurrence
+             * @description 'once' triggers disable themselves (`enabled: false`) after their first alert-level event; 'recurring' keeps firing.
+             * @default recurring
+             * @enum {string}
+             */
+            recurrence: "recurring" | "once";
+            /**
+             * Dashboard Id
+             * @description Optional linked dashboard.
+             */
+            dashboard_id?: string | null;
+            series?: components["schemas"]["WatchSeries"];
+            /** Channels */
+            channels?: ("email" | "whatsapp" | "sms" | "push" | "slack")[];
+            /**
+             * Cadence
+             * @default
+             */
+            cadence: string;
+            /**
+             * Tier
+             * @default free
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /**
+             * Satellites
+             * @default
+             */
+            satellites: string;
+            /**
+             * Ring
+             * @default false
+             */
+            ring: boolean;
+            /** Last Run At */
+            last_run_at?: string | null;
+            /** Next Run At */
+            next_run_at?: string | null;
+            /**
+             * Events
+             * @description Newest first.
+             */
+            events?: components["schemas"]["WatchEvent"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** WatchEvent */
+        WatchEvent: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Text */
+            text: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "info" | "warn" | "alert";
+        };
+        /**
+         * WatchProofDto
+         * @description Scenes behind the watch's most recent run (the runs contract's `ProofScene`), plus the
+         *     reproducibility hash. Empty `scenes` and `hash: ""` until the watch has run.
+         */
+        WatchProofDto: {
+            /** Scenes */
+            scenes?: components["schemas"]["ProofScene"][];
+            /**
+             * Hash
+             * @default
+             */
+            hash: string;
+        };
+        /**
+         * WatchSeries
+         * @description History of the watched metric, one point per pass, in **real units** (`unit`).
+         *
+         *     The chart normalises for drawing; the API never sends 0..1-scaled values. All arrays have
+         *     the same length as `labels`. Empty until the watch has real runs.
+         */
+        WatchSeries: {
+            /**
+             * Unit
+             * @description Unit of every value below, e.g. 'ha'; '' = unitless.
+             * @default
+             */
+            unit: string;
+            /**
+             * Labels
+             * @description ISO date of each pass.
+             */
+            labels?: string[];
+            /**
+             * Current
+             * @description Measured value per pass.
+             */
+            current?: number[];
+            /**
+             * Band Low
+             * @description Baseline band, low edge.
+             */
+            band_low?: number[];
+            /**
+             * Band High
+             * @description Baseline band, high edge.
+             */
+            band_high?: number[];
+            /**
+             * Mean
+             * @description Baseline mean per pass.
+             */
+            mean?: number[];
+        };
+        /** SatelliteDto */
+        app__schemas__catalog__SatelliteDto: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Res */
+            res: string;
+            /** Revisit */
+            revisit: string;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /** Price */
+            price?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "optical" | "radar" | "thermal" | "atmos" | "lights";
+            /** Note */
+            note: string;
+            /**
+             * Connected
+             * @description True when the backend actually fetches scenes from this source today (Sentinel-2 via Earth Search, Sentinel-1 and Landsat via Planetary Computer, VIIRS fire hotspots via NASA FIRMS). The rest are listed for routing and pricing but are not wired up yet.
+             */
+            connected: boolean;
+        };
+        /** SatelliteDto */
+        app__schemas__satellites__SatelliteDto: {
+            /**
+             * Id
+             * @description Stable slug, e.g. 'sentinel-2a'.
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Norad Id */
+            norad_id: number;
+            /**
+             * Mission
+             * @description Programme, e.g. 'Sentinel-2'.
+             */
+            mission: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /**
+             * Alt Km
+             * @description Height above the WGS84 ellipsoid.
+             */
+            alt_km: number;
+            /**
+             * Velocity Kms
+             * @description Speed in km/s.
+             */
+            velocity_kms: number;
+            /**
+             * At
+             * Format: date-time
+             * @description Instant (UTC) the position is for.
+             */
+            at: string;
+            /**
+             * Track
+             * @description Sub-satellite points for the next ~90 min at 2-min steps (45 points).
+             */
+            track: components["schemas"]["TrackPoint"][];
         };
     };
     responses: never;
@@ -2322,7 +3503,7 @@ export interface operations {
                     "text/event-stream": components["schemas"]["RunStarted"] | components["schemas"]["GuardEvent"] | components["schemas"]["HypothesesRegistered"] | components["schemas"]["ClarificationNeeded"] | components["schemas"]["ClarificationAnswered"] | components["schemas"]["StepStarted"] | components["schemas"]["StepFinished"] | components["schemas"]["BlockReady"] | components["schemas"]["AnswerEvent"] | components["schemas"]["ErrorEvent"] | components["schemas"]["Done"];
                 };
             };
-            /** @description Invalid area, thread id or X-User-Id. */
+            /** @description Invalid area, thread id or X-User-Id, or unknown provider. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2336,6 +3517,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description The conversation is full: start a new one. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -2344,6 +3532,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Too many runs: wait `Retry-After` seconds. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2437,6 +3632,20 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Too many runs streaming: wait `Retry-After` seconds. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The run's LLM provider is not available right now, or the daily budget for analyses is used up. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -3696,6 +4905,582 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_watches_api_watches_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchDto"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_watch_api_watches_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchDto"];
+                };
+            };
+            /** @description `place_id` or `dashboard_id` is not one of this user's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid body, a refused question (`detail` is a `FeasibilityDto`), or too many watches */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    check_feasibility_api_watches_feasibility_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeasibilityRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeasibilityDto"];
+                };
+            };
+            /** @description `place_id` or `dashboard_id` is not one of this user's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_watch_api_watches__watch_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                watch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such watch for this user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_watch_api_watches__watch_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                watch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchWatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchDto"];
+                };
+            };
+            /** @description `place_id` or `dashboard_id` is not one of this user's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_proof_api_watches__watch_id__proof_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                watch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchProofDto"];
+                };
+            };
+            /** @description No such watch for this user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_skills_api_skills_get: {
+        parameters: {
+            query?: {
+                /** @description A category key. */
+                category?: string | null;
+                tier?: ("free" | "paid") | null;
+                /** @description Matches name, short text, publisher. */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillDto"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_skill_api_skills_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSkillRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillDto"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_skill_api_skills_test_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Planned shape. Not returned yet: the endpoint answers 501. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillTestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Testing a draft is not available yet. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotAvailableResponse"];
+                };
+            };
+        };
+    };
+    get_skill_api_skills__skill_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillDto"];
+                };
+            };
+            /** @description No such skill (or not visible to this user) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_manifest_api_skills__skill_id__manifest_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillManifest"];
+                };
+            };
+            /** @description No such skill (or not visible to this user) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_api_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogDto"];
+                };
+            };
+        };
+    };
+    list_threads_api_threads_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_thread_api_threads__thread_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadDetail"];
+                };
+            };
+            /** @description Invalid thread id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_satellites_api_satellites_get: {
+        parameters: {
+            query?: {
+                /** @description ISO instant to propagate to; default now. */
+                at?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__schemas__satellites__SatelliteDto"][];
+                };
             };
             /** @description Validation Error */
             422: {
