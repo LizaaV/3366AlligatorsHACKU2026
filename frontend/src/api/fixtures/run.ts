@@ -262,10 +262,12 @@ export const FIXTURE_RUN_ANSWER: S['Answer'] = {
     { sat: 'Sentinel-1', status: 'support', why: 'radar, used to confirm through cloud' },
     { sat: 'Landsat 8/9', status: 'skipped', why: '30 m is too coarse for ponds this size' },
   ],
+  // ProofScene.cloud is PERCENT, unlike StripScene.cloud and Provenance.cloud_over_area
+  // which are 0..1. See lib/format.ts. docs/API.md §3.5's example still shows fractions.
   proof: [
-    { id: 'S2A_20241005', date: '2024-10-05', sat: 'Sentinel-2', cloud: 0.02, used: true, why: null },
-    { id: 'S2A_20260930', date: '2026-09-30', sat: 'Sentinel-2', cloud: 0.04, used: true, why: null },
-    { id: 'S2B_20260820', date: '2026-08-20', sat: 'Sentinel-2', cloud: 0.71, used: false, why: 'too cloudy over the area' },
+    { id: 'S2A_20241005', date: '2024-10-05', sat: 'Sentinel-2', cloud: 2, used: true, why: null },
+    { id: 'S2A_20260930', date: '2026-09-30', sat: 'Sentinel-2', cloud: 4, used: true, why: null },
+    { id: 'S2B_20260820', date: '2026-08-20', sat: 'Sentinel-2', cloud: 71, used: false, why: 'too cloudy over the area' },
   ],
   blocks: [THEN_NOW_BLOCK, TIMELINE_BLOCK, SCENE_STRIP_BLOCK, HIGHLIGHT_BLOCK, HYPOTHESES_BLOCK, STAT_BLOCK, LIMITS_BLOCK],
   followups: [

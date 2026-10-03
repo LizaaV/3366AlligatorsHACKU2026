@@ -77,3 +77,24 @@ export const fmtMonthYear = (d: Date | null, fallback = '—') =>
 
 /** Sort key for a nullable date: nulls (paused, unscheduled) last. */
 export const timeKey = (d: Date | null) => (d ? d.getTime() : Number.POSITIVE_INFINITY);
+
+/* ---------- cloud cover ---------- */
+
+/**
+ * Cloud cover is expressed in TWO different units in the contract, which is easy to get wrong
+ * and was: the answer's proof list rendered a 4% scene as "400%" until this was fixed.
+ *
+ *   ProofScene.cloud            percent   (`app/schemas/answer.py` says so explicitly)
+ *   StripScene.cloud            0..1      (`earth/blocks.py`)
+ *   Provenance.cloud_over_area  0..1      (`earth/types.py`)
+ *
+ * So there are two formatters rather than one, each named for the unit it takes. A call site
+ * then has to say which it has, instead of assuming. Raised on #43 — if the contract settles on
+ * one unit, one of these goes away.
+ */
+
+/** For a 0..1 fraction, e.g. `StripScene.cloud`, `Provenance.cloud_over_area`. */
+export const cloudFromFraction = (v: number): string => `${Math.round(v * 100)}%`;
+
+/** For a value already in percent, e.g. `ProofScene.cloud`. */
+export const cloudFromPercent = (v: number): string => `${Math.round(v)}%`;

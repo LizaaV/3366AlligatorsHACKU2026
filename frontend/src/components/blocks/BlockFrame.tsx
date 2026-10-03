@@ -9,6 +9,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { Ms } from '../ui';
+import { cloudFromFraction } from '../../lib/format';
 import type { components } from '../../api/schema';
 
 type S = components['schemas'];
@@ -74,7 +75,7 @@ function Provenance({ entries }: { entries: S['Provenance'][] }) {
             <div key={`${p.scene}-${p.method}`} className="col" style={{ gap: 2 }}>
               <span className="tiny ink" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{p.scene}</span>
               <span className="tiny">
-                {p.satellite} · {p.date} · {p.resolution_m} m · {Math.round(p.cloud_over_area * 100)}% cloud over the area
+                {p.satellite} · {p.date} · {p.resolution_m} m · {cloudFromFraction(p.cloud_over_area)} cloud over the area
               </span>
               <span className="tiny muted">{p.provider} · {p.method}</span>
             </div>

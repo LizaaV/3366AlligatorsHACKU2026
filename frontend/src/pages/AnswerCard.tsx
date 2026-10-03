@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
 import { Btn, ConfidenceBadge, Ms, Tier } from '../components/ui';
 import type { Answer } from '../model';
+import { cloudFromPercent } from '../lib/format';
 
 /** The contract's `RouteOption` (`contracts/openapi.json`): `sat`, not `satellite`. */
 type RouteOption = Answer['route'][number];
@@ -194,7 +195,7 @@ export function AnswerCard({ answer: a, question, placeId, onRunSkill, onAskFoll
                 <Ms n={p.used ? 'check' : 'remove'} size={14} style={{ color: p.used ? 'var(--green)' : 'var(--subtle)' }} />
                 <span className="tiny ink" style={{ width: 44, flex: 'none' }}>{p.date}</span>
                 <span className="tiny grow" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.id}>{p.id}</span>
-                <span className="tiny" style={{ whiteSpace: 'nowrap' }}>{p.used ? `${Math.round(p.cloud * 100)}% cloud` : p.why}</span>
+                <span className="tiny" style={{ whiteSpace: 'nowrap' }}>{p.used ? `${cloudFromPercent(p.cloud)} cloud` : p.why}</span>
               </div>
             ))}
           </div>
