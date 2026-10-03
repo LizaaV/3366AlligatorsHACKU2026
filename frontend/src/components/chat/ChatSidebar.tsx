@@ -2,7 +2,7 @@
  * Chat history, opened from the "Chats" button in the composer as a floating panel so the
  * conversation never shifts: "Projects" (folders that each list their chats) and "Chats"
  * (everything not in a project). Chats come from `api.threads`; folders and which chat is in
- * which are client-side (see useChatFolders).
+ * which are stored on the server (see useChatFolders).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -38,7 +38,7 @@ export function ChatSidebar({
   onOpen: (threadId: string) => void;
 }) {
   const threads = useResource(useCallback((signal) => api.threads.list(50, signal), []), [refreshKey]);
-  const { folders, createFolder, renameFolder, deleteFolder, moveThread, folderOf } = useChatFolders();
+  const { folders, createFolder, renameFolder, deleteFolder, moveThread, folderOf } = useChatFolders(threads.data);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [menu, setMenu] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
