@@ -39,7 +39,9 @@ export const contextSuggestions = (ctx: ChatContext, placeName?: string): string
     case 'dashboard':
       return ['What changed on this dashboard today?', 'Which block needs my attention?'];
     case 'trigger':
-      return ['Which triggers fired this week?', 'Is a trigger worth adding for my main field?'];
+      return ctx.triggerId
+        ? ['What changed since the last pass?', 'Is this normal for the time of year?', 'When will it cross my threshold?']
+        : ['What changed since last week?', 'Which place needs attention first?', 'What does this mean for my irrigation?'];
     case 'library':
       return ['Which skill fits crop health?', 'What does this skill need as input?'];
     default:

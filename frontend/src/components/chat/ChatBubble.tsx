@@ -13,10 +13,10 @@ import { TurnView } from './TurnView';
 import { contextFromRoute, contextHint, contextKey, contextPlaceId, contextSuggestions, setChatHandoff } from './chatContext';
 
 export function ChatBubble() {
-  const { route, places, lang, go, t } = useStore();
+  const { route, places, watches, lang, go, t } = useStore();
   const ctx = contextFromRoute(route);
   const key = contextKey(ctx);
-  const placeId = contextPlaceId(ctx);
+  const placeId = contextPlaceId(ctx) ?? (ctx.kind === 'trigger' && ctx.triggerId ? watches.find((w) => w.id === ctx.triggerId)?.placeId ?? null : null);
   const place = places.find((p) => p.id === placeId);
 
   const [expanded, setExpanded] = useState(false);

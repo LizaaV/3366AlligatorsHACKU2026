@@ -6,7 +6,6 @@ import type { ChannelId, DeliveryChannel, Watch } from '../model';
 import { STATUS_STYLE } from '../data/presentation';
 import { ciLabel, fmtDateTime, fmtDay, fmtVal } from '../lib/format';
 import { Btn, Check, ConfidenceBadge, Empty, HistoryChart, Ms, Tier } from '../components/ui';
-import { AskBar } from '../components/AskBar';
 import { ErrorState, Skeleton } from '../components/async';
 
 /* ---------- status pill ---------- */
@@ -320,18 +319,6 @@ export function WatchDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* ask this trigger */}
-      <div className="col" style={{ gap: 12 }}>
-        <div className="eyebrow">Ask this trigger</div>
-        <AskBar
-          placeholder={`Ask about ${w.name.split(' · ')[0].toLowerCase()} — what changed and what it means…`}
-          suggestions={['What changed since the last pass?', 'Is this normal for the time of year?', 'When will it cross my threshold?']}
-          scope="watch"
-          watchId={w.id}
-          onExport={(a) => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: w.name } })}
-          onExpert={() => open({ kind: 'expert', context: w.name, placeId: w.placeId })}
-        />
-      </div>
     </div>
   );
 }

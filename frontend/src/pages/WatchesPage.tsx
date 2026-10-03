@@ -7,7 +7,6 @@ import { ciLabel, fmtDay, fmtVal, timeKey } from '../lib/format';
 import { api } from '../api';
 import { useResource } from '../hooks/useResource';
 import { Btn, Empty, HistoryChart, Ms, RingOverlay, Tier, Toggle } from '../components/ui';
-import { AskBar } from '../components/AskBar';
 import { ErrorState, SkeletonCard } from '../components/async';
 import { RecurrencePill, WatchDetail } from './WatchDetail';
 
@@ -100,13 +99,6 @@ function Overview() {
         </div>
       </div>
 
-      <AskBar
-        placeholder="Ask your triggers what changed and what it means for you…"
-        suggestions={['What changed since last week?', 'Which place needs attention first?', 'What does this mean for my irrigation?']}
-        scope="watches"
-        onExport={(a) => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: 'From your triggers' } })}
-        onExpert={(a) => open({ kind: 'expert', context: a.title, placeId: null })}
-      />
 
       <div className="col" style={{ gap: 16 }}>
         <div className="wp-chips" role="tablist" aria-label="Filter by type">
