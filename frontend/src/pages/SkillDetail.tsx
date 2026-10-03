@@ -47,7 +47,7 @@ function Detail({ s }: { s: Skill }) {
 
   const install = () => {
     toggleInstall(s.id);
-    notify(isInstalled ? `Removed “${s.name}” from your skills` : `Installed “${s.name}” — the agent can now use it in Ask`, isInstalled ? 'Undo' : undefined, isInstalled ? () => toggleInstall(s.id) : undefined, isInstalled ? 'remove_circle' : 'download_done');
+    notify(isInstalled ? `Removed “${s.name}” from your skills` : `Added “${s.name}” to your skills`, isInstalled ? 'Undo' : undefined, isInstalled ? () => toggleInstall(s.id) : undefined, isInstalled ? 'remove_circle' : 'download_done');
   };
 
   const meta: { l: string; v: React.ReactNode }[] = [
@@ -84,8 +84,7 @@ function Detail({ s }: { s: Skill }) {
           <span className="sep">·</span>
           <span>Updated {fmtDate(s.updatedAt)}</span>
           <span className="sep">·</span>
-          <span>{fmtRuns(s.runs)} runs</span>
-          <span className="sep">·</span>
+          {s.runs !== null && <><span>{fmtRuns(s.runs)} runs</span><span className="sep">·</span></>}
           <span><span style={{ color: 'var(--yellow)' }}>★</span> {s.rating ? s.rating.toFixed(1) : 'No ratings yet'}</span>
           {isInstalled && <span className="tag"><Ms n="check" />Installed</span>}
         </div>
@@ -145,7 +144,7 @@ function Detail({ s }: { s: Skill }) {
                 <span className="eyebrow">Accuracy &amp; limits</span>
                 <Ms n={s.official ? 'fact_check' : 'info'} size={18} className="muted" />
               </div>
-              <div className="ink" style={{ font: '600 15px/1.45 var(--font)' }}>{s.accuracy}</div>
+              <div className="ink" style={{ font: '600 15px/1.45 var(--font)' }}>{s.accuracy ?? 'Not yet validated'}</div>
               <ul className="lib-limits">
                 {s.limits.map((l: string) => <li key={l}>{l}</li>)}
               </ul>

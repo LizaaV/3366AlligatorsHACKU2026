@@ -16,7 +16,6 @@ import { runsApi } from './endpoints/runs';
 import { catalogApi } from './endpoints/catalog';
 import { dashboardsApi } from './endpoints/dashboards';
 import { sharesApi } from './endpoints/shares';
-import { insightsApi } from './endpoints/insights';
 import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
 import { satellitesApi } from './endpoints/satellites';
@@ -32,7 +31,6 @@ export const api = {
   runs: runsApi,
   areas: areasApi,
   knowledge: knowledgeApi,
-  insights: insightsApi,
   shares: sharesApi,
   threads: threadsApi,
   satellites: satellitesApi,

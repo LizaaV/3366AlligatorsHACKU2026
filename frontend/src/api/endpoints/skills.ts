@@ -3,6 +3,7 @@
 import { request } from '../http';
 import * as fixtures from '../fixtures';
 import type { SkillDto } from '../types';
+import type { components } from '../schema';
 import { toSkill, type Skill } from '../../model';
 
 export interface SkillQuery {
@@ -11,10 +12,12 @@ export interface SkillQuery {
   q?: string;
 }
 
+/** What the skill builder collects, in the frontend's vocabulary; mapped to snake_case below. */
 export interface CreateSkillRequest {
   name: string;
   categoryKey: string;
   short: string;
+  long?: string;
   tier: 'free' | 'paid';
   cost: string;
   visibility: 'private' | 'team' | 'public';
@@ -22,17 +25,16 @@ export interface CreateSkillRequest {
   steps: { module: string; params: Record<string, string | number | boolean | string[]> }[];
 }
 
-export interface TestSkillRequest {
-  placeId: string;
-  steps: { module: string; params: Record<string, string | number | boolean | string[]> }[];
-}
-
-export interface TestSkillResponse {
-  ok: boolean;
-  /** e.g. "7 of 12 scenes usable". */
-  summary: string;
-  issues: string[];
-}
+const toCreateBody = (r: CreateSkillRequest): components['schemas']['CreateSkillRequest'] => ({
+  name: r.name,
+  category_key: r.categoryKey,
+  short: r.short,
+  long: r.long ?? '',
+  tier: r.tier,
+  cost: r.cost,
+  visibility: r.visibility,
+  steps: r.steps.map((s) => ({ module: s.module, params: s.params })),
+});
 
 export const skillsApi = {
   /**
@@ -50,7 +52,7 @@ export const skillsApi = {
         const s = query.q?.trim().toLowerCase();
         return fixtures.skills().filter(
           (sk) =>
-            (!query.categoryKey || sk.categoryKey === query.categoryKey) &&
+            (!query.categoryKey || sk.category_key === query.categoryKey) &&
             (!query.tier || sk.tier === query.tier) &&
             (!s || `${sk.name} ${sk.short} ${sk.publisher.name}`.toLowerCase().includes(s)),
         );
@@ -89,20 +91,14 @@ export const skillsApi = {
     }),
 
   /**
-   * TODO(api): POST /api/skills
+   * POST /api/skills
    * Publishing a skill writes to the registry. No fixture: a locally invented skill that
    * vanishes on refresh would be more confusing than a clear "not connected yet", and the
    * builder surfaces the error.
+   *
+   * There is no `test` call: `POST /api/skills/test` answers 501, and the builder says so
+   * rather than faking a result.
    */
-  create: (body: CreateSkillRequest, signal?: AbortSignal): Promise<Skill> =>
-    request<SkillDto>({ method: 'POST', path: '/skills', body, signal }).then(toSkill),
-
-  /**
-   * TODO(api): POST /api/skills/test
-   * Dry-runs a draft skill against one place so the author sees whether it can actually run.
-   * No fixture: inventing "7 of 12 scenes usable" is exactly the kind of fabricated result
-   * this refactor removes, and a wrong green tick is worse than an honest "not connected".
-   */
-  test: (body: TestSkillRequest, signal?: AbortSignal): Promise<TestSkillResponse> =>
-    request<TestSkillResponse>({ method: 'POST', path: '/skills/test', body, signal }),
+  create: (req: CreateSkillRequest, signal?: AbortSignal): Promise<Skill> =>
+    request<SkillDto>({ method: 'POST', path: '/skills', body: toCreateBody(req), signal }).then(toSkill),
 };

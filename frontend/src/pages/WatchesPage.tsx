@@ -3,12 +3,12 @@ import { useStore } from '../state/store';
 import type { Place, Watch } from '../model';
 import { thumb } from '../lib/geo';
 import { STATUS_STYLE } from '../data/presentation';
-import { ciLabel, fmtDay, fmtVal, timeKey } from '../lib/format';
+import { fmtDay, timeKey } from '../lib/format';
 import { api } from '../api';
 import { useResource } from '../hooks/useResource';
 import { Btn, Empty, HistoryChart, Ms, RingOverlay, Tier, Toggle } from '../components/ui';
 import { ErrorState, SkeletonCard } from '../components/async';
-import { RecurrencePill, WatchDetail } from './WatchDetail';
+import { RecurrencePill, WatchDetail, hasSeries, watchBaseline, watchRange, watchValue } from './WatchDetail';
 
 type Kind = 'all' | 'recurring' | 'once' | 'dashboard';
 
@@ -245,17 +245,19 @@ function WatchCard({ w, placeName, place, dashboardName }: { w: Watch; placeName
         )}
 
         <div className="row wrap" style={{ alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-          <span style={{ font: '700 32px/1.17 var(--font)', letterSpacing: -0.8 }}>{fmtVal(w.value, w.unit)}</span>
+          <span style={{ font: '700 32px/1.17 var(--font)', letterSpacing: -0.8 }}>{watchValue(w)}</span>
           <span className="body-sm">{w.metric}</span>
         </div>
         <div className="tiny" style={{ marginTop: -4 }}>
-          <span className="muted">{ciLabel(w)}</span> · {w.baselineLabel}: {fmtVal(w.baseline, w.unit)}
+          <span className="muted">{watchRange(w)}</span>{w.baselineLabel ? <> · {w.baselineLabel}: {watchBaseline(w)}</> : null}
         </div>
-        <div className="caption" style={{ color: accent ?? 'var(--muted)' }}>{w.delta}</div>
+        <div className="caption" style={{ color: accent ?? 'var(--muted)' }}>{w.hasRun ? w.delta : 'Waiting for the first pass'}</div>
 
-        <div style={{ marginTop: 4 }}>
-          <HistoryChart series={w.series.current} band={[w.series.bandLow, w.series.bandHigh]} mean={w.series.mean} color={cat.color} height={70} compact />
-        </div>
+        {hasSeries(w) && (
+          <div style={{ marginTop: 4 }}>
+            <HistoryChart series={w.series.current} band={[w.series.bandLow, w.series.bandHigh]} mean={w.series.mean} color={cat.color} height={70} compact />
+          </div>
+        )}
 
         <div className="row" style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--hair-soft)', gap: 10 }}>
           <span className="row" style={{ gap: 4 }} title={w.channels.map((c) => channels.find((x) => x.id === c)?.name).join(', ')}>
