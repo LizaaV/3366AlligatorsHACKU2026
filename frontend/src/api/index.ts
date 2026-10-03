@@ -15,7 +15,7 @@ import { knowledgeApi } from './endpoints/knowledge';
 import { runsApi } from './endpoints/runs';
 import { catalogApi } from './endpoints/catalog';
 import { dashboardsApi } from './endpoints/dashboards';
-import { exportsApi } from './endpoints/exports';
+import { sharesApi } from './endpoints/shares';
 import { insightsApi } from './endpoints/insights';
 import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
@@ -33,7 +33,7 @@ export const api = {
   areas: areasApi,
   knowledge: knowledgeApi,
   insights: insightsApi,
-  exports: exportsApi,
+  shares: sharesApi,
   threads: threadsApi,
   satellites: satellitesApi,
 };
@@ -45,6 +45,7 @@ export type { AreaResolveRequest, AreaResolveResponse, Area, AreaMatch, PlaceCon
 export { DEFAULT_PIN_RADIUS_M } from './endpoints/areas';
 export { isEvent } from './stream';
 export type { StreamEvent, StreamEventName } from './stream';
+export type { ShareCreated, ShareInfo } from './endpoints/shares';
 export type { SkillQuery } from './endpoints/skills';
 export type { Dashboard, DashboardBlock, DashboardSummary } from './endpoints/dashboards';
 export type { ThreadSummary, ThreadDetail } from './endpoints/threads';

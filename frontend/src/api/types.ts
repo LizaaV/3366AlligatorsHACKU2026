@@ -365,17 +365,3 @@ export interface MapLayerDto {
   isAgentMade: boolean;
 }
 
-/* ---------------- export ---------------- */
-
-export interface ExportRequest {
-  targetKind: 'answer' | 'watch' | 'place' | 'skill';
-  targetId?: string;
-  title: string;
-  format: 'link' | 'pdf' | 'data';
-  lang: string;
-}
-
-export interface ExportResponse {
-  url: string;
-  expiresAt: Iso | null;
-}
