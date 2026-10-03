@@ -159,11 +159,12 @@ export function PlacesPage() {
   const [project, setProject] = useState('All');
   const [q, setQ] = useState('');
 
-  const projects = useMemo(() => ['All', ...Array.from(new Set(places.map((p) => p.project)))], [places]);
+  // Grouped by the label shown, so a blank project and "My places" are one tab.
+  const projects = useMemo(() => ['All', ...Array.from(new Set(places.map((p) => projectLabel(p.project))))], [places]);
   useEffect(() => { if (!projects.includes(project)) setProject('All'); }, [projects, project]);
 
   const shown = places.filter((p) => {
-    if (project !== 'All' && p.project !== project) return false;
+    if (project !== 'All' && projectLabel(p.project) !== project) return false;
     const s = q.trim().toLowerCase();
     if (!s) return true;
     return [p.name, p.project, ...p.tags].some((x) => x.toLowerCase().includes(s));
@@ -187,7 +188,7 @@ export function PlacesPage() {
               <button key={p} role="tab" aria-selected={project === p} className={project === p ? 'on' : ''} onClick={() => setProject(p)} style={{ whiteSpace: 'nowrap' }}>
                 {projectLabel(p)}
                 <span className="tiny" style={{ color: 'inherit', opacity: 0.6 }}>
-                  {p === 'All' ? places.length : places.filter((x) => x.project === p).length}
+                  {p === 'All' ? places.length : places.filter((x) => projectLabel(x.project) === p).length}
                 </span>
               </button>
             ))}
