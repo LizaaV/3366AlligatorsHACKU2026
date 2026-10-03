@@ -1,6 +1,6 @@
 # Groundtruth · Earth Agent (front-end)
 
-React 18 + TypeScript + Vite implementation of `project/Earth Agent.dc.html`, extended with the feature feedback from the other prototypes. All data and agent answers are scripted mocks (`src/data/`).
+React 18 + TypeScript + Vite implementation of `docs/design/Earth Agent.dc.html`, extended with the feature feedback from the other prototypes. All data and agent answers are scripted mocks (`src/data/`); real backend calls go in `src/api/` as endpoints land.
 
 ```bash
 npm install
@@ -18,7 +18,7 @@ npm run build    # type-check + production build into dist/
 | Skills library, skill detail, skill builder | `#/library`, `#/library/<id>`, `#/library/new` | `pages/LibraryPage.tsx`, `pages/SkillDetail.tsx`, `pages/SkillBuilder.tsx` |
 | Shared modals | — | `modals/` (export link/PDF/data, ask an expert, connectors incl. WhatsApp, mobile app, language, upgrade) |
 
-Design tokens live in `src/styles.css` (from `project/uploads/DESIGN-hashicorp.md`). Every CTA that does work carries a `Free` / `Paid` tag (`<Btn tier=…>`).
+Design tokens live in `src/styles.css` (from `docs/design/uploads/DESIGN-hashicorp.md`). Every CTA that does work carries a `Free` / `Paid` tag (`<Btn tier=…>`).
 
 ## Skill storage format
 
