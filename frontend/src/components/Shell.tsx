@@ -26,9 +26,9 @@ export function Logo() {
   const { goHome } = useStore();
   return (
     <a
-      href="/"
+      href="/#/ask"
       onClick={(e) => {
-        if (window.location.pathname !== '/') return; // full load of the app
+        if (window.location.pathname !== '/') return; // e.g. a shared result: load the app's home
         e.preventDefault();
         goHome();
       }}

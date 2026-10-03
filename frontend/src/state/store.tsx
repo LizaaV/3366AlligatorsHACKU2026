@@ -138,15 +138,15 @@ interface Store {
   /** The opening screen (full-screen Earth) is showing; the nav hides until it is dismissed. */
   splash: boolean;
   setSplash: (on: boolean) => void;
-  /** Back to the start: the opening globe, nothing selected. */
+  /** Home (the logo): the Ask page's globe with nothing selected. Not the opening screen. */
   goHome: () => void;
+  /** Bumped by `goHome`, so the Ask page can reset its own map state. */
+  homeTick: number;
 }
 
-/** Show the opening screen on a plain visit, not on a deep link (`#/places`, `?place=`). */
-const startsOnSplash = () => {
-  const h = window.location.hash.replace(/^#\/?/, '');
-  return h === '' || h === 'ask';
-};
+/** Show the opening screen only on a bare visit to the site; any `#/…` (the logo's
+ * `/#/ask`, `#/places`, `?place=`) goes straight into the app. */
+const startsOnSplash = () => window.location.hash.replace(/^#\/?/, '') === '';
 
 const Ctx = createContext<Store | null>(null);
 
@@ -236,6 +236,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [modal, setModal] = useState<Modal | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [splash, setSplash] = useState<boolean>(startsOnSplash);
+  const [homeTick, setHomeTick] = useState(0);
   const toastTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
@@ -373,8 +374,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setAskPlaceId(null);
         setModal(null);
         if (window.location.hash !== '#/ask') window.location.hash = '#/ask';
-        setSplash(true);
+        setSplash(false);
+        setHomeTick((n) => n + 1);
       },
+      homeTick,
     }),
     [
       route,
@@ -403,6 +406,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toast,
       notify,
       splash,
+      homeTick,
     ],
   );
 

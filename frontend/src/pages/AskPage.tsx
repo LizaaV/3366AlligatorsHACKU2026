@@ -49,7 +49,7 @@ function useViewport() {
 
 export function AskPage({ active }: { active: boolean }) {
   const store = useStore();
-  const { places, skills, askPlaceId, setAskPlace, route, go, open, notify, t, lang, watches, addPlace, mapLayers: catalogLayers, splash, setSplash } = store;
+  const { places, skills, askPlaceId, setAskPlace, route, go, open, notify, t, lang, watches, addPlace, mapLayers: catalogLayers, splash, setSplash, homeTick } = store;
   const { W, H: winH } = useViewport();
   const mobile = W <= 760;
   // The opening screen takes the whole window: no nav bar, no tab bar.
@@ -471,9 +471,9 @@ export function AskPage({ active }: { active: boolean }) {
     if (['draw', 'contours'].includes(k)) return setPop((p) => (p === k ? null : k));
   };
 
-  // Home (the logo): back to the opening globe with nothing on the map.
+  // Home (the logo), or the opening screen: the globe with nothing on the map.
   useEffect(() => {
-    if (!splash) return;
+    if (!splash && !homeTick) return;
     setMode('globe');
     setSpot(null);
     setDrawing(false);
@@ -481,7 +481,8 @@ export function AskPage({ active }: { active: boolean }) {
     setOverlaySel(null);
     setSheet(false);
     setPop(null);
-  }, [splash]);
+    setQ('');
+  }, [splash, homeTick]);
 
   /* ---------------- derived ---------------- */
 
