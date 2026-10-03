@@ -28,7 +28,8 @@ import {
   type ReactNode,
 } from 'react';
 import { ApiError, api, toApiError } from '../api';
-import type { ChannelId, CreatePlaceRequest, CreateWatchRequest, WatchDto } from '../api/types';
+import type { ChannelId, CreateWatchRequest, WatchDto } from '../api/types';
+import type { NewPlace } from '../api/endpoints/places';
 import type { CreateSkillRequest } from '../api/endpoints/skills';
 import {
   categoryOf,
@@ -111,7 +112,7 @@ interface Store {
   reload: () => void;
 
   /* mutations */
-  addPlace: (req: CreatePlaceRequest) => Promise<Place>;
+  addPlace: (req: NewPlace) => Promise<Place>;
   removePlace: (id: string) => Promise<void>;
   addSkill: (req: CreateSkillRequest) => Promise<Skill>;
   addWatch: (req: CreateWatchRequest) => Promise<Watch>;
@@ -275,7 +276,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const watchesRef = useRef<Watch[]>([]);
   watchesRef.current = watches;
 
-  const addPlace = useCallback(async (req: CreatePlaceRequest) => {
+  const addPlace = useCallback(async (req: NewPlace) => {
     const created = await api.places.create(req);
     setPlaces((all) => [...all, created]);
     return created;

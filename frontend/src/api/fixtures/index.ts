@@ -18,18 +18,24 @@ import type {
   InsightDto,
   InsightRequest,
   CatalogDto,
-  CreatePlaceRequest,
   CreateWatchRequest,
   FeasibilityDto,
   FeasibilityRequest,
   MapLayerDto,
-  PlaceDto,
   PlaceSearchResultDto,
   ProofSceneDto,
   SkillDto,
   WatchDto,
 } from '../types';
-import { approxAreaHa, ringToPts } from '../../lib/geo';
+import { approxAreaHa, outerRing, ringToPts } from '../../lib/geo';
+import { ApiError } from '../http';
+import type { components } from '../schema';
+
+type S = components['schemas'];
+type PlaceDto = S['PlaceDto'];
+type CreatePlaceRequest = S['CreatePlaceRequest'];
+type PlaceMemory = S['PlaceMemory'];
+type MemoryPatch = S['MemoryPatch'];
 
 /* ---------------- reference data (read-only) ---------------- */
 
@@ -54,24 +60,103 @@ const id = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.floor(
 
 export const places = () => placeState;
 
+export const place = (placeId: string): PlaceDto => {
+  const found = placeState.find((p) => p.id === placeId);
+  if (!found) throw new ApiError(`No place ${placeId}`, 'http', 404);
+  return found;
+};
+
 export const createPlace = (req: CreatePlaceRequest): PlaceDto => {
+  const center = req.center ?? { lat: 0, lon: 0 };
   // Stands in for the backend computing area with PostGIS. The real value comes from the server.
-  const pts = ringToPts(req.geometry.coordinates[0] ?? [], req.center);
-  const place: PlaceDto = {
-    ...req,
+  const pts = ringToPts(outerRing(req.geometry) ?? [], center);
+  const now = new Date().toISOString();
+  const created: PlaceDto = {
     id: id('p'),
-    areaHa: approxAreaHa(pts, req.center.lat),
-    createdAt: new Date().toISOString(),
+    name: req.name,
+    category_key: req.category_key ?? 'agriculture',
+    center,
+    geometry: (req.geometry ?? { type: 'Polygon', coordinates: [[]] }) as PlaceDto['geometry'],
+    area_ha: approxAreaHa(pts, center.lat),
+    is_circle: req.is_circle ?? false,
+    project: req.project ?? '',
+    tags: req.tags ?? [],
+    source: (req.source ?? 'drawn') as PlaceDto['source'],
+    created_at: now,
+    updated_at: now,
     details: req.details ?? [],
   };
-  placeState = [...placeState, place];
-  return place;
+  placeState = [...placeState, created];
+  return created;
+};
+
+export const updatePlace = (placeId: string, patch: { name?: string; categoryKey?: string; project?: string; tags?: string[] }): PlaceDto => {
+  let updated: PlaceDto | undefined;
+  placeState = placeState.map((p) =>
+    p.id === placeId
+      ? (updated = {
+          ...p,
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.categoryKey !== undefined ? { category_key: patch.categoryKey } : {}),
+          ...(patch.project !== undefined ? { project: patch.project } : {}),
+          ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
+          updated_at: new Date().toISOString(),
+        })
+      : p,
+  );
+  if (!updated) throw new ApiError(`No place ${placeId}`, 'http', 404);
+  return updated;
 };
 
 export const deletePlace = (placeId: string) => {
   placeState = placeState.filter((p) => p.id !== placeId);
   // Mirrors the cascade a real backend would do: watches keep existing but lose their place.
   watchState = watchState.map((w) => (w.placeId === placeId ? { ...w, placeId: null } : w));
+};
+
+/* ---------------- place memory ---------------- */
+
+/**
+ * What the agent remembers about a place.
+ *
+ * The profile is what a clarification card prefills from — it is why a question can arrive
+ * already answered with a "From memory · 12 Sep" badge.
+ */
+let memoryState: Record<string, PlaceMemory> = {
+  np: {
+    place_id: 'np',
+    title: 'North Pivot',
+    // Each entry records *when* it was learned, which is what the clarification card's
+    // "From memory · 12 Sep" badge shows.
+    profile: {
+      use: { value: 'Maize', saved: '2026-09-12' },
+      irrigation: { value: 'Center pivot, 7 spans', saved: '2026-09-12' },
+      soil: { value: 'Silt loam (SSURGO)', saved: '2026-04-02' },
+    },
+    insights: [],
+    notes: [{ date: '2026-09-12', text: 'Replanted the north third after the June hail.' }],
+  },
+};
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+export const placeMemory = (placeId: string): PlaceMemory =>
+  memoryState[placeId] ?? { place_id: placeId, title: '', profile: {}, insights: [], notes: [] };
+
+export const patchPlaceMemory = (placeId: string, patch: MemoryPatch): PlaceMemory => {
+  const cur = placeMemory(placeId);
+  const next: PlaceMemory = {
+    ...cur,
+    // A patch sends bare values; memory stores each with the date it was learned, so the
+    // "From memory" badge can say when.
+    profile: {
+      ...cur.profile,
+      ...Object.fromEntries(Object.entries(patch.profile ?? {}).map(([k, v]) => [k, { value: v, saved: today() }])),
+    },
+    notes: patch.note ? [...(cur.notes ?? []), { date: today(), text: patch.note }] : cur.notes,
+  };
+  memoryState = { ...memoryState, [placeId]: next };
+  return next;
 };
 
 export const watches = () => watchState;

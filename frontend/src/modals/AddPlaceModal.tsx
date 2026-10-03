@@ -60,6 +60,7 @@ export function AddPlaceModal() {
         tags: [],
         source: loc.source,
         createdAt: null,
+        updatedAt: null,
         details: [],
       }
     : null;
