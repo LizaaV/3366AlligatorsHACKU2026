@@ -697,6 +697,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my conversations
+         * @description The user's conversations, most recent first: title (first question), place, the
+         *     latest question, status and answer line.
+         */
+        get: operations["list_threads_api_threads_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/threads/{thread_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reload one conversation
+         * @description Every run of the conversation, oldest first, with answers, blocks, steps and the
+         *     event log, so the chat can be redrawn exactly. Private agent state is left out.
+         */
+        get: operations["get_thread_api_threads__thread_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/satellites": {
         parameters: {
             query?: never;
@@ -2929,6 +2971,63 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /**
+         * ThreadDetail
+         * @description A whole conversation, oldest run first, to reload it exactly.
+         */
+        ThreadDetail: {
+            /** Thread Id */
+            thread_id: string;
+            /**
+             * Runs
+             * @description Without the agent's private state.
+             */
+            runs: components["schemas"]["RunRecord"][];
+        };
+        /**
+         * ThreadSummary
+         * @description One conversation in the user's history list.
+         */
+        ThreadSummary: {
+            /** Thread Id */
+            thread_id: string;
+            /**
+             * Title
+             * @description The thread's first question (shortened).
+             */
+            title: string;
+            /**
+             * Place Name
+             * @description The place of the latest run, if any.
+             */
+            place_name?: string | null;
+            /** Last Question */
+            last_question: string;
+            /**
+             * Last Status
+             * @enum {string}
+             */
+            last_status: "running" | "waiting_user" | "done" | "failed" | "refused";
+            /**
+             * Last Sentence
+             * @description The latest answer's one-liner.
+             */
+            last_sentence?: string | null;
+            /** Run Count */
+            run_count: number;
+            /**
+             * Started At
+             * Format: date-time
+             * @description UTC, first run.
+             */
+            started_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description UTC, latest run.
+             */
+            updated_at: string;
+        };
         /** TimelineBand */
         TimelineBand: {
             /** Month */
@@ -3413,6 +3512,13 @@ export interface operations {
             };
             /** @description Thread not found for this user. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The conversation is full: start a new one. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5269,6 +5375,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogDto"];
+                };
+            };
+        };
+    };
+    list_threads_api_threads_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_thread_api_threads__thread_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadDetail"];
+                };
+            };
+            /** @description Invalid thread id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

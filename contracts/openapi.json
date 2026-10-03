@@ -131,6 +131,9 @@
           "404": {
             "description": "Thread not found for this user."
           },
+          "409": {
+            "description": "The conversation is full: start a new one."
+          },
           "429": {
             "description": "Too many runs: wait `Retry-After` seconds."
           },
@@ -2910,6 +2913,141 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CatalogDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/threads": {
+      "get": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "List my conversations",
+        "description": "The user's conversations, most recent first: title (first question), place, the\nlatest question, status and answer line.",
+        "operationId": "list_threads_api_threads_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ThreadSummary"
+                  },
+                  "title": "Response List Threads Api Threads Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/threads/{thread_id}": {
+      "get": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Reload one conversation",
+        "description": "Every run of the conversation, oldest first, with answers, blocks, steps and the\nevent log, so the chat can be redrawn exactly. Private agent state is left out.",
+        "operationId": "get_thread_api_threads__thread_id__get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid thread id."
+          },
+          "404": {
+            "description": "Not found."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -8081,6 +8219,109 @@
           "after"
         ],
         "title": "ThenNowBlock"
+      },
+      "ThreadDetail": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunRecord"
+            },
+            "type": "array",
+            "title": "Runs",
+            "description": "Without the agent's private state."
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "runs"
+        ],
+        "title": "ThreadDetail",
+        "description": "A whole conversation, oldest run first, to reload it exactly."
+      },
+      "ThreadSummary": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "The thread's first question (shortened)."
+          },
+          "place_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Name",
+            "description": "The place of the latest run, if any."
+          },
+          "last_question": {
+            "type": "string",
+            "title": "Last Question"
+          },
+          "last_status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "waiting_user",
+              "done",
+              "failed",
+              "refused"
+            ],
+            "title": "Last Status"
+          },
+          "last_sentence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sentence",
+            "description": "The latest answer's one-liner."
+          },
+          "run_count": {
+            "type": "integer",
+            "title": "Run Count"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At",
+            "description": "UTC, first run."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "UTC, latest run."
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "title",
+          "last_question",
+          "last_status",
+          "run_count",
+          "started_at",
+          "updated_at"
+        ],
+        "title": "ThreadSummary",
+        "description": "One conversation in the user's history list."
       },
       "TimelineBand": {
         "properties": {

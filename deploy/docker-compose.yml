@@ -15,6 +15,9 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}
       # Overrides backend/.env. Same-origin through nginx, but allow the public URL anyway.
       CORS_ORIGINS: '["${PUBLIC_BASE_URL:-http://localhost}"]'
+      # The backend only sees nginx's address; trust its X-Real-IP so the per-IP run limit (#49)
+      # counts real visitors instead of one shared bucket. Safe: the backend isn't published.
+      TRUST_PROXY_HEADERS: "true"
     volumes:
       - earth-data:/data
     networks: [web, earth-only]
