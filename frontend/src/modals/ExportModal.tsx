@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useStore, type ExportTarget } from '../state/store';
 import { api, toApiError } from '../api';
-import type { ShareCreated } from '../api';
+import type { ShareCreated, ShareInfo } from '../api';
+import { useResource } from '../hooks/useResource';
 import { Btn, Modal, ModalHead, Ms } from '../components/ui';
 
 type Tab = 'link' | 'pdf' | 'data';
@@ -37,6 +38,12 @@ export function ExportModal({ target }: { target: ExportTarget }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [share, setShare] = useState<ShareCreated | null>(null);
 
+  const runId = isAnswer ? target.id : undefined;
+  const links = useResource(useCallback(async (signal) => (runId ? api.shares.list(runId, signal) : []), [runId]), [runId]);
+  const [turnedOff, setTurnedOff] = useState<string[]>([]);
+  const [created, setCreated] = useState<ShareInfo[]>([]);
+  const all = [...created, ...(links.data ?? []).filter((l) => !created.some((c) => c.slug === l.slug))];
+
   const fail = (err: unknown) => {
     const e = toApiError(err);
     // 409 = the run has not finished yet.
@@ -46,13 +53,31 @@ export function ExportModal({ target }: { target: ExportTarget }) {
   const createLink = async () => {
     if (!target.id) return;
     setBusy('link');
-    try { setShare(await api.shares.create(target.id)); } catch (err) { fail(err); } finally { setBusy(null); }
+    try {
+      const s = await api.shares.create(target.id);
+      setShare(s);
+      setCreated((c) => [{ ...s, shared_at: new Date().toISOString(), revoked: false }, ...c]);
+    } catch (err) { fail(err); } finally { setBusy(null); }
   };
 
   const text = share ? `${target.title} ${share.url}` : '';
   const copy = async () => {
     if (!share) return;
     try { await navigator.clipboard.writeText(share.url); notify('Link copied', undefined, undefined, 'link'); } catch { notify('Copy failed — select the link and copy it', undefined, undefined, 'error'); }
+  };
+
+  const copyUrl = async (url: string) => {
+    try { await navigator.clipboard.writeText(url); notify('Link copied', undefined, undefined, 'link'); } catch { notify('Copy failed — select the link and copy it', undefined, undefined, 'error'); }
+  };
+
+  const turnOff = async (slug: string) => {
+    setBusy(`off:${slug}`);
+    try {
+      await api.shares.revoke(slug);
+      setTurnedOff((t) => [...t, slug]);
+      if (share?.slug === slug) setShare(null);
+      notify('Link turned off', undefined, undefined, 'link_off');
+    } catch (err) { fail(err); } finally { setBusy(null); }
   };
 
   const downloadGeo = async () => {
@@ -106,6 +131,24 @@ export function ExportModal({ target }: { target: ExportTarget }) {
             <div className="row" style={{ gap: 12 }}>
               <Btn variant="primary" icon="link" disabled={!target.id || busy === 'link'} onClick={() => void createLink()}>{busy === 'link' ? 'Creating…' : 'Create share link'}</Btn>
               <span className="tiny">Makes a public, read-only snapshot of this answer.</span>
+            </div>
+          )}
+          {all.length > 0 && (
+            <div className="col" style={{ gap: 8 }}>
+              <div className="field">Your links for this answer</div>
+              {all.map((l) => {
+                const off = l.revoked || turnedOff.includes(l.slug);
+                return (
+                  <div key={l.slug} className="row wrap sunk" style={{ gap: 8, padding: '8px 12px' }}>
+                    <div className="col grow" style={{ minWidth: 0 }}>
+                      <span className="ink" style={{ font: '500 13px/1.4 var(--font)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: off ? 'line-through' : undefined }}>{l.url}</span>
+                      <span className="tiny">Shared {new Date(l.shared_at).toLocaleDateString()} · {off ? 'Turned off' : `expires ${new Date(l.expires_at).toLocaleDateString()}`}</span>
+                    </div>
+                    {!off && <Btn size="sm" icon="content_copy" onClick={() => void copyUrl(l.url)}>Copy</Btn>}
+                    {!off && <Btn size="sm" variant="text" icon="link_off" disabled={busy === `off:${l.slug}`} onClick={() => void turnOff(l.slug)}>Turn off</Btn>}
+                  </div>
+                );
+              })}
             </div>
           )}
           <div className="sunk caption" style={{ padding: 12 }}>Shared pages show the answer, the confidence range, the satellite scenes used and the caveats. Your other places stay private.</div>
