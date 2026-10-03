@@ -1,0 +1,131 @@
+/* Library, skill detail and skill builder — ported from the prototype's Explore sheet and Preset detail. */
+
+/* ---------- Toolbar ---------- */
+.lib-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.lib-search { position: relative; flex: 1; min-width: 220px; max-width: 420px; }
+.lib-search .ms { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 20px; color: var(--subtle); pointer-events: none; }
+.lib-search .input { padding-left: 40px; }
+.lib-segs { display: flex; gap: 8px; flex-wrap: wrap; }
+.lib-segs .seg { max-width: 100%; overflow-x: auto; }
+
+/* ---------- Hotbar (Minecraft-style category blocks) ---------- */
+.lib-hotbar-row { display: flex; align-items: flex-end; gap: 16px 24px; flex-wrap: wrap; }
+.lib-hotbar { display: flex; align-items: flex-end; overflow-x: auto; overflow-y: hidden; padding: 4px 2px 6px 4px; max-width: 100%; scrollbar-width: thin; }
+.lib-hb {
+  position: relative; width: 76px; height: 76px; margin-left: -2px; flex: none; padding: 0;
+  border: 2px solid #3b3d45; background: #15181e; color: #b2b6bd; z-index: 1;
+  display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: all 0.15s ease;
+}
+.lib-hb:hover { background: #1f232b; }
+.lib-hb.on { width: 84px; height: 84px; border: 3px solid #fff; background: #1f232b; z-index: 2; }
+.lib-hb .n { position: absolute; left: 6px; top: 4px; font: 600 11px/1 var(--font); color: #656a76; }
+.lib-hb .ms { font-size: 30px; }
+.lib-hb .bar { position: absolute; left: 6px; right: 6px; bottom: 6px; height: 3px; border-radius: 2px; background: transparent; }
+.lib-hb-info { display: flex; flex-direction: column; gap: 4px; min-width: 260px; flex: 1; padding-bottom: 4px; }
+.lib-hb-hint { font: 500 13px/1.38 var(--font); color: var(--subtle); }
+
+/* ---------- Sections + cards ---------- */
+.lib-section { display: flex; flex-direction: column; gap: 16px; }
+.lib-section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.lib-row { display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 10px; }
+.lib-card {
+  flex: none; width: min(300px, 82vw); display: flex; flex-direction: column; text-align: left; padding: 0;
+  background: #15181e; border: 1px solid rgba(178, 182, 189, 0.1); border-radius: 12px; overflow: hidden; color: #fff;
+  scroll-snap-align: start; animation: fadeUp 0.3s ease both;
+}
+.lib-card:hover { border-color: #656a76; background: #1f232b; }
+.lib-card-img { position: relative; height: 150px; width: 100%; background: #000; flex: none; }
+.lib-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lib-ref { position: absolute; left: 10px; top: 10px; padding: 3px 8px; border-radius: 4px; background: #000; font: 600 11px/1.38 var(--font); letter-spacing: 0.4px; text-transform: uppercase; color: #b2b6bd; }
+.lib-installed { position: absolute; right: 10px; top: 10px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px 3px 6px; border-radius: 4px; background: #fff; color: #000; font: 600 11px/1.38 var(--font); letter-spacing: 0.2px; }
+.lib-installed .ms { font-size: 14px; }
+.lib-card-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.lib-card-body .tier { margin-left: 0; }
+.lib-card-name { font: 600 18px/1.25 var(--font); letter-spacing: -0.3px; }
+.lib-sat { display: flex; align-items: center; gap: 6px; font: 500 13px/1.38 var(--font); color: #b2b6bd; }
+.lib-sat .ms { font-size: 16px; }
+.lib-card-stats { display: flex; align-items: center; gap: 10px; font: 500 12px/1.38 var(--font); color: var(--muted); }
+.lib-card-foot { margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 500 12px/1.38 var(--font); color: #656a76; }
+.lib-card-foot .open { display: flex; align-items: center; gap: 4px; color: #fff; font-weight: 600; flex: none; }
+.lib-card-foot .ms { font-size: 16px; }
+.lib-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px 3px 8px; border-radius: 9999px; font: 600 12px/1.38 var(--font); background: var(--s2); color: #fff; white-space: nowrap; }
+.lib-badge .ms { font-size: 15px; }
+.lib-badge.official { background: #fff; color: #000; }
+.lib-badge.community .ms { color: var(--cyan); }
+.lib-v-official { color: #fff; }
+.lib-v-community { color: var(--cyan); }
+
+/* ---------- Skill detail ---------- */
+.lib-detail { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.lib-media { position: sticky; top: 24px; aspect-ratio: 1 / 1; border-radius: 16px; overflow: hidden; background: #000; border: 1px solid var(--hair); display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.lib-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lib-media-pill { position: absolute; left: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 9999px; background: #000; border: 1px solid #3b3d45; font: 500 13px/1.38 var(--font); color: #b2b6bd; max-width: calc(100% - 32px); }
+.lib-media-pill .ms { font-size: 16px; }
+.lib-detail-col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.lib-pubrow { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; font: 500 13px/1.38 var(--font); color: var(--muted); }
+.lib-pubrow .sep { color: var(--s3); }
+.lib-stats2 { grid-template-columns: 1fr 1fr; border-radius: 12px; }
+.lib-stats2 > div { padding: 12px 16px; }
+.lib-stats2 .v { font-size: 15px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lib-stats2 .tier { margin-left: 0; }
+
+.lib-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.lib-step { position: relative; display: flex; gap: 14px; padding-bottom: 12px; }
+.lib-step:not(:last-child)::before { content: ''; position: absolute; left: 13px; top: 30px; bottom: 0; width: 1px; background: var(--hair); }
+.lib-step-n { width: 27px; height: 27px; flex: none; border-radius: 50%; background: var(--s2); border: 1px solid var(--hair); display: flex; align-items: center; justify-content: center; font: 600 12px/1 var(--font); color: #fff; margin-top: 8px; }
+.lib-step-card { flex: 1; min-width: 0; display: flex; gap: 12px; padding: 12px 14px; background: var(--s1); border: 1px solid var(--hair-faint); border-radius: var(--r); }
+.lib-step-ic { width: 34px; height: 34px; flex: none; border-radius: var(--r); background: #000; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.lib-step-ic .ms { font-size: 18px; }
+.lib-mono { font: 500 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--subtle); overflow-wrap: anywhere; }
+.lib-limits { margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px; }
+.lib-limits li { font: 500 14px/1.55 var(--font); color: var(--muted); }
+.lib-try { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.lib-try-chip { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; border: 1px solid #3b3d45; background: transparent; color: #fff; font: 500 14px/1.4 var(--font); }
+.lib-try-chip:hover { background: #1f232b; }
+.lib-try-chip.on { border-color: #fff; background: #1f232b; }
+.lib-try-chip .ms { font-size: 18px; color: #b2b6bd; }
+
+.lib-code { margin: 0; background: #000; border: 1px solid var(--hair-soft); border-radius: var(--r); padding: 16px; max-height: 420px; overflow: auto; white-space: pre; font: 500 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); tab-size: 2; }
+.lib-code .k { color: #fff; }
+.lib-code .s { color: var(--cyan); }
+.lib-code .n { color: var(--yellow); }
+.lib-code .b { color: var(--coral); }
+.lib-explain { padding: 16px 18px; display: flex; gap: 12px; }
+.lib-explain .ms { color: var(--muted); }
+
+/* ---------- Builder ---------- */
+.lib-builder { display: grid; grid-template-columns: 280px minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+.lib-pane { padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.lib-bstep { background: var(--s1); border: 1px solid var(--hair-faint); border-radius: var(--r); }
+.lib-bstep.open { border-color: var(--hair); }
+.lib-bstep-head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; }
+.lib-bstep-head .grow { cursor: pointer; }
+.lib-bstep-params { padding: 4px 14px 14px 52px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.lib-bstep-params .input { height: 36px; font-size: 13.5px; }
+.lib-hints { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lib-hints li { display: flex; gap: 8px; align-items: flex-start; font: 500 13px/1.45 var(--font); color: var(--muted); }
+.lib-hints .ms { font-size: 18px; flex: none; }
+.lib-palette-item { width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: var(--r); background: transparent; border: 1px solid transparent; text-align: left; color: #fff; }
+.lib-palette-item:hover { background: var(--s2); border-color: var(--hair-soft); }
+.lib-palette-item .ms { font-size: 18px; color: var(--muted); margin-top: 1px; }
+.lib-foot { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--hair-soft); }
+
+@media (max-width: 1100px) {
+  .lib-builder { grid-template-columns: 280px minmax(0, 1fr); }
+  .lib-builder-right { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  .lib-detail { grid-template-columns: 1fr; gap: 24px; }
+  .lib-media { position: relative; top: 0; }
+}
+@media (max-width: 760px) {
+  .lib-builder { grid-template-columns: 1fr; }
+  .lib-hb { width: 64px; height: 64px; }
+  .lib-hb.on { width: 72px; height: 72px; }
+  .lib-hb .ms { font-size: 26px; }
+  .lib-hb-info { min-width: 0; }
+  .lib-search { max-width: none; }
+  .lib-bstep-params { padding-left: 14px; }
+  .lib-foot { justify-content: stretch; }
+  .lib-foot .btn { flex: 1; }
+}

@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..24,300..500,0..1,0&amp;display=block" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<style>
+html,body{margin:0;height:100%;background:#000;color:#fff;font-family:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
+a{color:#2b89ff}a:hover{color:#5aa3ff}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit}
+input::placeholder{color:#656a76}
+input[type=range]{accent-color:#fff}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#3b3d45;border-radius:8px}::-webkit-scrollbar-track{background:transparent}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:-240px 0}100%{background-position:240px 0}}
+@keyframes rise{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+</style>
+</helmet>
+<div style="position:fixed;inset:0;background:#000;overflow:hidden;font-family:'Geist',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#fff">
+
+  <!-- GLOBE -->
+  <div ref="{{ globeRef }}" style="position:absolute;inset:0;opacity:{{ globeOpacity }};transition:opacity .6s ease;cursor:grab"></div>
+
+  <!-- MAP MODE -->
+  <sc-if value="{{ isMap }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:#0b0d10;animation:fadeIn .5s ease both">
+      <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="0">
+        <img src="{{ t.url }}" alt="" draggable="false" style="position:absolute;left:{{ t.left }}px;top:{{ t.top }}px;width:256px;height:256px;user-select:none">
+      </sc-for>
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,.12);pointer-events:none"></div>
+      <sc-if value="{{ ov.show }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:{{ ov.x }}px;top:{{ ov.y }}px;width:0;height:0;transform:scale({{ ov.s }});transform-origin:0 0;pointer-events:none">
+          <div style="position:absolute;left:-300px;top:-300px;width:600px;height:600px;clip-path:{{ ov.clip }}">
+            <div style="position:absolute;inset:0;background:rgba(20,198,203,.42);opacity:{{ L.ndmi }};transition:opacity .4s"></div>
+            <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,transparent 128px,rgba(255,207,37,.9) 146px,rgba(187,90,0,.9) 170px,rgba(255,207,37,.85) 192px,transparent 210px);-webkit-mask-image:conic-gradient(from 0deg,transparent 0deg,#000 18deg,#000 88deg,transparent 108deg);mask-image:conic-gradient(from 0deg,transparent 0deg,#000 18deg,#000 88deg,transparent 108deg);opacity:{{ L.ndmiArc }};transition:opacity .4s"></div>
+            <div style="position:absolute;inset:0;background:rgba(0,202,142,.38);opacity:{{ L.ndvi }};transition:opacity .4s"></div>
+            <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,transparent 130px,rgba(251,234,191,.75) 160px,rgba(251,234,191,.7) 190px,transparent 210px);-webkit-mask-image:conic-gradient(from 0deg,transparent 0deg,#000 18deg,#000 88deg,transparent 108deg);mask-image:conic-gradient(from 0deg,transparent 0deg,#000 18deg,#000 88deg,transparent 108deg);opacity:{{ L.ndviArc }};transition:opacity .4s"></div>
+            <div style="position:absolute;inset:0;background:rgba(242,76,83,.14);opacity:{{ L.lst }};transition:opacity .4s"></div>
+            <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,transparent 120px,rgba(242,76,83,.8) 165px,transparent 215px);-webkit-mask-image:conic-gradient(from 0deg,transparent 0deg,#000 18deg,#000 88deg,transparent 108deg);mask-image:conic-gradient(from 0deg,transparent 0deg,#000 18deg,#000 88deg,transparent 108deg);opacity:{{ L.lstArc }};transition:opacity .4s"></div>
+            <div style="position:absolute;left:120px;top:150px;width:260px;height:180px;border-radius:50%;background:rgba(255,255,255,.85);filter:blur(30px);opacity:{{ L.clouds }};transition:opacity .4s"></div>
+            <div style="position:absolute;left:300px;top:330px;width:200px;height:140px;border-radius:50%;background:rgba(255,255,255,.7);filter:blur(28px);opacity:{{ L.clouds }};transition:opacity .4s"></div>
+          </div>
+          <svg width="600" height="600" style="position:absolute;left:-300px;top:-300px;overflow:visible">
+            <polygon points="{{ ov.pts }}" style="fill:none;stroke:#ffffff;stroke-width:2;opacity:{{ L.contour }}"></polygon>
+            <path d="{{ ov.dryPath }}" style="fill:rgba(255,207,37,.12);stroke:#ffcf25;stroke-width:2.5;stroke-dasharray:7 5;opacity:{{ L.dry }};transition:opacity .4s"></path>
+            <circle cx="300" cy="300" r="4" style="fill:#ffffff;opacity:{{ L.contour }}"></circle>
+          </svg>
+          <div style="position:absolute;left:-80px;top:{{ ov.labelTop }}px;width:160px;display:flex;justify-content:center;opacity:{{ L.contour }}">
+            <div style="padding:4px 10px;border-radius:9999px;background:#000;border:1px solid #3b3d45;font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;white-space:nowrap">{{ ov.name }} · {{ ov.ha }} ha</div>
+          </div>
+          <div style="position:absolute;left:190px;top:-205px;opacity:{{ L.dry }};transition:opacity .4s">
+            <div style="padding:6px 10px;border-radius:6px;background:#ffcf25;color:#000;font:600 13px/1.38 Geist,sans-serif;white-space:nowrap">Dry zone · {{ dryHa }} ha</div>
+          </div>
+        </div>
+      </sc-if>
+      <div style="position:absolute;left:20px;bottom:24px;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:9999px;background:#15181e;border:1px solid #3b3d45;font:500 13px/1.38 Geist,sans-serif;color:#b2b6bd">
+        <span style="font-family:'Material Symbols Outlined';font-size:16px;line-height:1">location_on</span>
+        <span style="color:#fff">{{ place }}</span>
+        <span>{{ coordLabel }}</span>
+      </div>
+      <div style="position:absolute;right:20px;bottom:24px;display:flex;flex-direction:column;gap:6px;z-index:5">
+        <button onClick="{{ zoomIn }}" title="Zoom in" style="width:40px;height:40px;border-radius:8px;background:#15181e;border:1px solid #3b3d45;color:#fff;display:flex;align-items:center;justify-content:center" style-hover="background:#1f232b"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">add</span></button>
+        <button onClick="{{ zoomOut }}" title="Zoom out" style="width:40px;height:40px;border-radius:8px;background:#15181e;border:1px solid #3b3d45;color:#fff;display:flex;align-items:center;justify-content:center" style-hover="background:#1f232b"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">remove</span></button>
+        <button onClick="{{ toGlobe }}" title="Back to globe" style="width:40px;height:40px;border-radius:8px;background:#15181e;border:1px solid #3b3d45;color:#fff;display:flex;align-items:center;justify-content:center" style-hover="background:#1f232b"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">public</span></button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- DRAW CAPTURE -->
+  <sc-if value="{{ drawing }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onDrawClick }}" style="position:absolute;inset:0;cursor:crosshair;z-index:8">
+      <svg width="100%" height="100%" style="position:absolute;inset:0">
+        <polygon points="{{ drawPoly }}" style="fill:rgba(255,255,255,.1);stroke:#ffffff;stroke-width:2;stroke-dasharray:6 4"></polygon>
+      </svg>
+      <sc-for list="{{ drawDots }}" as="d" hint-placeholder-count="0">
+        <div style="position:absolute;left:{{ d.x }}px;top:{{ d.y }}px;width:10px;height:10px;margin:-7px 0 0 -7px;border-radius:50%;background:#000;border:2px solid #fff"></div>
+      </sc-for>
+    </div>
+    <div style="position:absolute;left:0;right:0;margin:0 auto;width:max-content;top:88px;z-index:9;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 16px;border-radius:12px;background:#15181e;border:1px solid #3b3d45">
+      <span style="font:500 14px/1.5 Geist,sans-serif;color:#b2b6bd">Click on the map to add points · <span style="color:#fff">{{ drawCount }} points</span></span>
+      <button onClick="{{ undoPoint }}" style="padding:8px 14px;border-radius:8px;background:#1f232b;color:#fff;border:0;font:600 14px/1.29 Geist,sans-serif">Undo point</button>
+      <button onClick="{{ cancelDraw }}" style="padding:8px 14px;border-radius:8px;background:#1f232b;color:#fff;border:0;font:600 14px/1.29 Geist,sans-serif">Cancel</button>
+      <button onClick="{{ finishDraw }}" style="padding:8px 14px;border-radius:8px;background:#fff;color:#000;border:0;font:600 14px/1.29 Geist,sans-serif">Save contour</button>
+    </div>
+  </sc-if>
+
+  <!-- HERO -->
+  <sc-if value="{{ showHero }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;left:48px;bottom:128px;max-width:560px;pointer-events:none;animation:fadeUp .6s ease both">
+      <div style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#b2b6bd;margin-bottom:16px">Earth observation agent</div>
+      <div style="font:700 64px/1.15 Geist,sans-serif;letter-spacing:-2px;text-wrap:balance">Ask the planet a question.</div>
+      <div style="font:500 18px/1.69 Geist,sans-serif;color:#b2b6bd;margin-top:16px;max-width:480px;text-wrap:pretty">Ask about any field, coast or city. The agent picks the satellites, cleans the images and returns an answer you can save to a dashboard.</div>
+    </div>
+  </sc-if>
+
+  <!-- CHAT -->
+  <div style="position:absolute;left:20px;top:20px;width:{{ chatW }}px;max-width:calc(100vw - 40px);max-height:calc(100vh - 124px);display:flex;flex-direction:column;background:#15181e;border:1px solid #3b3d45;border-radius:12px;overflow:hidden;z-index:20">
+    <div style="display:flex;align-items:center;gap:12px;padding:8px 8px 8px 14px;flex:none">
+      <div style="width:18px;height:18px;border-radius:50%;border:2px solid #fff;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:6px;height:6px;border-radius:50%;background:#fff"></div></div>
+      <input value="{{ q }}" onChange="{{ onQ }}" onKeyDown="{{ onQKey }}" placeholder="Ask about any place on Earth…" style="flex:1;min-width:0;height:36px;background:transparent;border:0;outline:0;color:#fff;font:500 15px/1.5 Geist,sans-serif">
+      <button onClick="{{ submitQ }}" title="Send" style="width:36px;height:36px;flex:none;border-radius:8px;background:#fff;color:#000;border:0;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">arrow_upward</span></button>
+    </div>
+    <sc-if value="{{ showSuggest }}" hint-placeholder-val="{{ true }}">
+      <div style="border-top:1px solid #252830;padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px">
+        <div style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76;margin-bottom:4px">Try asking</div>
+        <sc-for list="{{ suggestions }}" as="sg" hint-placeholder-count="3">
+          <button onClick="{{ sg.go }}" style="display:flex;align-items:center;gap:10px;text-align:left;padding:8px 10px;border-radius:8px;background:transparent;border:0;color:#b2b6bd;font:500 14px/1.5 Geist,sans-serif" style-hover="background:#1f232b;color:#fff"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">{{ sg.icon }}</span>{{ sg.text }}</button>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ hasRun }}" hint-placeholder-val="{{ false }}">
+      <div style="border-top:1px solid #252830;padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:14px">
+        <div style="align-self:flex-end;max-width:85%;padding:8px 12px;border-radius:8px;background:#1f232b;font:500 14px/1.5 Geist,sans-serif">{{ run.text }}</div>
+        <div style="display:flex;flex-direction:column">
+          <button onClick="{{ toggleChain }}" style="display:flex;align-items:center;gap:8px;padding:4px 0;background:transparent;border:0;color:#b2b6bd;text-align:left;font:500 13px/1.38 Geist,sans-serif">
+            <sc-if value="{{ chain.running }}" hint-placeholder-val="{{ false }}"><span style="width:12px;height:12px;border:2px solid #3b3d45;border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;flex:none"></span><span style="font:600 13px/1.38 Geist,sans-serif;background:linear-gradient(90deg,#656a76 0%,#ffffff 50%,#656a76 100%);background-size:240px 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 1.6s linear infinite">{{ chain.label }}</span></sc-if>
+            <sc-if value="{{ chain.notRunning }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Material Symbols Outlined';font-size:16px;line-height:1">{{ chain.icon }}</span><span>{{ chain.label }}</span></sc-if>
+            <span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1;margin-left:auto">{{ chain.caret }}</span>
+          </button>
+          <sc-if value="{{ chain.open }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;margin-top:10px">
+              <sc-for list="{{ steps }}" as="s" hint-placeholder-count="2">
+                <div style="display:flex;gap:10px;animation:fadeUp .35s ease both">
+                  <div style="display:flex;flex-direction:column;align-items:center;width:18px;flex:none">
+                    <sc-if value="{{ s.active }}" hint-placeholder-val="{{ false }}"><span style="width:12px;height:12px;margin-top:4px;border:2px solid #3b3d45;border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;flex:none"></span></sc-if>
+                    <sc-if value="{{ s.waiting }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1;color:#fff;margin-top:2px;animation:pulse 1.4s ease infinite">help</span></sc-if>
+                    <sc-if value="{{ s.done }}" hint-placeholder-val="{{ true }}"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1;color:#b2b6bd;margin-top:2px">check_circle</span></sc-if>
+                    <div style="flex:1;width:1px;background:#3b3d45;margin:4px 0;min-height:10px"></div>
+                  </div>
+                  <div style="flex:1;min-width:0;padding-bottom:12px">
+                    <sc-if value="{{ s.active }}" hint-placeholder-val="{{ false }}"><div style="font:600 14px/1.5 Geist,sans-serif;background:linear-gradient(90deg,#656a76 0%,#ffffff 50%,#656a76 100%);background-size:240px 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 1.6s linear infinite">{{ s.tool }}</div></sc-if>
+                    <sc-if value="{{ s.notActive }}" hint-placeholder-val="{{ true }}"><div style="font:600 14px/1.5 Geist,sans-serif;color:#fff">{{ s.tool }}</div></sc-if>
+                    <div style="font:500 13px/1.38 Geist,sans-serif;color:#656a76;margin-top:2px;text-wrap:pretty"><span style="color:#b2b6bd">{{ s.title }}:</span> {{ s.desc }}</div>
+                    <sc-if value="{{ s.done }}" hint-placeholder-val="{{ true }}"><div style="display:inline-flex;margin-top:6px;padding:2px 8px;border-radius:4px;background:#1f232b;font:500 12px/1.5 Geist,sans-serif;color:#b2b6bd">{{ s.result }}</div></sc-if>
+                    <sc-if value="{{ s.showClarify }}" hint-placeholder-val="{{ false }}">
+                      <div style="margin-top:10px;padding:14px;border-radius:12px;background:#1f232b;border:1px solid #3b3d45;display:flex;flex-direction:column;gap:12px">
+                        <sc-for list="{{ clarify }}" as="g" hint-placeholder-count="3">
+                          <div style="display:flex;flex-direction:column;gap:6px">
+                            <div style="font:600 13px/1.38 Geist,sans-serif;color:#fff">{{ g.label }}</div>
+                            <div style="display:flex;flex-wrap:wrap;gap:6px">
+                              <sc-for list="{{ g.opts }}" as="o" hint-placeholder-count="3">
+                                <button onClick="{{ o.pick }}" style="padding:4px 10px;border-radius:9999px;border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.color }};font:500 13px/1.38 Geist,sans-serif">{{ o.label }}</button>
+                              </sc-for>
+                            </div>
+                          </div>
+                        </sc-for>
+                        <button onClick="{{ continueRun }}" style="align-self:flex-start;padding:8px 16px;border-radius:8px;background:#fff;color:#000;border:0;font:600 14px/1.29 Geist,sans-serif">Continue</button>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+        <sc-if value="{{ showAnswer }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:18px;border-radius:12px;background:#1f232b;border:1px solid #3b3d45;display:flex;flex-direction:column;gap:14px;animation:fadeUp .4s ease both">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:8px;height:8px;border-radius:2px;background:{{ ans.color }}"></span>
+              <span style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#b2b6bd">{{ ans.eyebrow }}</span>
+            </div>
+            <div style="font:600 22px/1.18 Geist,sans-serif;letter-spacing:-.4px;text-wrap:balance">{{ ans.title }}</div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:#3b3d45;border:1px solid #3b3d45;border-radius:8px;overflow:hidden">
+              <sc-for list="{{ ans.stats }}" as="st" hint-placeholder-count="3">
+                <div style="background:#15181e;padding:10px 12px">
+                  <div style="font:500 12px/1.38 Geist,sans-serif;color:#656a76">{{ st.l }}</div>
+                  <div style="font:600 16px/1.35 Geist,sans-serif;margin-top:2px">{{ st.v }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div>
+              <div style="font:600 13px/1.38 Geist,sans-serif;color:#fff">{{ ans.l1 }}</div>
+              <div style="font:500 14px/1.6 Geist,sans-serif;color:#b2b6bd;margin-top:2px;text-wrap:pretty">{{ ans.cause }}</div>
+            </div>
+            <div>
+              <div style="font:600 13px/1.38 Geist,sans-serif;color:#fff">{{ ans.l2 }}</div>
+              <div style="font:500 14px/1.6 Geist,sans-serif;color:#b2b6bd;margin-top:2px;text-wrap:pretty">{{ ans.todo }}</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <button onClick="{{ openSave }}" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:8px;background:#fff;color:#000;border:0;font:600 14px/1.29 Geist,sans-serif"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">bookmark_add</span>Save as artifact</button>
+              <button onClick="{{ addTriggerFromRun }}" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:8px;background:#3b3d45;color:#fff;border:0;font:600 14px/1.29 Geist,sans-serif"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">notifications</span>Add trigger</button>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div style="position:absolute;left:{{ toolLeft }}px;top:20px;height:54px;box-sizing:border-box;display:flex;align-items:center;gap:2px;padding:6px 8px;background:#15181e;border:1px solid #3b3d45;border-radius:12px;z-index:22">
+    <div style="position:relative">
+      <div style="display:flex;align-items:center;gap:8px;width:{{ searchW }}px;height:40px;box-sizing:border-box;padding:0 12px;border-radius:8px;background:#000;border:1px solid #252830">
+        <span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1;color:#b2b6bd">search</span>
+        <input value="{{ searchQ }}" onChange="{{ onSearch }}" onFocus="{{ openSearch }}" onKeyDown="{{ onSearchKey }}" placeholder="Search a place or field" style="flex:1;min-width:0;background:transparent;border:0;outline:0;color:#fff;font:500 14px/1.5 Geist,sans-serif">
+      </div>
+      <sc-if value="{{ popSearch }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:-8px;top:52px;width:320px;padding:6px;background:#15181e;border:1px solid #3b3d45;border-radius:12px;animation:fadeUp .2s ease both">
+          <div style="padding:8px 10px 6px;font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">Places</div>
+          <sc-for list="{{ placeResults }}" as="p" hint-placeholder-count="4">
+            <button onClick="{{ p.go }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;background:transparent;border:0;color:#fff;text-align:left" style-hover="background:#1f232b">
+              <span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1;color:#b2b6bd">{{ p.icon }}</span>
+              <span style="display:flex;flex-direction:column"><span style="font:600 14px/1.4 Geist,sans-serif">{{ p.n }}</span><span style="font:500 12px/1.38 Geist,sans-serif;color:#656a76">{{ p.d }}</span></span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+    <sc-for list="{{ tools }}" as="t" hint-placeholder-count="10">
+      <sc-if value="{{ t.isDiv }}" hint-placeholder-val="{{ false }}"><div style="width:1px;height:26px;background:#3b3d45;margin:0 6px"></div></sc-if>
+      <sc-if value="{{ t.isBtn }}" hint-placeholder-val="{{ true }}">
+        <div style="position:relative">
+          <button onClick="{{ t.onClick }}" title="{{ t.title }}" style="height:40px;min-width:40px;padding:0 {{ t.pad }}px;display:flex;align-items:center;justify-content:center;gap:0;border-radius:8px;border:0;background:{{ t.bg }};color:#fff" style-hover="background:#1f232b">
+            <span style="font-family:'Material Symbols Outlined';font-size:22px;line-height:1">{{ t.icon }}</span>
+            <sc-if value="{{ t.caret }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1;color:#b2b6bd">arrow_drop_down</span></sc-if>
+          </button>
+          <sc-if value="{{ t.showDraw }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:-40px;top:52px;width:290px;padding:6px;background:#15181e;border:1px solid #3b3d45;border-radius:12px;animation:fadeUp .2s ease both">
+              <div style="padding:8px 10px 6px;font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">Add line or shape</div>
+              <button onClick="{{ startDraw }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:#1f232b;border:0;color:#fff;font:500 15px/1.4 Geist,sans-serif;text-align:left" style-hover="background:#3b3d45"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">polyline</span>Path or polygon</button>
+              <button onClick="{{ drawCircle }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:transparent;border:0;color:#fff;font:500 15px/1.4 Geist,sans-serif;text-align:left" style-hover="background:#1f232b"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">radio_button_unchecked</span>Circle<span style="margin-left:auto;padding:2px 8px;border-radius:9999px;background:#fff;color:#000;font:600 12px/1.38 Geist,sans-serif">New</span></button>
+              <button onClick="{{ uploadOutline }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:transparent;border:0;color:#fff;font:500 15px/1.4 Geist,sans-serif;text-align:left" style-hover="background:#1f232b"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">upload_file</span><span style="display:flex;flex-direction:column">Upload outline<span style="font:500 12px/1.38 Geist,sans-serif;color:#656a76">KML, GeoJSON or Shapefile</span></span></button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ t.showContours }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:-40px;top:52px;width:280px;padding:6px;background:#15181e;border:1px solid #3b3d45;border-radius:12px;animation:fadeUp .2s ease both">
+              <div style="padding:8px 10px 6px;font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">My contours</div>
+              <sc-for list="{{ contourList }}" as="c" hint-placeholder-count="2">
+                <button onClick="{{ c.pick }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:{{ c.bg }};border:0;color:#fff;text-align:left" style-hover="background:#1f232b">
+                  <span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1;color:#b2b6bd">{{ c.icon }}</span>
+                  <span style="display:flex;flex-direction:column;flex:1"><span style="font:600 14px/1.4 Geist,sans-serif">{{ c.name }}</span><span style="font:500 12px/1.38 Geist,sans-serif;color:#656a76">{{ c.ha }} ha</span></span>
+                  <span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1;opacity:{{ c.check }}">check</span>
+                </button>
+              </sc-for>
+              <div style="height:1px;background:#252830;margin:6px 4px"></div>
+              <button onClick="{{ startDraw }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;background:transparent;border:0;color:#b2b6bd;font:500 14px/1.4 Geist,sans-serif;text-align:left" style-hover="background:#1f232b;color:#fff"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">add</span>Draw a new contour</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ t.showCoords }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:-40px;top:52px;width:280px;padding:16px;box-sizing:border-box;background:#15181e;border:1px solid #3b3d45;border-radius:12px;display:flex;flex-direction:column;gap:10px;animation:fadeUp .2s ease both">
+              <div style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">Go to coordinates</div>
+              <label style="display:flex;flex-direction:column;gap:4px;font:500 12px/1.38 Geist,sans-serif;color:#b2b6bd">Latitude<input value="{{ coordLat }}" onChange="{{ onLat }}" style="height:38px;padding:0 12px;border-radius:8px;background:#000;border:1px solid #3b3d45;color:#fff;outline:0;font:500 14px/1.5 Geist,sans-serif" style-focus="border-color:#2b89ff"></label>
+              <label style="display:flex;flex-direction:column;gap:4px;font:500 12px/1.38 Geist,sans-serif;color:#b2b6bd">Longitude<input value="{{ coordLon }}" onChange="{{ onLon }}" style="height:38px;padding:0 12px;border-radius:8px;background:#000;border:1px solid #3b3d45;color:#fff;outline:0;font:500 14px/1.5 Geist,sans-serif" style-focus="border-color:#2b89ff"></label>
+              <button onClick="{{ goCoords }}" style="padding:10px 18px;border-radius:8px;background:#fff;color:#000;border:0;font:600 14px/1.29 Geist,sans-serif">Fly there</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ t.showRef }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;right:-60px;top:52px;width:300px;padding:12px;box-sizing:border-box;background:#15181e;border:1px solid #3b3d45;border-radius:12px;display:flex;flex-direction:column;gap:10px;animation:fadeUp .2s ease both">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">Reference image</span><span style="font:500 12px/1.38 Geist,sans-serif;color:#b2b6bd">Basemap · 0.5 m</span></div>
+              <img src="{{ refImg }}" alt="" style="width:100%;aspect-ratio:1;border-radius:8px;display:block;background:#000;object-fit:cover">
+              <div style="font:500 13px/1.38 Geist,sans-serif;color:#b2b6bd">{{ place }} · {{ coordLabel }}</div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+    </sc-for>
+  </div>
+
+  <!-- RIGHT PANELS -->
+  <sc-if value="{{ panelLayers }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;right:20px;top:90px;width:340px;max-height:calc(100vh - 220px);overflow-y:auto;background:#15181e;border:1px solid #3b3d45;border-radius:12px;z-index:21;animation:fadeUp .25s ease both">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:20px 20px 12px">
+        <div><div style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">Layers</div><div style="font:600 20px/1.35 Geist,sans-serif;letter-spacing:-.2px;margin-top:6px">{{ fieldName }}</div></div>
+        <button onClick="{{ closePanel }}" style="width:32px;height:32px;border-radius:8px;background:transparent;border:0;color:#b2b6bd;display:flex;align-items:center;justify-content:center" style-hover="background:#1f232b;color:#fff"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">close</span></button>
+      </div>
+      <sc-if value="{{ layersEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="margin:0 20px 12px;padding:12px;border-radius:8px;background:#1f232b;font:500 13px/1.5 Geist,sans-serif;color:#b2b6bd">Layers made by the agent appear here after you ask a question about this field.</div>
+      </sc-if>
+      <div style="display:flex;flex-direction:column;padding:0 8px 12px">
+        <sc-for list="{{ layerRows }}" as="l" hint-placeholder-count="6">
+          <button onClick="{{ l.toggle }}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;background:transparent;border:0;color:#fff;text-align:left;opacity:{{ l.opacity }}" style-hover="background:#1f232b">
+            <span style="width:18px;height:18px;flex:none;border-radius:4px;border:1.5px solid {{ l.boxBorder }};background:{{ l.boxBg }};color:#000;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Outlined';font-size:16px;line-height:1;opacity:{{ l.checkOp }}">check</span></span>
+            <span style="width:10px;height:10px;flex:none;border-radius:2px;background:{{ l.color }}"></span>
+            <span style="display:flex;flex-direction:column;flex:1;min-width:0"><span style="font:600 14px/1.4 Geist,sans-serif">{{ l.name }}</span><span style="font:500 12px/1.38 Geist,sans-serif;color:#656a76">{{ l.src }}</span></span>
+            <sc-if value="{{ l.ai }}" hint-placeholder-val="{{ false }}"><span style="padding:2px 8px;border-radius:9999px;background:#1f232b;border:1px solid #3b3d45;font:600 11px/1.38 Geist,sans-serif;letter-spacing:.4px;color:#b2b6bd">AI</span></sc-if>
+          </button>
+        </sc-for>
+      </div>
+      <div style="border-top:1px solid #252830;padding:14px 20px 18px;font:500 13px/1.5 Geist,sans-serif;color:#656a76">Use the timeline at the bottom to step through each satellite pass.</div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ panelTriggers }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;right:20px;top:90px;width:360px;max-height:calc(100vh - 220px);overflow-y:auto;background:#15181e;border:1px solid #3b3d45;border-radius:12px;z-index:21;animation:fadeUp .25s ease both">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:20px 20px 12px">
+        <div><div style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">Triggers</div><div style="font:600 20px/1.35 Geist,sans-serif;letter-spacing:-.2px;margin-top:6px">Tell me when…</div></div>
+        <button onClick="{{ closePanel }}" style="width:32px;height:32px;border-radius:8px;background:transparent;border:0;color:#b2b6bd;display:flex;align-items:center;justify-content:center" style-hover="background:#1f232b;color:#fff"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">close</span></button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:0 12px 12px">
+        <sc-for list="{{ trigRows }}" as="tr" hint-placeholder-count="3">
+          <div style="padding:14px;border-radius:8px;background:#000;border:1px solid #252830;display:flex;gap:12px;animation:fadeUp .3s ease both">
+            <div style="flex:1;min-width:0">
+              <div style="font:600 14px/1.4 Geist,sans-serif">{{ tr.name }}</div>
+              <div style="font:500 13px/1.45 Geist,sans-serif;color:#b2b6bd;margin-top:2px">{{ tr.cond }}</div>
+              <div style="display:flex;gap:8px;margin-top:8px;font:500 12px/1.38 Geist,sans-serif;color:#656a76"><span>{{ tr.chan }}</span><span>·</span><span>{{ tr.last }}</span></div>
+            </div>
+            <button onClick="{{ tr.toggle }}" title="On / off" style="width:38px;height:22px;flex:none;border-radius:9999px;border:0;padding:2px;background:{{ tr.track }};display:flex;justify-content:{{ tr.justify }}"><span style="width:18px;height:18px;border-radius:50%;background:{{ tr.knob }}"></span></button>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border-top:1px solid #252830;padding:14px 20px 18px">
+        <button onClick="{{ newTrigger }}" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:8px;background:#1f232b;color:#fff;border:0;font:600 14px/1.29 Geist,sans-serif"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">add</span>New trigger</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- TIMELINE -->
+  <sc-if value="{{ showTimeline }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:0;right:0;margin:0 auto;bottom:92px;width:600px;max-width:calc(100vw - 160px);box-sizing:border-box;padding:12px 16px;display:flex;align-items:center;gap:14px;background:#15181e;border:1px solid #3b3d45;border-radius:12px;z-index:15;animation:fadeUp .3s ease both">
+      <button onClick="{{ togglePlay }}" title="Play" style="width:38px;height:38px;flex:none;border-radius:8px;background:#fff;color:#000;border:0;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Outlined';font-size:22px;line-height:1">{{ playIcon }}</span></button>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:600 14px/1.4 Geist,sans-serif">{{ dateLabel }}</span><span style="font:500 12px/1.38 Geist,sans-serif;color:#656a76">{{ dateSub }}</span></div>
+        <input type="range" min="0" max="7" step="1" value="{{ dateIdx }}" onChange="{{ onDate }}" style="width:100%;margin:2px 0">
+        <div style="display:flex;justify-content:space-between">
+          <sc-for list="{{ ticks }}" as="tk" hint-placeholder-count="8">
+            <button onClick="{{ tk.go }}" style="background:transparent;border:0;padding:0;font:500 11px/1.38 Geist,sans-serif;color:{{ tk.color }};display:flex;align-items:center;gap:2px">{{ tk.label }}<sc-if value="{{ tk.cloudy }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Material Symbols Outlined';font-size:12px;line-height:1">cloud</span></sc-if></button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- DOCK -->
+  <div style="position:absolute;left:0;right:0;margin:0 auto;width:max-content;bottom:24px;display:flex;gap:6px;white-space:nowrap;padding:6px;background:#15181e;border:1px solid #3b3d45;border-radius:12px;z-index:16">
+    <button onClick="{{ openExplore }}" style="display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:8px;background:#fff;color:#000;border:0;font:600 14px/1.29 Geist,sans-serif"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">explore</span>Explore</button>
+    <button onClick="{{ toggleLayers }}" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:8px;background:{{ dockLayersBg }};color:#fff;border:0;font:600 14px/1.29 Geist,sans-serif" style-hover="background:#3b3d45"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">layers</span>Layers</button>
+    <button onClick="{{ openDash }}" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:8px;background:#1f232b;color:#fff;border:0;font:600 14px/1.29 Geist,sans-serif" style-hover="background:#3b3d45"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">dashboard</span>My dashboard</button>
+    <button onClick="{{ toggleTriggers }}" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:8px;background:{{ dockTrigBg }};color:#fff;border:0;font:600 14px/1.29 Geist,sans-serif" style-hover="background:#3b3d45"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">notifications</span>Triggers<span style="min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9999px;background:#fff;color:#000;font:600 11px/18px Geist,sans-serif;text-align:center">{{ trigCount }}</span></button>
+  </div>
+
+  <!-- EXPLORE SHEET -->
+  <sc-if value="{{ explore }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeExplore }}" style="position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:30;animation:fadeIn .25s ease both"></div>
+    <div style="position:absolute;left:0;right:0;bottom:0;height:min(640px,72vh);background:#000;border-top:1px solid #3b3d45;border-radius:24px 24px 0 0;z-index:31;display:flex;flex-direction:column;animation:rise .38s cubic-bezier(.2,.8,.2,1) both">
+      <div style="display:flex;justify-content:center;padding:10px 0 0"><div style="width:40px;height:4px;border-radius:4px;background:#3b3d45"></div></div>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:16px 48px 0">
+        <div>
+          <div style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">Explore presets</div>
+          <div style="font:600 32px/1.19 Geist,sans-serif;letter-spacing:-.8px;margin-top:8px">Pick a block to start</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font:500 13px/1.38 Geist,sans-serif;color:#656a76">Keys 1–9 or scroll to switch</span>
+          <button onClick="{{ closeExplore }}" style="width:40px;height:40px;border-radius:8px;background:#1f232b;border:0;color:#fff;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1">close</span></button>
+        </div>
+      </div>
+      <div style="padding:24px 48px 0;display:flex;flex-direction:column;gap:14px">
+        <div onWheel="{{ onHotbarWheel }}" style="display:flex;align-items:flex-end;flex-wrap:wrap;row-gap:16px">
+          <sc-for list="{{ hotbar }}" as="hb" hint-placeholder-count="9">
+            <button onClick="{{ hb.pick }}" title="{{ hb.name }}" style="position:relative;width:{{ hb.size }}px;height:{{ hb.size }}px;margin-left:-2px;flex:none;border:{{ hb.bw }}px solid {{ hb.border }};background:{{ hb.bg }};color:{{ hb.iconColor }};z-index:{{ hb.z }};display:flex;align-items:center;justify-content:center;border-radius:4px;transition:all .15s ease;padding:0" style-hover="background:#1f232b">
+              <span style="position:absolute;left:6px;top:4px;font:600 11px/1 Geist,sans-serif;color:#656a76">{{ hb.n }}</span>
+              <span style="font-family:'Material Symbols Outlined';font-size:30px;line-height:1">{{ hb.icon }}</span>
+              <span style="position:absolute;left:6px;right:6px;bottom:6px;height:3px;border-radius:2px;background:{{ hb.bar }}"></span>
+            </button>
+          </sc-for>
+          <div style="margin-left:24px;display:flex;flex-direction:column;gap:4px;min-width:280px;flex:1;padding-bottom:4px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:2px;background:{{ cat.color }}"></span><span style="font:600 20px/1.35 Geist,sans-serif;letter-spacing:-.2px">{{ cat.name }}</span></div>
+            <div style="font:500 14px/1.5 Geist,sans-serif;color:#b2b6bd">{{ cat.uses }}</div>
+            <div style="font:500 13px/1.38 Geist,sans-serif;color:#656a76">Main free satellites: {{ cat.sats }}</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;min-height:0;display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;padding:24px 48px 32px">
+        <sc-for list="{{ presetCards }}" as="pc" hint-placeholder-count="3">
+          <button onClick="{{ pc.open }}" style="flex:none;width:300px;display:flex;flex-direction:column;text-align:left;padding:0;background:#15181e;border:1px solid rgba(178,182,189,.1);border-radius:12px;overflow:hidden;color:#fff;scroll-snap-align:start;animation:fadeUp .3s ease both" style-hover="border-color:#656a76;background:#1f232b">
+            <div style="position:relative;height:150px;width:100%;background:#000">
+              <img src="{{ pc.img }}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
+              <span style="position:absolute;left:10px;top:10px;padding:3px 8px;border-radius:4px;background:#000;font:600 11px/1.38 Geist,sans-serif;letter-spacing:.4px;text-transform:uppercase;color:#b2b6bd">Reference</span>
+            </div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:8px;flex:1">
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <span style="display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:9999px;background:#000;font:500 12px/1.38 Geist,sans-serif;color:#b2b6bd"><span style="width:6px;height:6px;border-radius:50%;background:{{ cat.color }}"></span>{{ cat.name }}</span>
+                <span style="padding:3px 10px;border-radius:9999px;background:#000;font:500 12px/1.38 Geist,sans-serif;color:#b2b6bd">{{ pc.cost }}</span>
+              </div>
+              <div style="font:600 18px/1.25 Geist,sans-serif;letter-spacing:-.3px">{{ pc.name }}</div>
+              <div style="display:flex;align-items:center;gap:6px;font:500 13px/1.38 Geist,sans-serif;color:#b2b6bd"><span style="font-family:'Material Symbols Outlined';font-size:16px;line-height:1">satellite_alt</span>{{ pc.sat }}</div>
+              <div style="font:500 14px/1.55 Geist,sans-serif;color:#b2b6bd;text-wrap:pretty">{{ pc.short }}</div>
+              <div style="margin-top:auto;padding-top:8px;display:flex;justify-content:space-between;align-items:center;font:500 12px/1.38 Geist,sans-serif;color:#656a76"><span>by {{ pc.dev }}</span><span style="display:flex;align-items:center;gap:4px;color:#fff;font-weight:600">Open<span style="font-family:'Material Symbols Outlined';font-size:16px;line-height:1">open_in_full</span></span></div>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- PRESET DETAIL -->
+  <sc-if value="{{ hasDetail }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,.75);z-index:40;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease both">
+      <div style="width:min(1120px,94vw);height:min(700px,90vh);display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);background:#15181e;border:1px solid #3b3d45;border-radius:16px;overflow:hidden;animation:fadeUp .3s ease both">
+        <div style="position:relative;background:#000;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr">
+          <sc-for list="{{ detail.imgs }}" as="im" hint-placeholder-count="4"><img src="{{ im }}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></sc-for>
+          <div style="position:absolute;left:16px;bottom:16px;display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:9999px;background:#000;border:1px solid #3b3d45;font:500 13px/1.38 Geist,sans-serif;color:#b2b6bd"><span style="font-family:'Material Symbols Outlined';font-size:16px;line-height:1">image</span>Reference image · {{ detail.coord }}</div>
+        </div>
+        <div style="overflow-y:auto;padding:32px 40px;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <button onClick="{{ closeDetail }}" style="display:flex;align-items:center;gap:6px;padding:8px 12px 8px 8px;border-radius:8px;background:#1f232b;border:0;color:#fff;font:600 14px/1.29 Geist,sans-serif"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">arrow_back</span>All presets</button>
+            <span style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:9999px;background:#000;font:500 13px/1.38 Geist,sans-serif;color:#b2b6bd"><span style="width:6px;height:6px;border-radius:50%;background:{{ detail.color }}"></span>{{ detail.catName }}</span>
+          </div>
+          <div>
+            <div style="font:700 40px/1.19 Geist,sans-serif;letter-spacing:-1px;text-wrap:balance">{{ detail.name }}</div>
+            <div style="font:500 18px/1.6 Geist,sans-serif;color:#b2b6bd;margin-top:10px;text-wrap:pretty">{{ detail.short }}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#3b3d45;border:1px solid #3b3d45;border-radius:12px;overflow:hidden">
+            <sc-for list="{{ detail.meta }}" as="m" hint-placeholder-count="6">
+              <div style="background:#15181e;padding:12px 16px"><div style="font:500 12px/1.38 Geist,sans-serif;color:#656a76">{{ m.l }}</div><div style="font:600 15px/1.4 Geist,sans-serif;margin-top:2px">{{ m.v }}</div></div>
+            </sc-for>
+          </div>
+          <div>
+            <div style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76;margin-bottom:8px">How it works</div>
+            <div style="font:500 16px/1.6 Geist,sans-serif;color:#b2b6bd;text-wrap:pretty">{{ detail.long }}</div>
+          </div>
+          <div style="padding:20px;border-radius:12px;background:#000;border:1px solid #252830;display:flex;flex-direction:column;gap:12px">
+            <div style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">Try it on my contour</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <sc-for list="{{ tryList }}" as="tc" hint-placeholder-count="2">
+                <button onClick="{{ tc.pick }}" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid {{ tc.border }};background:{{ tc.bg }};color:#fff;font:500 14px/1.4 Geist,sans-serif"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1;color:#b2b6bd">{{ tc.icon }}</span>{{ tc.name }}<span style="color:#656a76">{{ tc.ha }} ha</span></button>
+              </sc-for>
+            </div>
+            <button onClick="{{ runPreset }}" style="align-self:flex-start;display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:8px;background:{{ detail.color }};color:{{ detail.fg }};border:0;font:600 14px/1.29 Geist,sans-serif"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">play_arrow</span>Run on {{ tryName }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- DASHBOARD -->
+  <sc-if value="{{ dash }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:#000;z-index:50;overflow-y:auto;animation:fadeIn .25s ease both">
+      <div style="position:sticky;top:0;z-index:2;height:64px;display:flex;align-items:center;gap:24px;padding:0 32px;background:#000;border-bottom:1px solid #252830">
+        <div style="display:flex;align-items:center;gap:10px;font:600 15px/1 Geist,sans-serif"><div style="width:16px;height:16px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center"><div style="width:5px;height:5px;border-radius:50%;background:#fff"></div></div>Groundtruth</div>
+        <div style="display:flex;gap:4px">
+          <sc-for list="{{ dashTabs }}" as="dt" hint-placeholder-count="2">
+            <button onClick="{{ dt.pick }}" style="padding:8px 14px;border-radius:8px;border:0;background:{{ dt.bg }};color:{{ dt.color }};font:600 14px/1.29 Geist,sans-serif" style-hover="color:#fff">{{ dt.name }}</button>
+          </sc-for>
+          <button onClick="{{ newDash }}" style="padding:8px 12px;border-radius:8px;border:0;background:transparent;color:#656a76;font:600 14px/1.29 Geist,sans-serif;display:flex;align-items:center;gap:4px" style-hover="color:#fff"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">add</span>New</button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button onClick="{{ toggleEdit }}" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:8px;background:{{ editBg }};color:{{ editColor }};border:0;font:600 14px/1.29 Geist,sans-serif"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">tune</span>{{ editLabel }}</button>
+          <button onClick="{{ closeDash }}" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:8px;background:#1f232b;color:#fff;border:0;font:600 14px/1.29 Geist,sans-serif"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">public</span>Back to map</button>
+        </div>
+      </div>
+      <div style="max-width:1280px;margin:0 auto;padding:40px 48px 96px;display:flex;flex-direction:column;gap:32px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap">
+          <div>
+            <div style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">My dashboard</div>
+            <div style="font:700 48px/1.18 Geist,sans-serif;letter-spacing:-1.4px;margin-top:10px">{{ curDash.name }}</div>
+            <div style="font:500 16px/1.5 Geist,sans-serif;color:#b2b6bd;margin-top:6px">{{ curDash.count }} cards · live from your saved artifacts · last refresh 2 h ago</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 8px 8px 16px;background:#15181e;border:1px solid #3b3d45;border-radius:12px">
+            <span style="font-family:'Material Symbols Outlined';font-size:20px;line-height:1;color:#b2b6bd">forum</span>
+            <input value="{{ dashQ }}" onChange="{{ onDashQ }}" onKeyDown="{{ onDashKey }}" placeholder="Ask this dashboard what changed and what it means for you…" style="flex:1;min-width:0;height:40px;background:transparent;border:0;outline:0;color:#fff;font:500 16px/1.5 Geist,sans-serif">
+            <button onClick="{{ askDash }}" style="padding:10px 18px;border-radius:8px;background:#fff;color:#000;border:0;font:600 14px/1.29 Geist,sans-serif">Ask</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ dashSuggest }}" as="ds" hint-placeholder-count="3">
+              <button onClick="{{ ds.go }}" style="padding:4px 12px;border-radius:9999px;background:#15181e;border:1px solid #252830;color:#b2b6bd;font:500 13px/1.6 Geist,sans-serif" style-hover="color:#fff;border-color:#3b3d45">{{ ds.text }}</button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ dashThinking }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:20px 24px;border-radius:12px;background:#15181e;border:1px solid rgba(178,182,189,.1);display:flex;align-items:center;gap:10px"><span style="width:12px;height:12px;border:2px solid #3b3d45;border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite"></span><span style="font:600 14px/1.4 Geist,sans-serif;background:linear-gradient(90deg,#656a76 0%,#ffffff 50%,#656a76 100%);background-size:240px 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 1.6s linear infinite">{{ dashThinkLabel }}</span></div>
+          </sc-if>
+          <sc-if value="{{ hasDashA }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:24px;border-radius:12px;background:#15181e;border:1px solid rgba(178,182,189,.1);display:flex;flex-direction:column;gap:12px;animation:fadeUp .35s ease both">
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <sc-for list="{{ dashA.steps }}" as="dst" hint-placeholder-count="3"><span style="display:flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;background:#1f232b;font:500 12px/1.5 Geist,sans-serif;color:#b2b6bd"><span style="font-family:'Material Symbols Outlined';font-size:14px;line-height:1">check</span>{{ dst }}</span></sc-for>
+              </div>
+              <div style="font:600 20px/1.35 Geist,sans-serif;letter-spacing:-.2px">{{ dashA.title }}</div>
+              <div style="font:500 16px/1.6 Geist,sans-serif;color:#b2b6bd;max-width:860px;text-wrap:pretty">{{ dashA.body }}</div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:24px">
+          <sc-for list="{{ dashCards }}" as="dc" hint-placeholder-count="4">
+            <div style="position:relative;background:#15181e;border:1px solid rgba(178,182,189,.1);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;animation:fadeUp .35s ease both">
+              <sc-if value="{{ editing }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ dc.remove }}" title="Remove card" style="position:absolute;right:10px;top:10px;z-index:2;width:32px;height:32px;border-radius:8px;background:#000;border:1px solid #3b3d45;color:#fff;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">close</span></button>
+                <span style="position:absolute;left:10px;top:10px;z-index:2;width:32px;height:32px;border-radius:8px;background:#000;border:1px solid #3b3d45;color:#b2b6bd;display:flex;align-items:center;justify-content:center;cursor:grab"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">drag_indicator</span></span>
+              </sc-if>
+              <sc-if value="{{ dc.isArt }}" hint-placeholder-val="{{ true }}">
+                <div style="position:relative;height:190px;background:#000 url({{ dc.img }}) center/cover">
+                  <sc-if value="{{ dc.ring }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;left:50%;top:50%;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;border:1.5px solid #fff;background:rgba(20,198,203,.35)"></div>
+                    <div style="position:absolute;left:50%;top:50%;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;background:radial-gradient(circle,transparent 45px,rgba(255,207,37,.9) 55px,rgba(187,90,0,.9) 63px,rgba(255,207,37,.85) 71px,transparent 75px);-webkit-mask-image:conic-gradient(from 0deg,transparent 0deg,#000 18deg,#000 88deg,transparent 108deg);mask-image:conic-gradient(from 0deg,transparent 0deg,#000 18deg,#000 88deg,transparent 108deg)"></div>
+                  </sc-if>
+                  <span style="position:absolute;right:12px;bottom:12px;display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:4px;background:#000;font:600 11px/1.38 Geist,sans-serif;letter-spacing:.6px;color:#fff"><span style="width:6px;height:6px;border-radius:50%;background:#00ca8e;animation:pulse 2s ease infinite"></span>LIVE</span>
+                </div>
+              </sc-if>
+              <div style="padding:20px 24px 24px;display:flex;flex-direction:column;gap:8px;flex:1">
+                <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:2px;background:{{ dc.color }}"></span><span style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">{{ dc.eyebrow }}</span></div>
+                <div style="font:600 20px/1.25 Geist,sans-serif;letter-spacing:-.3px">{{ dc.title }}</div>
+                <sc-if value="{{ dc.isChart }}" hint-placeholder-val="{{ false }}">
+                  <div style="font:500 13px/1.38 Geist,sans-serif;color:#656a76">{{ dc.sub }}</div>
+                  <svg viewBox="0 0 300 110" width="100%" height="130" style="display:block;margin-top:8px;overflow:visible">
+                    <line x1="0" y1="100" x2="300" y2="100" style="stroke:#252830;stroke-width:1"></line>
+                    <line x1="0" y1="55" x2="300" y2="55" style="stroke:#252830;stroke-width:1;stroke-dasharray:3 4"></line>
+                    <line x1="0" y1="10" x2="300" y2="10" style="stroke:#252830;stroke-width:1;stroke-dasharray:3 4"></line>
+                    <polyline points="{{ dc.p1 }}" style="fill:none;stroke:#ffffff;stroke-width:2;stroke-linejoin:round"></polyline>
+                    <polyline points="{{ dc.p2 }}" style="fill:none;stroke:{{ dc.color }};stroke-width:2;stroke-linejoin:round"></polyline>
+                  </svg>
+                  <div style="display:flex;justify-content:space-between;font:500 11px/1.38 Geist,sans-serif;color:#656a76"><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span></div>
+                  <div style="display:flex;gap:16px;font:500 12px/1.38 Geist,sans-serif;color:#b2b6bd;margin-top:4px"><span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:2px;background:#fff"></span>{{ dc.l1 }}</span><span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:2px;background:{{ dc.color }}"></span>{{ dc.l2 }}</span></div>
+                </sc-if>
+                <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px"><span style="font:700 32px/1.17 Geist,sans-serif;letter-spacing:-.8px">{{ dc.metric }}</span><span style="font:500 14px/1.5 Geist,sans-serif;color:#b2b6bd">{{ dc.ml }}</span></div>
+                <div style="margin-top:auto;padding-top:12px;border-top:1px solid #252830;font:500 12px/1.38 Geist,sans-serif;color:#656a76">{{ dc.foot }}</div>
+              </div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ editing }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ addCardFromChat }}" style="min-height:280px;border-radius:12px;border:1px dashed #3b3d45;background:transparent;color:#b2b6bd;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font:600 14px/1.29 Geist,sans-serif" style-hover="color:#fff;border-color:#656a76"><span style="font-family:'Material Symbols Outlined';font-size:28px;line-height:1">add</span>Ask the agent for a new card</button>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- SAVE MODAL -->
+  <sc-if value="{{ saveOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,.7);z-index:60;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease both">
+      <div style="width:460px;max-width:92vw;padding:32px;box-sizing:border-box;background:#15181e;border:1px solid #3b3d45;border-radius:12px;display:flex;flex-direction:column;gap:18px;animation:fadeUp .25s ease both">
+        <div>
+          <div style="font:600 12px/1.23 Geist,sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#656a76">Save as artifact</div>
+          <div style="font:600 28px/1.21 Geist,sans-serif;letter-spacing:-.6px;margin-top:8px">Keep this answer live</div>
+          <div style="font:500 14px/1.6 Geist,sans-serif;color:#b2b6bd;margin-top:6px">The agent re-runs the same satellites, dates and settings on a schedule and updates the card.</div>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:6px;font:500 13px/1.38 Geist,sans-serif;color:#b2b6bd">Name<input value="{{ saveName }}" onChange="{{ onSaveName }}" style="height:42px;padding:0 14px;border-radius:8px;background:#000;border:1px solid #3b3d45;color:#fff;outline:0;font:500 15px/1.5 Geist,sans-serif" style-focus="border-color:#2b89ff"></label>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="font:500 13px/1.38 Geist,sans-serif;color:#b2b6bd">Add to dashboard</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ saveDashOpts }}" as="sd" hint-placeholder-count="2">
+              <button onClick="{{ sd.pick }}" style="padding:8px 14px;border-radius:8px;border:1px solid {{ sd.border }};background:{{ sd.bg }};color:#fff;font:500 14px/1.4 Geist,sans-serif">{{ sd.name }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:8px;background:#000;border:1px solid #252830;font:500 14px/1.5 Geist,sans-serif;color:#b2b6bd"><span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">update</span>Re-run every 5 days with each new Sentinel-2 pass</div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button onClick="{{ closeSave }}" style="padding:10px 18px;border-radius:8px;background:#1f232b;color:#fff;border:0;font:600 14px/1.29 Geist,sans-serif">Cancel</button>
+          <button onClick="{{ doSave }}" style="padding:10px 18px;border-radius:8px;background:#fff;color:#000;border:0;font:600 14px/1.29 Geist,sans-serif">Save artifact</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- TOAST -->
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:0;right:0;margin:0 auto;width:max-content;top:90px;z-index:70;display:flex;align-items:center;gap:12px;padding:10px 10px 10px 16px;border-radius:12px;background:#fff;color:#000;font:600 14px/1.4 Geist,sans-serif;animation:fadeUp .25s ease both">
+      <span style="font-family:'Material Symbols Outlined';font-size:18px;line-height:1">check_circle</span>{{ toast.text }}
+      <sc-if value="{{ toast.hasAction }}" hint-placeholder-val="{{ false }}"><button onClick="{{ toastAction }}" style="padding:6px 12px;border-radius:8px;background:#000;color:#fff;border:0;font:600 13px/1.29 Geist,sans-serif">{{ toast.action }}</button></sc-if>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;autoRotate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;stepMs&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:950,&quot;options&quot;:[500,950,1600],&quot;tsType&quot;:&quot;number&quot;}}">
+const TILE=(z,x,y)=>`https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/${z}/${y}/${x}.jpg`;
+const txy=(lat,lon,z)=>{const n=Math.pow(2,z),r=lat*Math.PI/180;return {x:(lon+180)/360*n,y:(1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n};};
+const thumb=(lat,lon,z)=>{const t=txy(lat,lon,z);return TILE(z,Math.floor(t.x),Math.floor(t.y));};
+const quad=(lat,lon,z)=>{const t=txy(lat,lon,z);const x=Math.round(t.x),y=Math.round(t.y);return [TILE(z,x-1,y-1),TILE(z,x,y-1),TILE(z,x-1,y),TILE(z,x,y)];};
+const FIELD={lat:37.9785,lon:-100.9155};
+const circlePts=(r,n)=>Array.from({length:n},(_,i)=>{const a=i/n*Math.PI*2;return [+(Math.sin(a)*r).toFixed(1),+(-Math.cos(a)*r).toFixed(1)];});
+const mpp16=lat=>156543.03*Math.cos(lat*Math.PI/180)/65536;
+const areaHa=(pts,lat)=>{let a=0;for(let i=0;i<pts.length;i++){const p=pts[i],q=pts[(i+1)%pts.length];a+=p[0]*q[1]-q[0]*p[1];}return +(Math.abs(a)/2*Math.pow(mpp16(lat),2)/10000).toFixed(1);};
+const fmtC=(lat,lon)=>`${Math.abs(lat).toFixed(4)}°${lat>=0?'N':'S'} ${Math.abs(lon).toFixed(4)}°${lon>=0?'E':'W'}`;
+const arcPt=(r,deg)=>{const a=deg*Math.PI/180;return [(300+Math.sin(a)*r).toFixed(1),(300-Math.cos(a)*r).toFixed(1)];};
+const DRY_PATH=(()=>{const a0=14,a1=100,o0=arcPt(206,a0),o1=arcPt(206,a1),i1=arcPt(132,a1),i0=arcPt(132,a0);return `M${o0} A206 206 0 0 1 ${o1} L${i1} A132 132 0 0 0 ${i0} Z`;})();
+const DATES=['Aug 14','Aug 19','Aug 24','Sep 3','Sep 8','Sep 18','Sep 23','Sep 28'];
+const CLOUDY=[3];
+const DRY_LV=[.12,.18,.28,.2,.5,.68,.85,1];
+
+const CATS=[
+{name:'Agriculture',icon:'agriculture',color:'#ffcf25',fg:'#000',uses:'Crop health, dry patches, yield, pasture for herders',sats:'Sentinel-2, Landsat, Sentinel-1'},
+{name:'Water Bodies',icon:'water_drop',color:'#14c6cb',fg:'#000',uses:'Reservoir levels, algae/red tide, water use',sats:'Sentinel-2, Sentinel-3, SWOT'},
+{name:'Forests & Nature',icon:'forest',color:'#00ca8e',fg:'#000',uses:'Deforestation alerts, EUDR proof, mangroves, carbon credits',sats:'Sentinel-2, Sentinel-1, Landsat'},
+{name:'Disasters & Risk',icon:'local_fire_department',color:'#e62b1e',fg:'#fff',uses:'Fire, flood, storm damage, landslides / ground sinking',sats:'VIIRS/FIRMS, Sentinel-1, Sentinel-2'},
+{name:'Urban & Real Estate',icon:'location_city',color:'#7b42bc',fg:'#fff',uses:'Land-use change, construction, heat maps, roof solar',sats:'Sentinel-2, Landsat thermal (+ paid high-res)'},
+{name:'Oceans & Coasts',icon:'sailing',color:'#1868f2',fg:'#fff',uses:'Fishing zones, dark ships, coral reefs',sats:'Sentinel-3, MODIS/VIIRS, Sentinel-1'},
+{name:'Air & Climate',icon:'air',color:'#fbeabf',fg:'#000',uses:'Air pollution, methane leaks',sats:'Sentinel-5P, EMIT'},
+{name:'Finance & Insurance',icon:'account_balance',color:'#2b89ff',fg:'#000',uses:'Port activity, crop forecasts, crop insurance, lender checks',sats:'Sentinel-1/2, MODIS (+ paid high-res)'},
+{name:'Society & Public Good',icon:'diversity_3',color:'#911ced',fg:'#fff',uses:'Poverty mapping, mosquito areas, fact-checking, education, heritage',sats:'VIIRS night lights, Sentinel-2, Landsat'}];
+
+const PR=[
+[0,'Dry patch finder','Sentinel-2 · Landsat 9 thermal','Free','Finds parts of a field that stay drier than the rest on two or more dates.','Compares NDMI (plant water) and land surface temperature across every clear pass in the last six weeks and the same window in past years. Zones that stay much drier than the field median on two or more dates are flagged, sized in hectares, and checked against elevation and soil maps to suggest a cause.','Groundtruth Labs',37.9785,-100.9155,'10 m','5 days'],
+[0,'Weekly crop health','Sentinel-2','Free','A clean NDVI map of every field after each clear pass.','Builds a cloud-free NDVI composite for each field contour every week, highlights zones that dropped more than 0.1 since the previous pass, and keeps a season curve you can compare with earlier years.','AgriSense Co-op',36.6,-120.1,'10 m','5 days'],
+[0,'Pasture for herders','Sentinel-2 · Sentinel-1','Free','Shows where grass is growing so herds can move to better grazing.','Combines optical greenness with radar soil moisture so the map still updates through cloudy weeks. Results are summarised per grazing block and can be sent as a short text message.','Rangeland Watch',-2.6,37.2,'10–20 m','6 days'],
+[1,'Reservoir level tracker','Sentinel-2 · SWOT','Free','Water surface area and height for any lake or reservoir.','Maps the water edge from Sentinel-2 using the NDWI index and pairs it with SWOT water-height measurements to estimate volume change over time.','HydroLens',36.13,-114.45,'10 m / 100 m','5–21 days'],
+[1,'Algae & red tide alert','Sentinel-3 OLCI','Free','Chlorophyll and bloom warnings for lakes and coasts.','Uses Sentinel-3 OLCI ocean colour bands to estimate chlorophyll-a and cyanobacteria, and sends a warning when a bloom grows past a set size near beaches or water intakes.','BlueShore Analytics',41.7,-83.2,'300 m','Daily'],
+[1,'Irrigation water use','Sentinel-2 · Landsat thermal','Free','Estimates how much water each field used this month.','Calculates evapotranspiration from Landsat surface temperature and Sentinel-2 vegetation cover, then totals it per field to compare with water rights or allocations.','Canal Data',30.8,31.0,'30 m','8 days'],
+[2,'Deforestation alerts','Sentinel-1 · Sentinel-2','Free','Weekly alerts for new forest clearing, even under clouds.','Radar backscatter change from Sentinel-1 catches clearing through cloud cover; Sentinel-2 confirms it on the next clear pass. Each alert includes area, date and a before/after image.','Canopy Signal',-10.0,-63.0,'10 m','6 days'],
+[2,'EUDR proof pack','Sentinel-2 · Landsat','Free','Shows a plot has not been cleared since December 2020.','Builds a dated history of forest cover for each plot from 2020 to today and exports a report with images and coordinates in the format buyers ask for under the EU Deforestation Regulation.','Traceable Earth',6.0,-6.5,'10–30 m','5 days'],
+[2,'Mangrove extent','Sentinel-2','Free','Tracks mangrove gain and loss along a coastline.','Classifies mangrove cover each year with a vegetation and water index model and reports change by hectare for restoration and blue-carbon projects.','Tidewood',21.9,89.2,'10 m','5 days'],
+[3,'Active fire map','VIIRS / FIRMS','Free','Fire hotspots near your sites within hours of a pass.','Pulls NASA FIRMS hotspots from VIIRS and MODIS, groups them into fire fronts, and alerts when one comes within a set distance of a field, plant or town.','Ember Watch',39.8,-121.4,'375 m','~12 hours'],
+[3,'Flood extent','Sentinel-1','Free','Maps flooded land through cloud and at night.','Detects open water from Sentinel-1 radar and compares it with a dry-season baseline to show newly flooded areas, with an estimate of affected farmland and roads.','Floodline',26.5,68.0,'10 m','6 days'],
+[3,'Ground sinking','Sentinel-1 InSAR','Free','Millimetre-scale ground movement for buildings and slopes.','Runs InSAR time series on Sentinel-1 radar to measure subsidence and slope movement, flagging points that move faster than a set rate per year.','Strata Motion',19.43,-99.13,'~20 m','12 days'],
+[4,'Land-use change','Sentinel-2','Free','See what was built, cleared or planted between two dates.','Classifies land cover for two dates and lists every change by type and area, for zoning checks and due diligence on a parcel.','Parcel IQ',25.08,55.2,'10 m','5 days'],
+[4,'Urban heat map','Landsat 9 thermal','Free','Finds the hottest streets and blocks in summer.','Averages clear-sky Landsat surface temperature over the summer and ranks neighbourhoods so cities can plan trees, cool roofs and shade.','Cool Blocks',33.45,-112.07,'30 m','8 days'],
+[4,'Rooftop solar potential','Paid high-res + elevation','From $0.40 / roof','Estimates panel area and yearly output for each roof.','Uses 30–50 cm imagery and a surface model to measure roof faces, shading and tilt, then estimates usable panel area and annual kWh per building.','Sunroof Data',52.52,13.4,'30–50 cm','On order'],
+[5,'Fishing zones','Sentinel-3 · MODIS/VIIRS','Free','Daily map of where fish are likely to gather.','Combines sea surface temperature fronts and chlorophyll to highlight likely fishing grounds, delivered as a light map for low-bandwidth phones at sea.','Catch Forecast',-12.0,-77.3,'300 m–1 km','Daily'],
+[5,'Dark ship detection','Sentinel-1','Free','Finds vessels that switched off their tracking transponder.','Detects ships in Sentinel-1 radar and matches them against AIS tracks. Ships with no matching AIS signal are listed with position and time.','OpenWake',26.5,56.3,'10 m','6 days'],
+[5,'Coral reef watch','Sentinel-2 · MODIS SST','Free','Early warning for heat stress and bleaching on reefs.','Tracks accumulated heat stress from sea surface temperature and checks shallow-water reef colour in Sentinel-2 to flag likely bleaching.','Reef Pulse',-18.3,147.7,'10 m / 1 km','Daily'],
+[6,'Air pollution (NO₂)','Sentinel-5P','Free','Daily nitrogen dioxide levels over cities and industry.','Maps tropospheric NO₂ from Sentinel-5P TROPOMI and compares each week with the same week in past years, adjusted for weather.','Clear Air Lab',45.2,10.0,'5.5 km','Daily'],
+[6,'Methane leak finder','EMIT · Sentinel-5P','Free','Spots large methane plumes from wells, pipelines and landfills.','Screens Sentinel-5P for methane hot spots, then checks EMIT hyperspectral scenes to pin down the plume source and estimate its rate.','Plume Hunter',31.9,-102.1,'60 m / 5.5 km','Daily / tasked'],
+[6,'Wildfire smoke tracker','Sentinel-5P · VIIRS','Free','Follows smoke plumes and the aerosol load over towns.','Combines the Sentinel-5P aerosol index with VIIRS fire detections to show where smoke is drifting and which places sit under it.','Haze Map',44.5,-121.5,'5.5 km','Daily'],
+[7,'Port activity index','Sentinel-1 · Sentinel-2','Free','Counts ships and containers at major ports each week.','Counts vessels in radar and estimates container yard fill in optical imagery to give a weekly activity index that moves ahead of official trade data.','Harbour Signal',51.95,4.05,'10 m','3–6 days'],
+[7,'Crop insurance check','Sentinel-1/2 + paid high-res','Free + $ per claim','Verifies crop loss claims with before and after images.','Compares crop condition before and after a reported event, measures the affected area, and attaches high-resolution imagery where the claim needs it.','Claimsight',42.0,-93.5,'10 m / 50 cm','5 days'],
+[7,'Lender field check','Sentinel-2','Free','Confirms a farm exists and is being farmed before a loan.','Checks parcel boundaries, crop history and planting dates over the past three seasons and returns a one-page summary for loan officers.','Ledger Fields',30.9,75.8,'10 m','5 days'],
+[8,'Poverty mapping','VIIRS night lights','Free','Estimates economic activity from night-time lights.','Uses monthly VIIRS night-light composites with population data to estimate where economic activity is growing or falling, down to district level.','Open Atlas',6.5,3.4,'500 m','Monthly'],
+[8,'Mosquito risk areas','Sentinel-2 · Landsat','Free','Finds standing water and warm, humid areas where mosquitoes breed.','Maps small water bodies, vegetation and surface temperature to rank villages by breeding-site risk for spraying and bed-net campaigns.','Vector Map',0.35,32.6,'10–30 m','5 days'],
+[8,'Heritage site watch','Sentinel-2','Free','Watches for looting pits, building or erosion at heritage sites.','Compares each new pass with a baseline for protected sites and flags new disturbance such as digging, roads or construction.','Ancient Ground',30.33,35.44,'10 m','5 days'],
+].map((a,i)=>({id:i,cat:a[0],name:a[1],sat:a[2],cost:a[3],short:a[4],long:a[5],dev:a[6],lat:a[7],lon:a[8],res:a[9],revisit:a[10]}));
+
+const DRY_STEPS=[
+{title:'Ask',desc:"What crop, how it's watered, and when the problem started.",tool:'Asked 3 questions'},
+{title:'Mark the field',desc:'Draw or upload the field outline.',tool:'Loaded contour'},
+{title:'Pick dates',desc:'The last few weeks, plus the same time in past years.',tool:'Set time window',result:'Aug 14 – Sep 28, 2026 · same window 2023–2025'},
+{title:'Pick the satellite',desc:'Sentinel-2 (free). Use PlanetScope (paid) if the field is very small.',tool:'Accessed Sentinel-2',result:'Field is large enough → Sentinel-2 L2A, 10 m'},
+{title:'Find clear images',desc:'Skip cloudy ones and ones taken just after rain.',tool:'Filtered 12 scenes',result:'7 of 12 kept · 3 cloudy, 2 after rain'},
+{title:'Clean the images',desc:'Cut out the field and remove clouds and shadows.',tool:'Preparing a contour mask',result:'Clipped to contour · cloud & shadow mask applied'},
+{title:'Calculate indices',desc:'NDMI (plant water), NDVI (plant health), plus temperature.',tool:'Computed NDMI, NDVI, LST',result:'NDMI 0.31 · NDVI 0.68 · LST 31.4 °C (field avg)'},
+{title:'Find dry spots',desc:'Areas much drier than the rest of the field on 2 or more dates.',tool:'Ran dry-spot detection',result:'1 zone below field median on 5 of 7 dates'},
+{title:'Find the cause',desc:'Irrigation fault, poor soil, high ground, or not water at all.',tool:'Checked elevation & soil maps',result:'Arc follows pivot spans 5–6 → irrigation fault'},
+{title:'Show the answer',desc:'A map, the size of the dry area, the likely cause and what to do. Re-check every 5 days.',tool:'Built map layers',result:'4 layers added · re-check scheduled Oct 8'}];
+
+const presetSteps=p=>[
+{title:'Read the preset',desc:`${p.name} by ${p.dev}.`,tool:'Loaded preset settings',result:p.short},
+{title:'Mark the field',desc:'Draw or upload the field outline.',tool:'Loaded contour'},
+{title:'Pick dates',desc:'The last few weeks, plus the same time in past years.',tool:'Set time window',result:'Aug 14 – Sep 28, 2026 · 2023–2025 baseline'},
+{title:'Pick the satellite',desc:p.sat+'.',tool:'Accessed '+p.sat.split(' · ')[0],result:`${p.res} · revisit ${p.revisit}`},
+{title:'Find clear images',desc:'Skip cloudy scenes and bad passes.',tool:'Filtered scenes',result:'7 of 12 kept'},
+{title:'Clean the images',desc:'Cut out the area and remove clouds and shadows.',tool:'Preparing a contour mask',result:'Clipped to contour'},
+{title:'Calculate indices',desc:'Run the preset’s model on each clean image.',tool:'Ran preset model',result:'7 dates processed'},
+{title:'Find changes',desc:'Compare each date with the baseline.',tool:'Compared with baseline',result:'Change summary ready'},
+{title:'Explain',desc:'Write a short summary of what changed.',tool:'Wrote summary',result:'Done'},
+{title:'Show the answer',desc:'A map, the key numbers and next steps.',tool:'Built map layers',result:'Layers added'}];
+
+const CLAR=[{k:'crop',label:'What crop?',opts:['Maize','Wheat','Soybean','Cotton']},{k:'water',label:'How is it watered?',opts:['Center pivot','Drip','Flood','Rain-fed']},{k:'when',label:'When did it start?',opts:['This week','1–2 weeks ago','3+ weeks ago']}];
+
+const PLACES=[
+{n:'North Pivot',d:'My contour · Finney County, Kansas',lat:FIELD.lat,lon:FIELD.lon,z:16,field:'np',icon:'pentagon'},
+{n:'South Block',d:'My contour · Finney County, Kansas',lat:FIELD.lat-0.0146,lon:FIELD.lon,z:16,field:'sb',icon:'pentagon'},
+{n:'Garden City, Kansas',d:'United States',lat:37.971,lon:-100.873,z:13,icon:'location_on'},
+{n:'Lake Mead',d:'Nevada, United States',lat:36.13,lon:-114.45,z:12,icon:'location_on'},
+{n:'Rondônia',d:'Brazil',lat:-10.0,lon:-63.0,z:12,icon:'location_on'},
+{n:'Port of Rotterdam',d:'Netherlands',lat:51.95,lon:4.05,z:13,icon:'location_on'},
+{n:'Great Barrier Reef',d:'Queensland, Australia',lat:-18.3,lon:147.7,z:11,icon:'location_on'}];
+
+const LAYERS=[
+{id:'contour',name:'Field contour',src:'Drawn by you',color:'#ffffff',on:true,ready:true,ai:false},
+{id:'ndmi',name:'NDMI · plant water',src:'Sentinel-2 B8A / B11',color:'#14c6cb',on:false,ready:false,ai:true},
+{id:'ndvi',name:'NDVI · plant health',src:'Sentinel-2 B4 / B8',color:'#00ca8e',on:false,ready:false,ai:true},
+{id:'lst',name:'Surface temperature',src:'Landsat 9 TIRS',color:'#f24c53',on:false,ready:false,ai:true},
+{id:'dry',name:'Dry spots · 2+ dates',src:'Agent · anomaly detection',color:'#ffcf25',on:false,ready:false,ai:true},
+{id:'clouds',name:'Cloud & shadow mask',src:'Sentinel-2 SCL',color:'#656a76',on:false,ready:false,ai:true}];
+
+const S1=[.42,.41,.4,.38,.37,.36,.35,.34,.33,.32,.31,.31],S2=[.4,.39,.37,.34,.3,.27,.24,.21,.18,.16,.13,.12];
+const DASHES=[
+{name:'My Farm',cards:[
+{id:'c1',type:'art',cat:0,title:'Dry patches · North Pivot',metric:'4.6 ha',ml:'dry area, up from 2.1 ha',img:thumb(FIELD.lat,FIELD.lon,16),ring:true,foot:'Sentinel-2 · updated 2 h ago · re-checks every 5 days'},
+{id:'c2',type:'chart',cat:0,title:'Plant water · North Pivot',sub:'NDMI, last 90 days',s1:S1,s2:S2,l1:'Field average',l2:'Dry zone',metric:'0.12',ml:'dry zone NDMI',foot:'Sentinel-2 · 12 clear passes'},
+{id:'c3',type:'art',cat:0,title:'Crop health · South Block',metric:'0.71',ml:'NDVI, stable',img:thumb(FIELD.lat-0.0146,FIELD.lon,16),ring:false,foot:'Sentinel-2 · updated 2 h ago'},
+{id:'c4',type:'chart',cat:0,title:'Heat stress · both fields',sub:'Surface temperature, last 90 days',s1:[.5,.55,.6,.66,.7,.72,.68,.64,.6,.58,.55,.52],s2:[.52,.58,.65,.72,.8,.84,.82,.8,.78,.76,.74,.72],l1:'South Block',l2:'North Pivot',metric:'31.4 °C',ml:'North Pivot, Sep 28',foot:'Landsat 9 thermal · 8-day revisit'}]},
+{name:'Water Ops',cards:[
+{id:'w1',type:'art',cat:1,title:'Reservoir level · Lake Mead',metric:'−3.2%',ml:'surface area vs Aug',img:thumb(36.13,-114.45,12),ring:false,foot:'Sentinel-2 + SWOT · updated yesterday'},
+{id:'w2',type:'chart',cat:1,title:'Algae watch · Lake Erie',sub:'Chlorophyll-a index, last 90 days',s1:[.2,.22,.25,.3,.42,.55,.62,.58,.5,.4,.33,.28],s2:[.18,.2,.2,.22,.25,.3,.34,.33,.3,.27,.24,.22],l1:'West basin',l2:'5-year average',metric:'Moderate',ml:'bloom risk',foot:'Sentinel-3 OLCI · daily'}]}];
+
+const TRIGS=[
+{id:1,name:'Dry patch grows',cond:'Dry area on North Pivot is larger than 5 ha',chan:'Email + SMS',on:true,last:'Checked Sep 28'},
+{id:2,name:'Fire nearby',cond:'VIIRS hotspot within 10 km of any of my fields',chan:'Push',on:true,last:'No events'},
+{id:3,name:'Reservoir low',cond:'Lake Mead surface area drops 5% in 30 days',chan:'Email',on:false,last:'Paused'}];
+
+const pts2=(arr)=>arr.map((v,i)=>`${(i/(arr.length-1)*300).toFixed(1)},${(100-v*90).toFixed(1)}`).join(' ');
+
+class Component extends DCLogic {
+  globeRef = React.createRef();
+  state = {
+    W: window.innerWidth, H: window.innerHeight,
+    mode:'globe', center:{lat:FIELD.lat,lon:FIELD.lon}, zoom:16, place:'North Pivot',
+    contours:[{id:'np',name:'North Pivot',lat:FIELD.lat,lon:FIELD.lon,pts:circlePts(210,48),circle:true},{id:'sb',name:'South Block',lat:FIELD.lat-0.0146,lon:FIELD.lon,pts:[[-215,-205],[215,-205],[215,205],[-215,205]],circle:false}],
+    fieldId:'np', q:'', run:null,
+    pop:null, searchQ:'', coordLat:'37.9785', coordLon:'-100.9155',
+    drawing:false, drawPts:[],
+    panel:null, explore:false, cat:0, detail:null, tryContour:'np',
+    layers:LAYERS, dateIdx:7, playing:false,
+    dash:false, dashIdx:0, dashQ:'', dashA:null, dashThinking:false, editing:false, dashes:DASHES,
+    saveOpen:false, saveName:'', saveDash:0, triggers:TRIGS, toast:null,
+  };
+
+  componentDidMount(){
+    this.onResize=()=>{this.setState({W:window.innerWidth,H:window.innerHeight});this.globeResize&&this.globeResize();};
+    window.addEventListener('resize',this.onResize);
+    this.onKey=e=>{
+      const typing=/INPUT|TEXTAREA/.test(e.target.tagName);
+      if(e.key==='Escape'){const s=this.state;
+        if(s.saveOpen)return this.setState({saveOpen:false});
+        if(s.detail!==null)return this.setState({detail:null});
+        if(s.explore)return this.setState({explore:false});
+        if(s.dash)return this.setState({dash:false});
+        if(s.drawing)return this.setState({drawing:false,drawPts:[]});
+        if(s.pop||s.panel)return this.setState({pop:null,panel:null});
+      }
+      if(this.state.explore&&this.state.detail===null&&!typing){
+        if(/^[1-9]$/.test(e.key))this.setState({cat:+e.key-1});
+        if(e.key==='ArrowRight')this.setState(s=>({cat:(s.cat+1)%9}));
+        if(e.key==='ArrowLeft')this.setState(s=>({cat:(s.cat+8)%9}));
+      }
+    };
+    window.addEventListener('keydown',this.onKey);
+    this.initGlobe();
+  }
+  componentWillUnmount(){window.removeEventListener('resize',this.onResize);window.removeEventListener('keydown',this.onKey);clearTimeout(this.timer);clearInterval(this.play);cancelAnimationFrame(this.raf);clearTimeout(this.gt);}
+
+  initGlobe(){
+    const T=window.THREE, el=this.globeRef.current;
+    if(!T||!el){this.gt=setTimeout(()=>this.initGlobe(),120);return;}
+    const r=new T.WebGLRenderer({antialias:true,alpha:true});
+    r.setPixelRatio(Math.min(2,window.devicePixelRatio||1)); r.outputEncoding=T.sRGBEncoding;
+    r.domElement.style.display='block'; el.appendChild(r.domElement);
+    const scene=new T.Scene(), cam=new T.PerspectiveCamera(40,1,0.1,1000); cam.position.z=3.5;
+    const grp=new T.Group(); scene.add(grp); grp.rotation.x=0.38; grp.rotation.z=-0.12;
+    const L=new T.TextureLoader(), base='https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/';
+    const map=L.load(base+'earth-blue-marble.jpg'); map.encoding=T.sRGBEncoding; map.anisotropy=8;
+    const mat=new T.MeshPhongMaterial({map,bumpMap:L.load(base+'earth-topology.png'),bumpScale:0.035,specularMap:L.load(base+'earth-water.png'),specular:new T.Color(0x0c1220),shininess:6});
+    const earth=new T.Mesh(new T.SphereGeometry(1,96,96),mat); earth.rotation.y=-1.75; grp.add(earth);
+    const atm=new T.Mesh(new T.SphereGeometry(1,64,64),new T.ShaderMaterial({
+      vertexShader:'varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+      fragmentShader:'varying vec3 vN;void main(){float i=pow(0.68-dot(vN,vec3(0.0,0.0,1.0)),2.6);gl_FragColor=vec4(0.17,0.54,1.0,1.0)*i;}',
+      side:T.BackSide,blending:T.AdditiveBlending,transparent:true}));
+    atm.scale.setScalar(1.14); grp.add(atm);
+    const g=new T.BufferGeometry(), N=2200, pos=new Float32Array(N*3);
+    for(let i=0;i<N;i++){const u=Math.random()*2-1,t=Math.random()*Math.PI*2,R=60+Math.random()*40,s=Math.sqrt(1-u*u);pos[i*3]=R*s*Math.cos(t);pos[i*3+1]=R*s*Math.sin(t);pos[i*3+2]=R*u-30;}
+    g.setAttribute('position',new T.BufferAttribute(pos,3));
+    const stars=new T.Points(g,new T.PointsMaterial({color:0xffffff,size:0.22,sizeAttenuation:true,transparent:true,opacity:0.8})); scene.add(stars);
+    const sun=new T.DirectionalLight(0xffffff,1.35); sun.position.set(-4,1.8,3.2); scene.add(sun); scene.add(new T.AmbientLight(0x8899bb,0.18));
+    this.globeResize=()=>{const w=el.clientWidth,h=el.clientHeight;r.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();
+      const vh=2*cam.position.z*Math.tan(T.MathUtils.degToRad(20)),vw=vh*cam.aspect;
+      grp.position.x=cam.aspect>1.2?vw*0.2:0; grp.position.y=cam.aspect>1.2?0:-0.25;};
+    this.globeResize();
+    let drag=null;
+    el.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};el.style.cursor='grabbing';});
+    window.addEventListener('pointerup',()=>{drag=null;el.style.cursor='grab';});
+    window.addEventListener('pointermove',e=>{if(!drag)return;earth.rotation.y+=(e.clientX-drag.x)*0.005;grp.rotation.x=Math.max(-1,Math.min(1,grp.rotation.x+(e.clientY-drag.y)*0.003));drag={x:e.clientX,y:e.clientY};});
+    const loop=()=>{this.raf=requestAnimationFrame(loop);
+      if(this.state.mode!=='globe'||this.state.dash)return;
+      if(!drag&&(this.props.autoRotate??true))earth.rotation.y+=0.0011;
+      stars.rotation.y+=0.00005; r.render(scene,cam);};
+    loop();
+  }
+
+  toast(text,action,fn){clearTimeout(this.tt);this.toastFn=fn;this.setState({toast:{text,action,hasAction:!!action}});this.tt=setTimeout(()=>this.setState({toast:null}),3600);}
+  field(){return this.state.contours.find(c=>c.id===this.state.fieldId);}
+  goField(id){const c=this.state.contours.find(x=>x.id===id);this.setState({fieldId:id,mode:'map',center:{lat:c.lat,lon:c.lon},zoom:16,place:c.name,pop:null});}
+  goPlace(p){if(p.field)return this.goField(p.field);this.setState({mode:'map',center:{lat:p.lat,lon:p.lon},zoom:p.z,place:p.n,pop:null,searchQ:''});}
+
+  startRun(text,preset){
+    clearTimeout(this.timer);
+    const isAg=!preset;
+    const steps=(preset?presetSteps(preset):DRY_STEPS).map(s=>({...s}));
+    this.setState(s=>({q:'',pop:null,explore:false,detail:null,
+      layers:s.layers.map(l=>l.ai?{...l,ready:false,on:false}:l),
+      run:{text,preset,steps,idx:0,phase:isAg?'clarify':'running',open:true,t0:Date.now(),ans:{crop:'Maize',water:'Center pivot',when:'1–2 weeks ago'}}}));
+    if(!isAg)this.advance();
+  }
+  advance(){
+    const ms=this.props.stepMs??950;
+    this.timer=setTimeout(()=>{
+      const run=this.state.run; if(!run)return;
+      const next=run.idx+1, f=this.field();
+      const patch={};
+      if(next===1){const c=f||this.state.contours[0];patch.fieldId=c.id;patch.mode='map';patch.center={lat:c.lat,lon:c.lon};patch.zoom=16;patch.place=c.name;}
+      const steps=run.steps.slice();
+      if(next===2){const c=this.state.contours.find(x=>x.id===(patch.fieldId||this.state.fieldId));steps[1]={...steps[1],result:`Using contour “${c.name}” · ${areaHa(c.pts,c.lat)} ha`};}
+      const setL=(ids)=>this.state.layers.map(l=>ids.includes(l.id)?{...l,ready:true,on:true}:l);
+      if(next===7)patch.layers=setL(run.preset?['ndvi']:['ndmi']);
+      if(next>=run.steps.length){
+        const ready=this.state.layers.map(l=>({...l,ready:true,on:l.on||(!run.preset&&l.id==='dry')}));
+        this.setState({...patch,layers:ready,dateIdx:7,run:{...run,steps,phase:'done',open:false,secs:((Date.now()-run.t0)/1000).toFixed(1)}});
+        return;
+      }
+      if(next===9&&!run.preset)patch.layers=this.state.layers.map(l=>l.id==='dry'?{...l,ready:true,on:true}:l);
+      this.setState({...patch,run:{...run,steps,idx:next}});
+      this.advance();
+    },ms);
+  }
+
+  buildAnswer(run){
+    const f=this.field()||this.state.contours[0];
+    if(!run.preset)return {color:CATS[0].color,eyebrow:`Agriculture · ${f.name}`,title:'Dry patch of 4.6 ha in the north-east arc of the field',
+      stats:[{l:'Dry area',v:'4.6 ha · 9%'},{l:'NDMI in zone',v:'0.12 vs 0.31'},{l:'First seen',v:'Sep 8'}],
+      l1:'Likely cause: irrigation fault',cause:`The dry zone is a ring 260–390 m from the pivot centre, matching spans 5–6. Soil and elevation are even across it, and it got drier on 5 of 7 passes while the rest of the ${run.ans.crop.toLowerCase()} stayed steady.`,
+      l2:'What to do',todo:'Check nozzles and pressure regulators on spans 5–6 and the end-gun timer. The agent will re-check every 5 days; next pass Oct 3.'};
+    const p=run.preset,c=CATS[p.cat];
+    return {color:c.color,eyebrow:`${c.name} · ${f.name}`,title:`${p.name} is ready for ${f.name}`,
+      stats:[{l:'Satellite',v:p.sat.split(' · ')[0]},{l:'Scenes used',v:'7 of 12'},{l:'Cost',v:p.cost}],
+      l1:'Summary',cause:p.short,l2:'Next',todo:'Layers are on the map. Step through the timeline to compare passes, or save this as an artifact to keep it updated.'};
+  }
+
+  renderVals(){
+    const s=this.state, W=s.W, H=s.H, isMap=s.mode==='map';
+    const f=this.field();
+    // tiles
+    let tiles=[], ov={show:false};
+    if(isMap){
+      const z=s.zoom, c=txy(s.center.lat,s.center.lon,z);
+      const CX=(W+(W<1280?380:440))/2;const x0=Math.floor(c.x-CX/256)-1, x1=Math.floor(c.x+(W-CX)/256)+1, y0=Math.floor(c.y-H/512)-1, y1=Math.floor(c.y+H/512)+1;
+      for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)tiles.push({url:TILE(z,x,y),left:Math.round(CX+(x-c.x)*256),top:Math.round(H/2+(y-c.y)*256)});
+      if(f){const ft=txy(f.lat,f.lon,z),sc=Math.pow(2,z-16);
+        const minY=Math.min(...f.pts.map(p=>p[1]));
+        ov={show:true,x:CX+(ft.x-c.x)*256,y:H/2+(ft.y-c.y)*256,s:sc,pts:f.pts.map(p=>`${p[0]+300},${p[1]+300}`).join(' '),
+          clip:`polygon(${f.pts.map(p=>`${p[0]+300}px ${p[1]+300}px`).join(',')})`,dryPath:DRY_PATH,labelTop:minY-36,name:f.name,ha:areaHa(f.pts,f.lat)};}
+    }
+    const on=id=>{const l=s.layers.find(x=>x.id===id);return !!(l&&l.on&&l.ready);};
+    const dl=DRY_LV[s.dateIdx], circ=!!(f&&f.circle), cloudy=CLOUDY.includes(s.dateIdx);
+    const L={contour:on('contour')?1:0,ndmi:on('ndmi')?1:0,ndmiArc:on('ndmi')&&circ?dl:0,ndvi:on('ndvi')?1:0,ndviArc:on('ndvi')&&circ?dl*.8:0,lst:on('lst')?1:0,lstArc:on('lst')&&circ?dl*.9:0,dry:on('dry')&&circ?(dl>.25?1:.3):0,clouds:on('clouds')&&cloudy?1:0};
+    const dryHa=(4.6*dl).toFixed(1);
+
+    // chat
+    const run=s.run;
+    let steps=[],chain={},ans={};
+    if(run){
+      steps=run.steps.slice(0,run.idx+1).map((st,i)=>{
+        const done=run.phase==='done'||i<run.idx, waiting=run.phase==='clarify'&&i===0, active=!done&&!waiting;
+        let result=st.result; if(i===0&&!run.preset)result=`${run.ans.crop} · ${run.ans.water} · started ${run.ans.when}`;
+        return {...st,result,done,waiting,active,notActive:!active,showClarify:waiting};
+      });
+      const cur=run.steps[run.idx];
+      chain={running:run.phase==='running',notRunning:run.phase!=='running',open:run.open,caret:run.open?'expand_less':'expand_more',
+        icon:run.phase==='done'?'check_circle':'help',
+        label:run.phase==='running'?cur.tool+'…':run.phase==='clarify'?'Waiting for your answers':`Analyzed in ${run.steps.length} steps · ${run.secs}s`};
+      if(run.phase==='done')ans=this.buildAnswer(run);
+    }
+    const clarify=CLAR.map(g=>({label:g.label,opts:g.opts.map(o=>{const sel=run&&run.ans[g.k]===o;return {label:o,bg:sel?'#fff':'transparent',color:sel?'#000':'#b2b6bd',border:sel?'#fff':'#3b3d45',pick:()=>this.setState(st=>({run:{...st.run,ans:{...st.run.ans,[g.k]:o}}}))};})}));
+
+    // toolbar
+    const compact=W<1280;const T=[...(compact?[]:[{k:'undo',icon:'undo',title:'Undo'},{k:'redo',icon:'redo',title:'Redo'},{div:1}]),{k:'coords',icon:'my_location',title:'Search by coordinates'},{k:'pin',icon:'location_on',title:'Add placemark'},{k:'draw',icon:'polyline',title:'Draw a contour',caret:true},{k:'contours',icon:'pentagon',title:'My contours',caret:true},{div:1},{k:'measure',icon:'straighten',title:'Measure distance'},{k:'ref',icon:'image',title:'Reference image'},{k:'layers',icon:'layers',title:'Layers'}];
+    const tools=T.map(t=>{if(t.div)return {isDiv:true,isBtn:false};
+      const active=s.pop===t.k||(t.k==='layers'&&s.panel==='layers')||(t.k==='draw'&&s.drawing);
+      return {...t,isDiv:false,isBtn:true,caret:!!t.caret,pad:t.caret?4:0,bg:active?'#3b3d45':'transparent',
+        showDraw:s.pop==='draw'&&t.k==='draw',showContours:s.pop==='contours'&&t.k==='contours',showCoords:s.pop==='coords'&&t.k==='coords',showRef:s.pop==='ref'&&t.k==='ref',
+        onClick:()=>this.toolClick(t.k)};});
+    const sq=s.searchQ.trim().toLowerCase();
+    const placeResults=PLACES.filter(p=>!sq||p.n.toLowerCase().includes(sq)||p.d.toLowerCase().includes(sq)).map(p=>({...p,go:()=>this.goPlace(p)}));
+    const contourList=s.contours.map(c=>({name:c.name,ha:areaHa(c.pts,c.lat),icon:c.circle?'radio_button_unchecked':'pentagon',bg:c.id===s.fieldId?'#1f232b':'transparent',check:c.id===s.fieldId?1:0,pick:()=>this.goField(c.id)}));
+
+    // layers
+    const layerRows=s.layers.map(l=>({...l,opacity:l.ready?1:.4,boxBorder:l.on&&l.ready?'#fff':'#656a76',boxBg:l.on&&l.ready?'#fff':'transparent',checkOp:l.on&&l.ready?1:0,
+      toggle:()=>{if(!l.ready)return this.toast('Ask the agent about this field to generate this layer');this.setState(st=>({layers:st.layers.map(x=>x.id===l.id?{...x,on:!x.on}:x)}));}}));
+    const ticks=DATES.map((d,i)=>({label:d,cloudy:CLOUDY.includes(i),color:i===s.dateIdx?'#fff':'#656a76',go:()=>this.setState({dateIdx:i})}));
+
+    // explore
+    const cat=CATS[s.cat];
+    const hotbar=CATS.map((c,i)=>{const sel=i===s.cat;return {name:c.name,icon:c.icon,n:i+1,size:sel?84:76,bw:sel?3:2,border:sel?'#fff':'#3b3d45',bg:sel?'#1f232b':'#15181e',iconColor:sel?c.color:'#b2b6bd',z:sel?2:1,bar:sel?c.color:'transparent',pick:()=>this.setState({cat:i})};});
+    const presetCards=PR.filter(p=>p.cat===s.cat).map(p=>({...p,img:thumb(p.lat,p.lon,13),open:()=>this.setState({detail:p.id})}));
+    let detail={}; const dp=s.detail!==null?PR[s.detail]:null;
+    if(dp){const c=CATS[dp.cat];detail={...dp,color:c.color,fg:c.fg,catName:c.name,imgs:quad(dp.lat,dp.lon,dp.cat===0?15:13),coord:fmtC(dp.lat,dp.lon),
+      meta:[{l:'Satellite',v:dp.sat},{l:'Cost',v:dp.cost},{l:'Category',v:c.name},{l:'Developer',v:dp.dev},{l:'Resolution',v:dp.res},{l:'Revisit',v:dp.revisit}]};}
+    const tc=s.contours.find(c=>c.id===s.tryContour)||s.contours[0];
+    const tryList=s.contours.map(c=>({name:c.name,ha:areaHa(c.pts,c.lat),icon:c.circle?'radio_button_unchecked':'pentagon',border:c.id===tc.id?'#fff':'#3b3d45',bg:c.id===tc.id?'#1f232b':'transparent',pick:()=>this.setState({tryContour:c.id})}));
+
+    // dashboard
+    const d=s.dashes[s.dashIdx];
+    const dashCards=d.cards.map(c=>({...c,isArt:c.type==='art',isChart:c.type==='chart',color:CATS[c.cat||0].color,eyebrow:CATS[c.cat||0].name,
+      p1:c.s1?pts2(c.s1):'',p2:c.s2?pts2(c.s2):'',remove:()=>this.setState(st=>({dashes:st.dashes.map((x,i)=>i===st.dashIdx?{...x,cards:x.cards.filter(y=>y.id!==c.id)}:x)}))}));
+
+    return {
+      globeRef:this.globeRef, chatW:compact?360:420, toolLeft:compact?396:456, searchW:compact?150:250, globeOpacity:isMap?0:1, isMap, tiles, ov, L, dryHa, place:s.place, coordLabel:fmtC(s.center.lat,s.center.lon)+' · z'+s.zoom,
+      zoomIn:()=>this.setState(st=>({zoom:Math.min(18,st.zoom+1)})), zoomOut:()=>this.setState(st=>({zoom:Math.max(3,st.zoom-1)})),
+      toGlobe:()=>this.setState({mode:'globe',playing:false,drawing:false}),
+      drawing:s.drawing, drawPoly:s.drawPts.map(p=>p.join(',')).join(' '), drawDots:s.drawPts.map(p=>({x:p[0],y:p[1]})), drawCount:s.drawPts.length,
+      onDrawClick:e=>{const p=[e.clientX,e.clientY];this.setState(st=>({drawPts:[...st.drawPts,p]}));},
+      undoPoint:e=>{e.stopPropagation();this.setState(st=>({drawPts:st.drawPts.slice(0,-1)}));},
+      cancelDraw:e=>{e.stopPropagation();this.setState({drawing:false,drawPts:[]});},
+      finishDraw:e=>{e.stopPropagation();this.finishDraw();},
+      showHero:!isMap&&!run&&!s.explore&&H>=700,
+      q:s.q, onQ:e=>this.setState({q:e.target.value}), onQKey:e=>{if(e.key==='Enter')this.submit();}, submitQ:()=>this.submit(),
+      showSuggest:!run, hasRun:!!run, run:run||{}, chain, steps, clarify, showAnswer:!!(run&&run.phase==='done'), ans,
+      suggestions:[{icon:'water_drop',text:'Where are the dry patches in my field?'},{icon:'forest',text:'Run deforestation alerts on my plot'},{icon:'local_fire_department',text:'Any fires within 10 km of my farm?'}].map((x,i)=>({...x,go:()=>i===0?this.startRun(x.text):this.startRun(x.text,PR[i===1?6:9])})),
+      toggleChain:()=>this.setState(st=>({run:{...st.run,open:!st.run.open}})),
+      continueRun:()=>{this.setState(st=>({run:{...st.run,phase:'running'}}));this.advance();},
+      openSave:()=>this.setState({saveOpen:true,saveName:run&&run.preset?`${run.preset.name} · ${(f||{}).name}`:`Dry patches · ${(f||{}).name}`,saveDash:0}),
+      addTriggerFromRun:()=>{this.setState(st=>({panel:'triggers',triggers:[{id:Date.now(),name:'Dry zone change',cond:`NDMI in the dry zone on ${(f||{}).name} drops below 0.10`,chan:'Email + SMS',on:true,last:'Created just now'},...st.triggers]}));},
+      searchQ:s.searchQ, onSearch:e=>this.setState({searchQ:e.target.value,pop:'search'}), openSearch:()=>this.setState({pop:'search'}),
+      onSearchKey:e=>{if(e.key==='Enter'&&placeResults[0])this.goPlace(placeResults[0]);},
+      popSearch:s.pop==='search', placeResults, tools, contourList,
+      startDraw:()=>{const c=f||s.contours[0];this.setState({pop:null,drawing:true,drawPts:[],mode:'map',center:{lat:c.lat,lon:c.lon},zoom:16});},
+      drawCircle:()=>this.addCircle(), uploadOutline:()=>{this.setState({pop:null});this.toast('Upload a KML, GeoJSON or Shapefile to add a contour');},
+      coordLat:s.coordLat, coordLon:s.coordLon, onLat:e=>this.setState({coordLat:e.target.value}), onLon:e=>this.setState({coordLon:e.target.value}),
+      goCoords:()=>{const la=parseFloat(s.coordLat),lo=parseFloat(s.coordLon);if(isNaN(la)||isNaN(lo))return this.toast('Enter a valid latitude and longitude');this.setState({mode:'map',center:{lat:la,lon:lo},zoom:15,place:'Dropped pin',pop:null});},
+      refImg:thumb(s.center.lat,s.center.lon,Math.min(17,s.zoom)),
+      panelLayers:s.panel==='layers', panelTriggers:s.panel==='triggers', closePanel:()=>this.setState({panel:null}),
+      fieldName:f?f.name:'No field selected', layersEmpty:!s.layers.some(l=>l.ai&&l.ready), layerRows,
+      trigRows:s.triggers.map(t=>({...t,track:t.on?'#fff':'#3b3d45',knob:t.on?'#000':'#b2b6bd',justify:t.on?'flex-end':'flex-start',toggle:()=>this.setState(st=>({triggers:st.triggers.map(x=>x.id===t.id?{...x,on:!x.on,last:!x.on?'Active':'Paused'}:x)}))})),
+      newTrigger:()=>this.setState(st=>({triggers:[...st.triggers,{id:Date.now(),name:'Crop health drop',cond:'NDVI on South Block falls below 0.5',chan:'Push',on:true,last:'Created just now'}]})),
+      trigCount:s.triggers.filter(t=>t.on).length,
+      showTimeline:isMap&&!!f&&!s.explore, playIcon:s.playing?'pause':'play_arrow', dateIdx:s.dateIdx,
+      dateLabel:DATES[s.dateIdx]+', 2026', dateSub:cloudy?`Pass ${s.dateIdx+1} of 8 · cloudy, skipped by agent`:`Sentinel-2 pass ${s.dateIdx+1} of 8`, ticks,
+      onDate:e=>this.setState({dateIdx:+e.target.value}), togglePlay:()=>this.togglePlay(),
+      openExplore:()=>this.setState({explore:true,pop:null,panel:null}), closeExplore:()=>this.setState({explore:false}),
+      toggleLayers:()=>this.setState(st=>({panel:st.panel==='layers'?null:'layers',pop:null})),
+      toggleTriggers:()=>this.setState(st=>({panel:st.panel==='triggers'?null:'triggers',pop:null})),
+      dockLayersBg:s.panel==='layers'?'#3b3d45':'#1f232b', dockTrigBg:s.panel==='triggers'?'#3b3d45':'#1f232b',
+      explore:s.explore, hotbar, cat, presetCards,
+      onHotbarWheel:e=>{const now=Date.now();if(now-(this.lw||0)<120)return;this.lw=now;const dir=(e.deltaY||e.deltaX)>0?1:-1;this.setState(st=>({cat:(st.cat+dir+9)%9}));},
+      hasDetail:!!dp, detail, closeDetail:()=>this.setState({detail:null}), tryList, tryName:tc.name,
+      runPreset:()=>{const p=dp;this.setState({fieldId:tc.id});setTimeout(()=>this.startRun(`Run “${p.name}” on ${tc.name}`,p),0);},
+      dash:s.dash, openDash:()=>this.setState({dash:true,pop:null,panel:null}), closeDash:()=>this.setState({dash:false,editing:false}),
+      dashTabs:s.dashes.map((x,i)=>({name:x.name,bg:i===s.dashIdx?'#1f232b':'transparent',color:i===s.dashIdx?'#fff':'#b2b6bd',pick:()=>this.setState({dashIdx:i,dashA:null})})),
+      newDash:()=>this.setState(st=>({dashes:[...st.dashes,{name:'Dashboard '+(st.dashes.length+1),cards:[]}],dashIdx:st.dashes.length,editing:true,dashA:null})),
+      curDash:{name:d.name,count:d.cards.length}, dashCards, editing:s.editing,
+      toggleEdit:()=>this.setState(st=>({editing:!st.editing})), editLabel:s.editing?'Done':'Customize', editBg:s.editing?'#fff':'#1f232b', editColor:s.editing?'#000':'#fff',
+      addCardFromChat:()=>{this.setState({dash:false,editing:false});this.toast('Ask a question, then save the answer as an artifact');},
+      dashQ:s.dashQ, onDashQ:e=>this.setState({dashQ:e.target.value}), onDashKey:e=>{if(e.key==='Enter')this.askDash();}, askDash:()=>this.askDash(),
+      dashSuggest:['What changed since last week?','What does this mean for my irrigation?','Which field needs attention first?'].map(t=>({text:t,go:()=>{this.setState({dashQ:t});setTimeout(()=>this.askDash(),0);}})),
+      dashThinking:s.dashThinking, dashThinkLabel:`Reading ${d.cards.length} cards and comparing the last 3 passes…`, hasDashA:!!s.dashA&&!s.dashThinking, dashA:s.dashA||{},
+      saveOpen:s.saveOpen, saveName:s.saveName, onSaveName:e=>this.setState({saveName:e.target.value}), closeSave:()=>this.setState({saveOpen:false}),
+      saveDashOpts:s.dashes.map((x,i)=>({name:x.name,border:i===s.saveDash?'#fff':'#3b3d45',bg:i===s.saveDash?'#1f232b':'transparent',pick:()=>this.setState({saveDash:i})})),
+      doSave:()=>this.doSave(),
+      hasToast:!!s.toast, toast:s.toast||{}, toastAction:()=>{this.toastFn&&this.toastFn();this.setState({toast:null});},
+    };
+  }
+
+  toolClick(k){
+    const s=this.state;
+    if(['draw','contours','coords','ref'].includes(k))return this.setState({pop:s.pop===k?null:k});
+    if(k==='layers')return this.setState({panel:s.panel==='layers'?null:'layers',pop:null});
+    if(k==='undo'){if(s.drawing&&s.drawPts.length)return this.setState({drawPts:s.drawPts.slice(0,-1)});return this.toast('Nothing to undo');}
+    if(k==='redo')return this.toast('Nothing to redo');
+    if(k==='pin'){this.setState({pop:null});return this.toast('Placemark added at map centre');}
+    if(k==='measure'){this.setState({pop:null});return this.toast('North Pivot is 790 m across');}
+  }
+  submit(){const t=this.state.q.trim();if(!t)return;const low=t.toLowerCase();
+    const p=PR.find(x=>low.includes(x.name.toLowerCase().split(' ')[0])&&!/dry/.test(low));
+    this.startRun(t,/dry|water stress|irrigat/.test(low)||!p?null:p);}
+  addCircle(){const s=this.state,n=s.contours.length+1,c={id:'c'+Date.now(),name:'Circle '+n,lat:s.center.lat,lon:s.center.lon,pts:circlePts(150,48),circle:true};
+    this.setState({contours:[...s.contours,c],fieldId:c.id,mode:'map',zoom:16,pop:null,place:c.name});this.toast(`${c.name} added · ${areaHa(c.pts,c.lat)} ha`);}
+  finishDraw(){const s=this.state;if(s.drawPts.length<3)return this.toast('Add at least 3 points');
+    const sc=Math.pow(2,s.zoom-16);const CX=(s.W+(s.W<1280?380:440))/2;const pts=s.drawPts.map(p=>[+((p[0]-CX)/sc).toFixed(1),+((p[1]-s.H/2)/sc).toFixed(1)]);
+    const c={id:'c'+Date.now(),name:'Field '+(s.contours.length+1),lat:s.center.lat,lon:s.center.lon,pts,circle:false};
+    this.setState({contours:[...s.contours,c],fieldId:c.id,drawing:false,drawPts:[],place:c.name});this.toast(`${c.name} saved · ${areaHa(pts,c.lat)} ha`);}
+  togglePlay(){if(this.state.playing){clearInterval(this.play);return this.setState({playing:false});}
+    this.setState(s=>({playing:true,dateIdx:s.dateIdx>=7?0:s.dateIdx}));
+    this.play=setInterval(()=>{const i=this.state.dateIdx;if(i>=7){clearInterval(this.play);return this.setState({playing:false});}this.setState({dateIdx:i+1});},850);}
+  askDash(){const s=this.state;const q=s.dashQ.trim()||'What changed since last week?';const d=s.dashes[s.dashIdx];
+    this.setState({dashThinking:true,dashA:null});clearTimeout(this.dt);
+    this.dt=setTimeout(()=>{const farm=s.dashIdx===0;
+      this.setState({dashThinking:false,dashQ:'',dashA:{steps:[`Read ${d.cards.length} cards`,'Compared last 3 passes','Checked 5-year baseline'],
+        title:farm?'North Pivot needs attention first':d.cards.length?'Water levels are slightly below normal':'This dashboard has no cards yet',
+        body:farm?`You asked: “${q}” The dry zone on North Pivot grew from 2.1 ha to 4.6 ha over the last three passes while the rest of the field held NDMI near 0.31. Surface temperature there is 2.8 °C above the field average. South Block is stable at NDVI 0.71. Check spans 5–6 on North Pivot before the next pass on Oct 3; if the zone keeps growing at this rate it will pass your 5 ha trigger.`
+          :d.cards.length?`You asked: “${q}” Lake Mead surface area is 3.2% lower than in August, in line with the seasonal drawdown. Lake Erie bloom risk peaked mid-August and is falling; chlorophyll is still above the 5-year average in the west basin.`
+          :'Save an answer from the chat as an artifact and add it here, then ask again.'}});},1800);}
+  doSave(){const s=this.state,f=this.field()||s.contours[0],run=s.run;
+    const card={id:'a'+Date.now(),type:'art',cat:run&&run.preset?run.preset.cat:0,title:s.saveName||'Artifact',metric:run&&run.preset?'7 dates':'4.6 ha',ml:run&&run.preset?'processed':'dry area',img:thumb(f.lat,f.lon,16),ring:!(run&&run.preset)&&f.circle,foot:'Saved just now · re-runs every 5 days'};
+    const di=s.saveDash;
+    this.setState({saveOpen:false,dashes:s.dashes.map((x,i)=>i===di?{...x,cards:[card,...x.cards]}:x)});
+    this.toast(`Saved to ${s.dashes[di].name}`,'Open dashboard',()=>this.setState({dash:true,dashIdx:di}));}
+}
+</script>
+</body>
+</html>
