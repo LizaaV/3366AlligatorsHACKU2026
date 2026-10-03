@@ -13,6 +13,7 @@ import { Btn, Ms } from '../../components/ui';
 import type { Pt } from '../../lib/geo';
 import type { Place } from '../../model';
 import { GlobePicker } from './GlobePicker';
+import { useMapHeight } from './MapFrame';
 import { OutlineMap } from './OutlineMap';
 import { Slider } from './Slider';
 import { MIN_VERTICES, type Outline } from './useOutline';
@@ -39,6 +40,7 @@ export function OutlineStep({ loc, draft, outline, onRelocate }: {
   const [tool, setTool] = useState<Tool>('edit');
   const [verts, setVerts] = useState<Pt[]>([]);
   const [globe, setGlobe] = useState(false);
+  const H = useMapHeight();
 
   const pickTool = (t: Tool) => { setVerts([]); setTool(t); };
   const finishPolygon = () => { commitDrawn(verts, false); setVerts([]); setTool('edit'); };
@@ -125,7 +127,7 @@ export function OutlineStep({ loc, draft, outline, onRelocate }: {
 
       {globe ? (
         <GlobePicker
-          H={300}
+          H={H}
           focus={loc}
           onBack={() => setGlobe(false)}
           hint="Click a spot on the globe to move the place there"

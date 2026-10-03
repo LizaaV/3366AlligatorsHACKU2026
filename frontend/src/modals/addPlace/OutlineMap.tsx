@@ -13,7 +13,7 @@
 import { useState } from 'react';
 import type { Place } from '../../model';
 import { circlePts, type Pt } from '../../lib/geo';
-import { MapFrame } from './MapFrame';
+import { MapFrame, useMapHeight } from './MapFrame';
 import { CONTOUR, NO_LAYERS, type Loc, type Tool } from './types';
 import { MIN_VERTICES, type Outline } from './useOutline';
 
@@ -93,9 +93,10 @@ export function OutlineMap({ loc, draft, outline, tool, setTool, verts, setVerts
       }
     : undefined;
 
+  const H = useMapHeight();
   return (
     <MapFrame
-      H={300} center={center} zoom={previewZoom} setZoom={setZoom} place={showPlace} layers={showPlace ? CONTOUR : NO_LAYERS}
+      H={H} center={center} zoom={previewZoom} setZoom={setZoom} place={showPlace} layers={showPlace ? CONTOUR : NO_LAYERS}
       onGlobe={onGlobe} onPick={onPick} pointer={pointer} cursor={drawing ? 'crosshair' : undefined}
     >
       {(s, W, H, toPt) => {

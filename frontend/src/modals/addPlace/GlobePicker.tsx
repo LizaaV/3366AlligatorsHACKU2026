@@ -18,7 +18,7 @@ export function GlobePicker({ H, onPick, focus, onBack, hint }: {
   hint?: string;
 }) {
   return (
-    <div style={{ position: 'relative', height: H, borderRadius: 'var(--r)', overflow: 'hidden', border: '1px solid var(--hair-soft)', background: '#05070a' }}>
+    <div style={{ position: 'relative', flex: 'none', height: H, borderRadius: 'var(--r)', overflow: 'hidden', border: '1px solid var(--hair-soft)', background: '#05070a' }}>
       <Suspense fallback={<div className="row caption" style={{ position: 'absolute', inset: 0, justifyContent: 'center', gap: 8 }}><span className="spinner" />Loading the globe…</div>}>
         <Globe visible autoRotate={!focus} offsetRight={false} onPickLocation={onPick} focus={focus ?? null} showSatellites={false} />
       </Suspense>

@@ -7,7 +7,7 @@
  * therefore be left for the globe and re-entered by picking a spot on it.
  */
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { MapView, type MapLayers } from '../../components/MapView';
 import { IconBtn } from '../../components/ui';
 import { fmtC, type Pt } from '../../lib/geo';
@@ -17,6 +17,18 @@ export const MIN_ZOOM = 3;
 export const MAX_ZOOM = 18;
 /** Zooming out from here or below switches to the globe. */
 export const GLOBE_AT = 5;
+
+/** Map height that follows the window: clamp(220px, 38vh, 420px), so short windows scroll the modal instead of squashing the map. */
+export function useMapHeight() {
+  const calc = () => Math.round(Math.max(220, Math.min(420, window.innerHeight * 0.38)));
+  const [h, setH] = useState(calc);
+  useEffect(() => {
+    const on = () => setH(calc());
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return h;
+}
 
 export interface PointerHandlers {
   /** All coordinates are reference-zoom pixel offsets from the map centre. */
@@ -69,7 +81,7 @@ export function MapFrame({ H, center, zoom, setZoom, place, layers, onPick, onGl
 
   const interactive = !!pointer;
   return (
-    <div ref={frame} style={{ position: 'relative', height: H, borderRadius: 'var(--r)', overflow: 'hidden', border: '1px solid var(--hair-soft)', background: '#0b0d10' }}>
+    <div ref={frame} style={{ position: 'relative', flex: 'none', height: H, borderRadius: 'var(--r)', overflow: 'hidden', border: '1px solid var(--hair-soft)', background: '#0b0d10' }}>
       <div
         ref={inner}
         style={{ position: 'absolute', top: 0, left: '50%', width: W, height: H, marginLeft: -W / 2, cursor: cursor ?? (onPick ? 'crosshair' : 'default'), touchAction: interactive ? 'none' : undefined }}

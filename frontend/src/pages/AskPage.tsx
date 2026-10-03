@@ -255,7 +255,7 @@ export function AskPage({ active }: { active: boolean }) {
     setSpot(s);
     setAskPlace(null);
     flyTo(s);
-    notify(`${s.name} — not saved yet`, 'Save as place', () => open({ kind: 'addPlace' }), 'location_on');
+    notify(`${s.name} — not saved yet`, 'Save as place', () => open({ kind: 'addPlace', prefill: { lat: s.lat, lon: s.lon, name: s.name, method: 'pin' } }), 'location_on');
   };
 
   const askAboutGlobePick = (p: { lat: number; lon: number }) => {
@@ -333,8 +333,8 @@ export function AskPage({ active }: { active: boolean }) {
             <button className="icon-btn sm" onClick={() => setGlobePick(null)} aria-label="Close"><Ms n="close" /></button>
           </div>
           <button className="menu-item" onClick={() => askAboutGlobePick(globePick)}><Ms n="forum" />Ask about this spot</button>
-          <button className="menu-item" onClick={() => { setGlobePick(null); open({ kind: 'addPlace' }); }}><Ms n="polyline" />Draw an area here</button>
-          <button className="menu-item" onClick={() => { setGlobePick(null); open({ kind: 'addPlace' }); }}><Ms n="add_location_alt" />Save as place</button>
+          <button className="menu-item" onClick={() => { open({ kind: 'addPlace', prefill: { lat: globePick.lat, lon: globePick.lon, method: 'pin' } }); setGlobePick(null); }}><Ms n="polyline" />Draw an area here</button>
+          <button className="menu-item" onClick={() => { open({ kind: 'addPlace', prefill: { lat: globePick.lat, lon: globePick.lon, method: 'pin' } }); setGlobePick(null); }}><Ms n="add_location_alt" />Save as place</button>
         </div>
       )}
 

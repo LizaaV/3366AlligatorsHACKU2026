@@ -29,11 +29,26 @@ import { useOutline } from './addPlace/useOutline';
 import { useDetailsForm } from './addPlace/useDetailsForm';
 import { METHODS, type Loc, type Method } from './addPlace/types';
 
-export function AddPlaceModal() {
-  const { close, addPlace, addWatch, notify, go, skills } = useStore();
-  const [step, setStep] = useState(1);
-  const [method, setMethod] = useState<Method | null>(null);
-  const [loc, setLoc] = useState<Loc | null>(null);
+/** A location carried in from elsewhere (geocoder pick, globe click): the wizard starts at the outline step. */
+export interface AddPlacePrefill { lat: number; lon: number; name?: string; method?: 'pin' }
+
+const fmtHa = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+
+export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
+  const { close, addPlace, addWatch, notify, go, skills, setAskPlace } = useStore();
+  const [step, setStep] = useState(prefill ? 2 : 1);
+  const [method, setMethod] = useState<Method | null>(prefill ? (prefill.method ?? 'pin') : null);
+  const [loc, setLoc] = useState<Loc | null>(() =>
+    prefill
+      ? {
+          lat: prefill.lat,
+          lon: prefill.lon,
+          label: prefill.name ?? 'Pinned site',
+          source: 'pin',
+          via: prefill.name ? `${prefill.name} · ${fmtC(prefill.lat, prefill.lon)}` : fmtC(prefill.lat, prefill.lon),
+        }
+      : null,
+  );
   const [error, setError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -138,10 +153,12 @@ export function AddPlaceModal() {
       }
 
       close();
+      // Point the chat composer at the new place straight away.
+      setAskPlace(created.id);
       notify(
         started.length
-          ? `${created.name} saved · ${created.areaHa} ha · ${started.length} watch${started.length > 1 ? 'es' : ''} started`
-          : `${created.name} saved · ${created.areaHa} ha`,
+          ? `${created.name} saved · ${fmtHa(created.areaHa)} ha · ${started.length} watch${started.length > 1 ? 'es' : ''} started`
+          : `${created.name} saved · ${fmtHa(created.areaHa)} ha`,
         'Ask about it',
         () => go('ask', undefined, { place: created.id }),
         'check_circle',
@@ -171,6 +188,7 @@ export function AddPlaceModal() {
                   // unmounted, so whatever it had reported is no longer backed by any input.
                   onClick={() => { setMethod(mt.id); setLoc(null); }}
                   aria-pressed={on}
+                  aria-label={mt.title}
                   style={{
                     textAlign: 'left', padding: 12, borderRadius: 'var(--r)', display: 'flex', flexDirection: 'column', gap: 6,
                     background: on ? 'var(--s2)' : 'var(--canvas)', border: `1px solid ${on ? '#fff' : 'var(--hair-soft)'}`, color: '#fff',
@@ -193,7 +211,7 @@ export function AddPlaceModal() {
       )}
 
       {step === 2 && loc && draft && <OutlineStep loc={loc} draft={draft} outline={outline} onRelocate={relocate} />}
-      {step === 3 && loc && <DetailsStep loc={loc} ha={ha} form={form} />}
+      {step === 3 && loc && <DetailsStep loc={loc} ha={ha} form={form} outline={{ shape: outline.shape, edited: outline.isEdited }} />}
 
       {error && <ErrorState error={error} onRetry={step === 3 ? () => void save() : undefined} title="Could not complete that" compact />}
 
