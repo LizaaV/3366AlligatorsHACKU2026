@@ -94,6 +94,19 @@ export const dashboardsApi = {
   /** Not its own contract route: blocks arrive with `GET /api/dashboards/{id}`. */
   blocks: (id: string, signal?: AbortSignal): Promise<DashboardBlock[]> => dashboardsApi.get(id, signal).then((d) => d.blocks),
 
+  /**
+   * POST /api/dashboards/{id}/blocks — save one block of a finished run (with its script, so it
+   * can be refreshed later). 422 when the run has no script or the dashboard is full.
+   */
+  addBlock: (id: string, runId: string, blockId: string, signal?: AbortSignal): Promise<void> =>
+    request<unknown>({
+      method: 'POST',
+      path: `/dashboards/${enc(id)}/blocks`,
+      body: { run_id: runId, block_id: blockId } satisfies S['SaveBlockRequest'],
+      signal,
+      ...fx(() => undefined),
+    }).then(() => undefined),
+
   /** DELETE /api/dashboards/{id}/blocks/{block_id} */
   removeBlock: (id: string, blockId: string, signal?: AbortSignal): Promise<void> =>
     request<void>({

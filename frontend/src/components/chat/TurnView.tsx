@@ -3,6 +3,7 @@
 import { ErrorState } from '../async';
 import { Btn, Ms } from '../ui';
 import { AnswerBlocks } from '../blocks';
+import { SaveToDashboard } from './SaveToDashboard';
 import { AnswerCard } from '../../pages/AnswerCard';
 import type { AskTurn } from '../../ask/useAskRun';
 import type { Place } from '../../model';
@@ -189,6 +190,10 @@ export function TurnView({
           onRetry={isLast ? onRetry : undefined}
           title="The agent could not answer"
         />
+      )}
+
+      {turn.phase === 'done' && turn.runId && turn.blocks.length > 0 && (
+        <SaveToDashboard runId={turn.runId} blockIds={turn.blocks.map((b) => b.id)} />
       )}
 
       {onCompare && turn.phase === 'done' && turn.blocks.length > 0 && (
