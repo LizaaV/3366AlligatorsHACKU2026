@@ -10,6 +10,7 @@
  * means deleting its `fixture` property — no call site changes.
  */
 
+import { areasApi } from './endpoints/areas';
 import { runsApi } from './endpoints/runs';
 import { catalogApi } from './endpoints/catalog';
 import { exportsApi } from './endpoints/exports';
@@ -24,6 +25,7 @@ export const api = {
   places: placesApi,
   watches: watchesApi,
   runs: runsApi,
+  areas: areasApi,
   insights: insightsApi,
   exports: exportsApi,
 };
@@ -31,6 +33,8 @@ export const api = {
 export { ApiError, toApiError } from './http';
 export { API_BASE, API_SOURCE, usingFixtures } from './config';
 export type { RunRequest, ReplyRequest, RunRecord, BackendAnswer } from './endpoints/runs';
+export type { AreaResolveRequest, AreaResolveResponse, Area, AreaMatch, PlaceContext } from './endpoints/areas';
+export { DEFAULT_PIN_RADIUS_M } from './endpoints/areas';
 export { isEvent } from './stream';
 export type { StreamEvent, StreamEventName } from './stream';
 export type { SkillQuery } from './endpoints/skills';

@@ -1,6 +1,9 @@
 /**
  * Places: the user's saved fields, plots, sites and water bodies.
  *
+ * Free-text place lookup is NOT here: the contract puts it on `POST /api/areas/resolve`, which
+ * reads names, coordinates and map links alike — see `endpoints/areas.ts`.
+ *
  * Geometry crosses this boundary as GeoJSON in WGS84. `toPlace()` projects it into
  * reference-zoom pixels for drawing; `ptsToRing()` converts back when saving. Area is never
  * sent — the backend computes and returns it.
@@ -15,7 +18,6 @@ import type {
   ParcelLookupResponse,
   ParseBoundaryFileResponse,
   PlaceDto,
-  PlaceSearchResultDto,
 } from '../types';
 import { toPlace, type Place } from '../../model';
 import { approxAreaHa, ptsToRing } from '../../lib/geo';
@@ -44,15 +46,6 @@ export const placesApi = {
       fixture: () => fixtures.deletePlace(id),
     }),
 
-  /** TODO(api): GET /api/places/search?q= — a real geocoder */
-  search: (q: string, signal?: AbortSignal): Promise<PlaceSearchResultDto[]> =>
-    request<PlaceSearchResultDto[]>({
-      method: 'GET',
-      path: '/places/search',
-      query: { q },
-      signal,
-      fixture: () => fixtures.placeSearch(q),
-    }),
 
   /**
    * TODO(api): POST /api/places/detect-boundary
