@@ -1,0 +1,14 @@
+# Allow-list: the sandbox image gets only these files (never .env, data/, providers/, .venv).
+*
+!earth/types.py
+!earth/errors.py
+!earth/blocks.py
+!earth/show.py
+!earth/presets.py
+!earth/settings.py
+!earth/client.py
+!app/__init__.py
+!app/services/__init__.py
+!app/services/sandbox.py
+!app/services/sandbox_child.py
+!sandbox/relay.py

@@ -38,11 +38,26 @@ services:
     networks: [web]
     restart: unless-stopped
 
+  # Opt-in Docker sandbox (SANDBOX_IMPL=docker, BUILD-PLAN M4 step 2). Only with
+  # `--profile docker-sandbox`: builds the image the backend starts one container per script from.
+  # The rest (docker socket, env) is in docker-compose.docker-sandbox.yml; see deploy/README.md.
+  sandbox-image:
+    profiles: ["docker-sandbox"]
+    build:
+      context: ../backend
+      dockerfile: sandbox/Dockerfile
+    image: earth-sandbox:latest
+    command: ["true"]              # build-only: exits at once
+    network_mode: none
+    restart: "no"
+
 networks:
   web: {}
-  # Reserved for the Docker sandbox (BUILD-PLAN M4 step 2): `earth-runner` containers will
-  # join this network to reach the earth service and nothing else. internal = no internet, no host.
+  # Docker sandbox: script containers join this network to reach the backend's earth service
+  # (:8701) and nothing else. internal = no internet, no host. Fixed name: the backend passes it
+  # to `docker run --network`.
   earth-only:
+    name: earth-agent-earth-only
     internal: true
 
 volumes:
