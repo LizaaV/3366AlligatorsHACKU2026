@@ -37,3 +37,15 @@ CONTEXT_MAX_READ_PIXELS = 1_500_000  # per raster read for DEM / WorldCover
 
 # place_context: max seconds to wait for all context providers before degrading to warnings
 CONTEXT_TIMEOUT_S = 15
+
+# Sentinel-2 reads (M1, earth.providers.earth_search)
+STAC_URL = "https://earth-search.aws.element84.com/v1"
+S2_COLLECTION = "sentinel-2-l2a"
+S2_TILE_CLOUD_PREFILTER = 95  # drop hopeless tiles only; never used as the cloud figure
+S2_INVALID_SCL = (0, 1, 3, 8, 9, 10)  # no data, saturated, cloud shadow, cloud x2, cirrus
+RESOLUTIONS_M = (10, 20, 30, 60)  # auto-drop to stay under MAX_PIXELS_PER_READ
+SCENE_SCAN_RESOLUTION_M = 20  # scenes() reads only SCL, at its native 20 m
+MIN_CLEAN_PX = 10  # a scene needs at least this many clean pixels over the area to be usable
+READ_THREADS = 8
+S2_HTTP_TIMEOUT_S = 20  # per HTTP request (HANDOFF B1.6)
+SEARCH_TTL_S = 600  # in-memory STAC search cache
