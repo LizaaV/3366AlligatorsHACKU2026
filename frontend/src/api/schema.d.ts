@@ -301,6 +301,221 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{run_id}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Share a run as a public link
+         * @description Snapshot the run behind an unguessable link that needs no login and expires.
+         */
+        post: operations["create_share_api_runs__run_id__share_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your share links for a run */
+        get: operations["list_shares_api_runs__run_id__shares_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shares/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a shared run (no login)
+         * @description The snapshot taken at share time: no user id, memory, event log or code.
+         */
+        get: operations["get_shared_run_api_shares__slug__get"];
+        put?: never;
+        post?: never;
+        /** Revoke a share link */
+        delete: operations["revoke_share_api_shares__slug__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shares/{slug}/layers/{measure}/{scene}.png": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A layer image of a shared run (no login)
+         * @description Map images inside a shared snapshot point here, so the run id is never public.
+         */
+        get: operations["get_shared_layer_api_shares__slug__layers__measure___scene__png_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your dashboards */
+        get: operations["list_dashboards_api_dashboards_get"];
+        put?: never;
+        /** Create a dashboard */
+        post: operations["create_dashboard_api_dashboards_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboards/{dashboard_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a dashboard with its blocks */
+        get: operations["get_dashboard_api_dashboards__dashboard_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete a dashboard */
+        delete: operations["delete_dashboard_api_dashboards__dashboard_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename a dashboard */
+        patch: operations["rename_dashboard_api_dashboards__dashboard_id__patch"];
+        trace?: never;
+    };
+    "/api/dashboards/{dashboard_id}/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save a block of one of your runs to a dashboard
+         * @description Copies the block, plus the run's script and params, onto the dashboard.
+         */
+        post: operations["add_block_api_dashboards__dashboard_id__blocks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboards/{dashboard_id}/blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a block from a dashboard */
+        delete: operations["remove_block_api_dashboards__dashboard_id__blocks__block_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboards/{dashboard_id}/blocks/{block_id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh a saved block (re-runs its script, no LLM)
+         * @description Re-runs the saved script with the saved params moved forward (an `after` within a day of
+         *     the original run's date becomes today; relative `last="60d"` and `years` already move
+         *     forward; `before` stays fixed), then swaps in the re-run block with the same type and title
+         *     (position among those) with a template caption. Never guesses: no such block gives 422.
+         */
+        post: operations["refresh_block_api_dashboards__dashboard_id__blocks__block_id__refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/report.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a run as a PDF report
+         * @description Same content as a share link (answer, blocks, provenance, method); no memory or ids.
+         */
+        get: operations["get_run_report_api_runs__run_id__report_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shares/{slug}/report.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a shared run as a PDF (no login)
+         * @description The PDF of the snapshot behind a share link, for its viewers.
+         */
+        get: operations["get_shared_report_api_shares__slug__report_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -515,6 +730,31 @@ export interface components {
             block: components["schemas"]["ThenNowBlock"] | components["schemas"]["TimelineBlock"] | components["schemas"]["SceneStripBlock"] | components["schemas"]["HighlightBlock"] | components["schemas"]["HypothesesBlock"] | components["schemas"]["StatBlock"] | components["schemas"]["LimitsBlock"];
         };
         /**
+         * BlockSourceOut
+         * @description `BlockSource` as the API returns it: the stored script is kept server-side only.
+         */
+        BlockSourceOut: {
+            /** Run Id */
+            run_id: string;
+            /**
+             * Run Date
+             * Format: date
+             */
+            run_date: string;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            };
+            /** Block Id */
+            block_id: string;
+            /** Block Type */
+            block_type: string;
+            /** Block Title */
+            block_title: string;
+            /** Title Index */
+            title_index: number;
+        };
+        /**
          * CardDetail
          * @description A full card: index entry, validated YAML header and Markdown body.
          */
@@ -704,6 +944,70 @@ export interface components {
             source: "drawn" | "uploaded" | "search" | "coords" | "whatsapp" | "parcel" | "pin";
             /** Details */
             details?: components["schemas"]["DetailRow"][] | null;
+        };
+        /**
+         * DashboardBlockOut
+         * @description A saved block as the API returns it (no script).
+         */
+        DashboardBlockOut: {
+            /** Block Id */
+            block_id: string;
+            /** Block */
+            block: components["schemas"]["ThenNowBlock"] | components["schemas"]["TimelineBlock"] | components["schemas"]["SceneStripBlock"] | components["schemas"]["HighlightBlock"] | components["schemas"]["HypothesesBlock"] | components["schemas"]["StatBlock"] | components["schemas"]["LimitsBlock"];
+            source: components["schemas"]["BlockSourceOut"];
+            /**
+             * Refreshed At
+             * Format: date-time
+             */
+            refreshed_at: string;
+            /** Caption */
+            caption?: string | null;
+        };
+        /** DashboardCreate */
+        DashboardCreate: {
+            /** Name */
+            name: string;
+        };
+        /**
+         * DashboardOut
+         * @description A dashboard as the API returns it.
+         */
+        DashboardOut: {
+            /** Id */
+            id: string;
+            /** User Id */
+            user_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Blocks */
+            blocks: components["schemas"]["DashboardBlockOut"][];
+        };
+        /**
+         * DashboardSummary
+         * @description A dashboard entry for the list.
+         */
+        DashboardSummary: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Block Count */
+            block_count: number;
+        };
+        /** DashboardUpdate */
+        DashboardUpdate: {
+            /** Name */
+            name: string;
         };
         /** DetailRow */
         DetailRow: {
@@ -1481,6 +1785,19 @@ export interface components {
             /** Thread Id */
             thread_id: string;
         };
+        /**
+         * SaveBlockRequest
+         * @description Save one block of a run to a dashboard.
+         */
+        SaveBlockRequest: {
+            /** Run Id */
+            run_id: string;
+            /**
+             * Block Id
+             * @description The block's `id` in the run, e.g. 'b2'.
+             */
+            block_id: string;
+        };
         /** SceneCounts */
         SceneCounts: {
             /** Optical */
@@ -1522,6 +1839,105 @@ export interface components {
             type: "scene_strip";
             /** Scenes */
             scenes: components["schemas"]["StripScene"][];
+        };
+        /**
+         * ShareCreated
+         * @description A new share link.
+         */
+        ShareCreated: {
+            /**
+             * Slug
+             * @description Unguessable id of the link.
+             */
+            slug: string;
+            /**
+             * Url
+             * @description Public page, `<PUBLIC_BASE_URL>/proof/<slug>`.
+             */
+            url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             * @description UTC. After this the link answers 410.
+             */
+            expires_at: string;
+        };
+        /**
+         * ShareInfo
+         * @description A share link as listed to its owner.
+         */
+        ShareInfo: {
+            /**
+             * Slug
+             * @description Unguessable id of the link.
+             */
+            slug: string;
+            /**
+             * Url
+             * @description Public page, `<PUBLIC_BASE_URL>/proof/<slug>`.
+             */
+            url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             * @description UTC. After this the link answers 410.
+             */
+            expires_at: string;
+            /**
+             * Shared At
+             * Format: date-time
+             */
+            shared_at: string;
+            /**
+             * Revoked
+             * @default false
+             */
+            revoked: boolean;
+        };
+        /**
+         * SharedRun
+         * @description What a share link shows: a copy of the run taken when it was shared.
+         *
+         *     Deliberately left out: user id, thread id, the event log, params (they hold clarification
+         *     answers, which may come from place memory), the script, and any place memory.
+         */
+        SharedRun: {
+            /** Question */
+            question: string;
+            /**
+             * Lang
+             * @default en
+             */
+            lang: string;
+            /** @description What was asked about (outline). */
+            area?: components["schemas"]["Area"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When the run was made. UTC.
+             */
+            created_at: string;
+            answer?: components["schemas"]["Answer"] | null;
+            /** Blocks */
+            blocks?: (components["schemas"]["ThenNowBlock"] | components["schemas"]["TimelineBlock"] | components["schemas"]["SceneStripBlock"] | components["schemas"]["HighlightBlock"] | components["schemas"]["HypothesesBlock"] | components["schemas"]["StatBlock"] | components["schemas"]["LimitsBlock"])[];
+            /** Steps */
+            steps?: components["schemas"]["Step"][];
+            /** Provenance */
+            provenance?: components["schemas"]["Provenance"][];
+            /** @description Cards and skill with versions. */
+            method?: components["schemas"]["Method"];
+            /**
+             * Shared At
+             * Format: date-time
+             * @description When the snapshot was taken. UTC.
+             */
+            shared_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             * @description UTC.
+             */
+            expires_at: string;
         };
         /**
          * SkillRef
@@ -2619,6 +3035,663 @@ export interface operations {
             };
             /** @description Run or place not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_share_api_runs__run_id__share_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareCreated"];
+                };
+            };
+            /** @description Run not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The run is not finished yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_shares_api_runs__run_id__shares_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareInfo"][];
+                };
+            };
+            /** @description Run not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shared_run_api_shares__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedRun"];
+                };
+            };
+            /** @description Unknown link. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The link expired or was revoked. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_share_api_shares__slug__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown link (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shared_layer_api_shares__slug__layers__measure___scene__png_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                measure: string;
+                scene: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The layer as a PNG. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description Invalid measure or scene id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown link, or no such layer in that run. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The link expired or was revoked. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_dashboards_api_dashboards_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_dashboard_api_dashboards_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DashboardCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dashboard_api_dashboards__dashboard_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                dashboard_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardOut"];
+                };
+            };
+            /** @description Dashboard not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_dashboard_api_dashboards__dashboard_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                dashboard_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dashboard not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_dashboard_api_dashboards__dashboard_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                dashboard_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DashboardUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardOut"];
+                };
+            };
+            /** @description Dashboard not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_block_api_dashboards__dashboard_id__blocks_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                dashboard_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveBlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardBlockOut"];
+                };
+            };
+            /** @description Dashboard, run or block not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The run has no script (its blocks cannot be refreshed), or the dashboard already has 50 blocks. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    remove_block_api_dashboards__dashboard_id__blocks__block_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                dashboard_id: string;
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dashboard or block not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_block_api_dashboards__dashboard_id__blocks__block_id__refresh_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                dashboard_id: string;
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardBlockOut"];
+                };
+            };
+            /** @description Dashboard or block not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description This block is already being refreshed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The saved script is no longer valid (`detail` = ScriptError: kind `scan` or `shape`), hit a data outcome (`earth_kind` such as `no_clear_scenes`), or no longer produces the saved block (type + title). The old block is kept. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The script ran and failed (`detail` = ScriptError: kind `crash`, `budget` or `timeout`, with `earth_kind` and `hint`). The old block is kept. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_run_report_api_runs__run_id__report_pdf_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report (A4 PDF). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Invalid run id or X-User-Id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Run not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The run is not finished yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shared_report_api_shares__slug__report_pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report (A4 PDF). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Unknown link. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The link expired or was revoked. */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
