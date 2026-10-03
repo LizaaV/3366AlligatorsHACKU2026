@@ -4,12 +4,14 @@
  * that place. Its conversation is not filed into any project.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAskRun } from '../../ask/useAskRun';
 import { useStore } from '../../state/store';
 import { Ms } from '../ui';
 import { Composer } from './Composer';
 import { TurnView } from './TurnView';
+import { ArtifactsContext } from '../artifacts/ArtifactsContext';
+import { deriveArtifacts } from '../artifacts/artifacts';
 import { contextFromRoute, contextHint, contextKey, contextPlaceId, contextSuggestions, setChatHandoff } from './chatContext';
 
 export function ChatBubble() {
@@ -45,8 +47,11 @@ export function ChatBubble() {
     run.submit(text, { placeId });
   };
 
-  const openFull = () => {
-    setChatHandoff({ turns, placeId });
+  // The bubble has no map or sidebar: its turns are words only, and a reference opens the full chat on that artifact.
+  const artifacts = useMemo(() => deriveArtifacts(turns), [turns]);
+
+  const openFull = (artifactId?: string) => {
+    setChatHandoff({ turns, placeId, artifactId });
     setExpanded(false);
     go('ask', undefined, { place: placeId ?? 'none' });
   };
@@ -78,7 +83,7 @@ export function ChatBubble() {
           <span style={{ font: '600 14px/1.3 var(--font)' }}>Ask</span>
           <span className="tiny">{contextHint(ctx, place?.name)}</span>
         </div>
-        <button className="btn btn-text btn-sm" onClick={openFull} title="Continue in the full chat"><Ms n="open_in_full" />Open in full chat</button>
+        <button className="btn btn-text btn-sm" onClick={() => openFull()} title="Continue in the full chat"><Ms n="open_in_full" />Open in full chat</button>
         <button className="icon-btn" onClick={() => setExpanded(false)} aria-label="Close chat"><Ms n="close" /></button>
       </div>
 
@@ -91,6 +96,7 @@ export function ChatBubble() {
             ))}
           </div>
         )}
+        <ArtifactsContext.Provider value={{ artifacts, selectedId: null, select: openFull }}>
         {turns.map((turn) => (
           <TurnView
             key={turn.id}
@@ -106,6 +112,7 @@ export function ChatBubble() {
             onAskFollowup={send}
           />
         ))}
+        </ArtifactsContext.Provider>
       </div>
 
       <div style={{ padding: 10 }}>

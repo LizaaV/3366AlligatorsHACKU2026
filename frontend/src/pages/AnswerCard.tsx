@@ -4,6 +4,7 @@ import { api } from '../api';
 import { Btn, ConfidenceBadge, Ms, Tier } from '../components/ui';
 import type { Answer } from '../model';
 import { cloudFromPercent } from '../lib/format';
+import { ArtifactRefs, LinkedText } from '../components/artifacts/ArtifactRefs';
 
 /** The contract's `RouteOption` (`contracts/openapi.json`): `sat`, not `satellite`. */
 type RouteOption = Answer['route'][number];
@@ -62,7 +63,7 @@ function Routing({ route }: { route: RouteOption[] }) {
   );
 }
 
-export function AnswerCard({ answer: a, question, placeId, runId, onRunSkill, onAskFollowup }: { answer: Answer; question: string; placeId: string | null; runId?: string | null; onRunSkill: (id: string) => void; onAskFollowup?: (q: string) => void }) {
+export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunSkill, onAskFollowup }: { answer: Answer; turnId: string; question: string; placeId: string | null; runId?: string | null; onRunSkill: (id: string) => void; onAskFollowup?: (q: string) => void }) {
   const { open, go, places, skills } = useStore();
   const used = a.proof.filter((p) => p.used).length;
   const place = places.find((p) => p.id === placeId);
@@ -81,8 +82,9 @@ export function AnswerCard({ answer: a, question, placeId, runId, onRunSkill, on
       </div>
       <div style={{ font: '600 22px/1.18 var(--font)', letterSpacing: -0.4, textWrap: 'balance' }}>{a.title}</div>
       {a.sentence && (
-        <div className="body-sm" style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-dim, inherit)' }}>{a.sentence}</div>
+        <div className="body-sm" style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-dim, inherit)' }}><LinkedText text={a.sentence} turnId={turnId} /></div>
       )}
+      <ArtifactRefs turnId={turnId} />
       {a.stats.length > 0 && (
         <div className="stats" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
           {a.stats.map((s) => (

@@ -73,6 +73,8 @@ export const contextHint = (ctx: ChatContext, placeName?: string): string => {
 export interface ChatHandoff {
   turns: AskTurn[];
   placeId: string | null;
+  /** An artifact to select once the Ask page has the conversation. */
+  artifactId?: string;
 }
 
 let pending: ChatHandoff | null = null;

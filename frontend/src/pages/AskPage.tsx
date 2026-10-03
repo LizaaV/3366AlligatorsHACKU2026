@@ -9,14 +9,17 @@ import { api } from '../api';
 import type { MapLayer } from '../model';
 import { layerIdsFrom, passTimelineFrom } from '../model';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../lib/geo';
-import { useAskRun, type AskTurn } from '../ask/useAskRun';
+import { useAskRun } from '../ask/useAskRun';
 import { Composer } from '../components/chat/Composer';
 import { PlacePicker, type Spot } from '../components/chat/PlacePicker';
 import { ChatSidebar } from '../components/chat/ChatSidebar';
 import { TurnView } from '../components/chat/TurnView';
 import { takeChatHandoff } from '../components/chat/chatContext';
 import { turnsFromThread } from '../components/chat/threadTurns';
-import { LayerRail, PassStepper, SatelliteCompare } from '../components/place';
+import { LayerRail } from '../components/place';
+import { ArtifactsContext } from '../components/artifacts/ArtifactsContext';
+import { ArtifactsPanel, MIN_PANEL_W, usePanelWidth } from '../components/artifacts/ArtifactsPanel';
+import { deriveArtifacts, primaryArtifactOf } from '../components/artifacts/artifacts';
 import '../components/chat/chat.css';
 
 function useViewport() {
@@ -50,8 +53,11 @@ export function AskPage({ active }: { active: boolean }) {
   /** A temporary pinned point (geocoder result, coordinates or globe click) used as the chat's place. */
   const [spot, setSpot] = useState<Spot | null>(null);
   const [globePick, setGlobePick] = useState<{ lat: number; lon: number } | null>(null);
-  const [showPasses, setShowPasses] = useState(false);
-  const [compare, setCompare] = useState<AskTurn | null>(null);
+  /** Artifacts sidebar: what is selected, whether it is shrunk to a pill, or expanded over the map. */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [panelW, setPanelW] = usePanelWidth(W);
   const [loadingThread, setLoadingThread] = useState(false);
   const thread = useRef<HTMLDivElement>(null);
   const spotRef = useRef<Spot | null>(null);
@@ -67,7 +73,6 @@ export function AskPage({ active }: { active: boolean }) {
     setLayers((cur) => (cur.length ? cur : catalogLayers));
   }, [catalogLayers]);
 
-  const cx = sideW + (W - sideW) / 2;
   const cy = H / 2;
 
   const flyTo = useCallback((p: { lat: number; lon: number; zoom: number }) => {
@@ -99,22 +104,89 @@ export function AskPage({ active }: { active: boolean }) {
   // `stage` to drive the map, and reads the blocks the run produced.
   const run = useAskRun({ lang, selectedPlaceId: askPlaceId });
   const { turns, last, stage } = run;
+
+  /* ---------------- artifacts ---------------- */
+
+  // Artifacts are derived from the turns' blocks (see components/artifacts/artifacts.ts), so a
+  // reopened thread brings them back. Only layers the map can draw are offered as layers.
+  const catalogIds = useMemo(() => new Set(catalogLayers.map((l) => l.id)), [catalogLayers]);
+  const artifacts = useMemo(() => deriveArtifacts(turns, (id) => catalogIds.has(id)), [turns, catalogIds]);
+  const selected = artifacts.find((a) => a.id === selectedId) ?? null;
+  const artifactsRef = useRef(artifacts);
+  artifactsRef.current = artifacts;
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const placeIdOf = useCallback((turnId: string) => turns.find((t) => t.id === turnId)?.placeId ?? null, [turns]);
+
+  const panelOpen = !mobile && artifacts.length > 0 && !collapsed;
+  const expandedW = Math.max(MIN_PANEL_W, W - sideW - 24);
+  const panelWidth = expanded ? expandedW : panelW;
+  /** Room the right-edge map controls and the map centre keep clear of the panel. */
+  const rightPad = panelOpen ? panelWidth + 12 : 0;
+  const cx = sideW + (W - sideW - rightPad) / 2;
+
   const ask = useCallback((text: string, opts: { skillId?: string; placeId?: string | null } = {}) => run.submit(text, { ...opts, point: spotRef.current }), [run]);
   // The contract streams a `timeline` block rather than a `timeline` field on the answer.
-  const timeline = useMemo(() => (last ? passTimelineFrom(last.blocks) : null), [last]);
+  const lastTimeline = useMemo(() => (last ? passTimelineFrom(last.blocks) : null), [last]);
+  // The map's pass cursor follows the selected artifact's run when it has passes of its own.
+  const selectedTurn = selected ? turns.find((t) => t.id === selected.turnId) : undefined;
+  const timeline = useMemo(() => (selectedTurn ? passTimelineFrom(selectedTurn.blocks) : null) ?? lastTimeline, [selectedTurn, lastTimeline]);
+
+  const selectArtifact = useCallback((id: string) => {
+    const next = artifactsRef.current.find((a) => a.id === id);
+    if (!next) return;
+    const prev = selectedRef.current;
+    if (!prev || prev.turnId !== next.turnId) {
+      const tl = passTimelineFrom(next.blocks);
+      if (tl) setDateIdx(Math.max(0, tl.dates.length - 1));
+    }
+    setSelectedId(id);
+    setCollapsed(false);
+  }, []);
+
+  // A run that just finished opens its primary artifact (else its first); a reopened thread opens the latest.
+  const autoRun = useRef<string | null>(null);
+  const hydrating = useRef(false);
+  const pendingSelect = useRef<string | null>(null);
+  useEffect(() => {
+    if (pendingSelect.current) {
+      if (artifacts.some((a) => a.id === pendingSelect.current)) {
+        selectArtifact(pendingSelect.current);
+        pendingSelect.current = null;
+      }
+      return;
+    }
+    if (!last || last.phase !== 'done' || !last.runId || autoRun.current === last.runId) return;
+    autoRun.current = last.runId;
+    const pick = hydrating.current ? artifacts[artifacts.length - 1] : primaryArtifactOf(artifacts, last.id) ?? artifacts[0];
+    hydrating.current = false;
+    if (!pick) return;
+    setSelectedId(pick.id);
+    if (!mobile) setCollapsed(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artifacts, last]);
+
+  // A layer artifact is on the map while it is selected, and off again when something else is
+  // chosen (unless the layer was already on before).
+  const activeLayer = selected?.kind === 'layer' ? selected.layerId ?? null : null;
+  const layersRef = useRef<MapLayer[]>([]);
+  layersRef.current = layers;
+  const selectedPlace = selected ? places.find((x) => x.id === placeIdOf(selected.turnId)) : undefined;
+  useEffect(() => {
+    if (!activeLayer) return;
+    const cur = layersRef.current.find((l) => l.id === activeLayer);
+    const wasOn = !!(cur && cur.on && cur.ready);
+    setLayers((ls) => ls.map((l) => (l.id === activeLayer ? { ...l, ready: true, on: true } : l)));
+    if (selectedPlace) flyTo(selectedPlace);
+    return () => {
+      if (!wasOn) setLayers((ls) => ls.map((l) => (l.id === activeLayer ? { ...l, on: false } : l)));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLayer, selectedId]);
 
   const setLayersOn = useCallback(
     (ids: string[]) => setLayers((ls) => ls.map((l) => (ids.includes(l.id) ? { ...l, ready: true, on: true } : l))),
     [],
-  );
-
-  /** Clicking a point on a timeline block moves the map's pass cursor to that scene (§6 `{"time": "cursor"}`). */
-  const pickScene = useCallback(
-    (scene: string) => {
-      const i = timeline?.scenes.indexOf(scene) ?? -1;
-      if (i >= 0) setDateIdx(i);
-    },
-    [timeline],
   );
 
   /**
@@ -161,7 +233,7 @@ export function AskPage({ active }: { active: boolean }) {
   useEffect(() => {
     const el = thread.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-  }, [turns, last?.steps.length, showPasses]);
+  }, [turns, last?.steps.length]);
 
   const submit = () => {
     const text = q.trim();
@@ -203,12 +275,13 @@ export function AskPage({ active }: { active: boolean }) {
 
   const resetView = useCallback(() => {
     setLayers(catalogLayers);
-    setShowPasses(false);
-    setCompare(null);
+    setSelectedId(null);
+    setExpanded(false);
   }, [catalogLayers]);
 
   const newChat = () => {
     run.reset();
+    autoRun.current = null;
     setQ('');
     setSpot(null);
     resetView();
@@ -220,6 +293,9 @@ export function AskPage({ active }: { active: boolean }) {
       const detail = await api.threads.get(threadId);
       const loaded = turnsFromThread(detail);
       resetView();
+      autoRun.current = null;
+      hydrating.current = true;
+      pendingSelect.current = null;
       run.hydrate(loaded);
       const pid = loaded[loaded.length - 1]?.placeId ?? null;
       setSpot(null);
@@ -237,6 +313,8 @@ export function AskPage({ active }: { active: boolean }) {
     const h = takeChatHandoff();
     if (!h) return;
     resetView();
+    autoRun.current = null;
+    pendingSelect.current = h.artifactId ?? null;
     run.hydrate(h.turns);
     setAskPlace(h.placeId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -285,17 +363,18 @@ export function AskPage({ active }: { active: boolean }) {
         { icon: 'add_location_alt', text: 'Add a place to ask about it', go: () => open({ kind: 'addPlace' }) },
       ];
 
-  const canStep = !!timeline && timeline.dates.length > 1;
+  const sliderArtifact = [...artifacts].reverse().find((a) => a.kind === 'slider') ?? null;
   const closeChats = useCallback(() => setSidebar(false), []);
   const current = last?.threadId ? { threadId: last.threadId, title: turns[0]?.text ?? 'New chat' } : null;
 
   return (
+    <ArtifactsContext.Provider value={{ artifacts, selectedId: selected?.id ?? null, select: selectArtifact }}>
     <div style={{ position: 'fixed', top: navH, left: 0, right: 0, bottom: mobile ? 64 : 0, overflow: 'hidden', background: '#000', visibility: active ? 'visible' : 'hidden' }} aria-hidden={!active}>
       <Suspense fallback={null}>
         <Globe
           visible={active && !isMap}
           offsetRight={!mobile}
-          offsetPx={mobile ? 0 : sideW / 2}
+          offsetPx={mobile ? 0 : (sideW - rightPad) / 2}
           focus={focusPt ? { lat: focusPt.lat, lon: focusPt.lon } : null}
           onPickLocation={(p) => setGlobePick({ lat: p.lat, lon: p.lon })}
         />
@@ -304,7 +383,7 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* LAYER RAIL (place view): right edge, under the zoom and globe buttons. */}
       {isMap && (
-        <div style={{ position: 'absolute', right: 8, top: 0, width: 0, height: '100%', zIndex: 25 }}>
+        <div style={{ position: 'absolute', right: 8 + rightPad, top: 0, width: 0, height: '100%', zIndex: 25 }}>
           <LayerRail
             layers={layers}
             side="right"
@@ -315,13 +394,6 @@ export function AskPage({ active }: { active: boolean }) {
               setLayers((ls) => ls.map((x) => (x.id === id ? { ...x, on: !x.on } : x)));
             }}
           />
-        </div>
-      )}
-
-      {/* SATELLITE COMPARISON (place view) */}
-      {compare && (
-        <div className="panel fade-up" style={{ position: 'absolute', right: mobile ? 8 : 20, left: mobile ? 8 : 'auto', top: 16, bottom: mobile ? 8 : 180, width: mobile ? 'auto' : 440, overflowY: 'auto', zIndex: 30 }}>
-          <SatelliteCompare place={place} blocks={compare.blocks} runId={compare.runId ?? undefined} onClose={() => setCompare(null)} />
         </div>
       )}
 
@@ -340,7 +412,7 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* HERO */}
       {showHero && H >= 520 && (
-        <div style={{ position: 'absolute', left: sideW, right: 0, top: mobile ? 56 : '9%', padding: '0 24px', textAlign: 'center', pointerEvents: 'none', animation: 'fadeUp .6s ease both' }}>
+        <div style={{ position: 'absolute', left: sideW, right: rightPad, top: mobile ? 56 : '9%', padding: '0 24px', textAlign: 'center', pointerEvents: 'none', animation: 'fadeUp .6s ease both' }}>
           <div className="display" style={{ textShadow: '0 2px 24px rgba(0,0,0,.7)' }}>{t('hero.title')}</div>
           <div className="body-lg" style={{ marginTop: 14, maxWidth: 560, marginInline: 'auto', textShadow: '0 1px 12px rgba(0,0,0,.8)' }}>{t('hero.line')}</div>
         </div>
@@ -365,19 +437,8 @@ export function AskPage({ active }: { active: boolean }) {
                   onRetry={run.retry}
                   onRunSkill={(id) => runSkill(id)}
                   onAskFollowup={(text) => ask(text)}
-                  onPickScene={pickScene}
-                  onCompare={() => setCompare(turn)}
                 />
               ))}
-              {showPasses && timeline && (
-                <div className="col" style={{ gap: 6 }}>
-                  <div className="row" style={{ justifyContent: 'space-between' }}>
-                    <span className="eyebrow">Satellite passes</span>
-                    <button className="btn btn-text btn-sm" onClick={() => setShowPasses(false)}><Ms n="close" />Hide</button>
-                  </div>
-                  <PassStepper timeline={timeline} index={dateIdx} onChange={setDateIdx} />
-                </div>
-              )}
             </div>
           )}
 
@@ -387,8 +448,8 @@ export function AskPage({ active }: { active: boolean }) {
                 <Ms n={sg.icon} />{sg.text}
               </button>
             ))}
-            {canStep && !showPasses && (
-              <button onClick={() => setShowPasses(true)} className="chip glass" style={{ color: '#fff' }}>
+            {sliderArtifact && selected?.id !== sliderArtifact.id && (
+              <button onClick={() => selectArtifact(sliderArtifact.id)} className="chip glass" style={{ color: '#fff' }}>
                 <Ms n="timeline" />Step through satellite passes
               </button>
             )}
@@ -436,7 +497,7 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* MAP CONTROLS: zoom and back to the globe */}
       {isMap && !mobile && (
-        <div className="col" style={{ position: 'absolute', right: 20, top: 16, gap: 6, zIndex: 22 }}>
+        <div className="col" style={{ position: 'absolute', right: 20 + rightPad, top: 16, gap: 6, zIndex: 22 }}>
           <IconBtn icon="add" className="boxed" title="Zoom in" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(18, z + 1))} />
           <IconBtn icon="remove" className="boxed" title="Zoom out" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(3, z - 1))} />
           <IconBtn icon="public" className="boxed" title="Back to globe" aria-label="Back to globe" onClick={() => setMode('globe')} />
@@ -445,6 +506,25 @@ export function AskPage({ active }: { active: boolean }) {
       {isMap && mobile && (
         <Btn size="sm" icon="public" onClick={() => setMode('globe')} style={{ position: 'absolute', right: 12, top: 12, zIndex: 22 }}>Globe</Btn>
       )}
+
+      <ArtifactsPanel
+        artifacts={artifacts}
+        selectedId={selected?.id ?? null}
+        onSelect={selectArtifact}
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        expanded={expanded}
+        onExpand={setExpanded}
+        width={panelWidth}
+        onResize={setPanelW}
+        mobile={mobile}
+        places={places}
+        placeIdOf={placeIdOf}
+        dateIdx={dateIdx}
+        onDateIdx={setDateIdx}
+        layerShown={on}
+      />
     </div>
+    </ArtifactsContext.Provider>
   );
 }
