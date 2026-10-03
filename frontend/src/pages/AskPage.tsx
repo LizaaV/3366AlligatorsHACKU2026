@@ -76,10 +76,14 @@ export function AskPage({ active }: { active: boolean }) {
 
   // Selecting a place (from Places page, picker or URL) shows it on the map; "no place" returns to the globe.
   const lastPlace = useRef<string | null | undefined>(undefined);
+  const placesLoaded = useRef(false);
   useEffect(() => {
     if (lastPlace.current === askPlaceId) return;
-    const first = lastPlace.current === undefined;
+    // The store picks a default place once places finish loading; that is not the user
+    // choosing one, so the landing view stays on the globe.
+    const first = lastPlace.current === undefined || (lastPlace.current === null && !placesLoaded.current);
     lastPlace.current = askPlaceId;
+    placesLoaded.current = places.length > 0;
     if (first && !route.query.place) return; // landing stays on the globe
     if (place) {
       setSpot(null);

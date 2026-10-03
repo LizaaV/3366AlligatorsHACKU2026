@@ -33,12 +33,18 @@ export function Composer({
   const L = LANGS.find((l) => l.code === lang) ?? LANGS[0];
   const ta = useRef<HTMLTextAreaElement>(null);
 
-  // Grow with the text up to a cap, then scroll.
+  // Grow with the text up to a cap, then scroll. Re-measured on resize, since a narrow
+  // first layout would otherwise leave the box tall.
   useEffect(() => {
     const el = ta.current;
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, compact ? 110 : 168)}px`;
+    const fit = () => {
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, compact ? 110 : 168)}px`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
   }, [value, compact]);
 
   useEffect(() => {
