@@ -138,6 +138,46 @@ def search(area: Area, start: date, end: date) -> list[Any]:
     return items
 
 
+def search_long(area: Area, start: date, end: date, chunk_days: int = 182) -> list[Any]:
+    """`search` over a long window: chunks searched in parallel (one big paginated search is
+    ~15 s for 5 years); chunks that ended over SEARCH_SETTLED_DAYS ago are cached on disk too.
+    """
+    chunks = []
+    s = start
+    while s <= end:
+        e = min(s + timedelta(days=chunk_days - 1), end)
+        chunks.append((s, e))
+        s = e + timedelta(days=1)
+    with ThreadPoolExecutor(max_workers=min(len(chunks), settings.READ_THREADS)) as pool:
+        parts = list(pool.map(lambda c: _search_settled(area, *c), chunks))
+    return _dedupe([it for part in parts for it in part])
+
+
+def _search_settled(area: Area, start: date, end: date) -> list[Any]:
+    if (date.today() - end).days < settings.SEARCH_SETTLED_DAYS:
+        return search(area, start, end)
+    import gzip
+    import json
+
+    import pystac
+
+    path = settings.data_dir() / "cache" / f"search_{cache.key(area.geojson, start, end)}.json.gz"
+    try:
+        with gzip.open(path, "rt") as f:
+            return [pystac.Item.from_dict(d) for d in json.load(f)]
+    except FileNotFoundError:
+        pass
+    except Exception:  # noqa: BLE001 — a corrupt cache file is just a miss
+        path.unlink(missing_ok=True)
+    items = search(area, start, end)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+    with gzip.open(tmp, "wt") as f:
+        json.dump([it.to_dict() for it in items], f)
+    tmp.replace(path)
+    return items
+
+
 def _solar_day(item: Any, lon: float) -> date:
     dt = datetime.fromisoformat(item.properties["datetime"].replace("Z", "+00:00"))
     return (dt + timedelta(hours=lon / 15)).date()
@@ -225,7 +265,13 @@ def _load_item(item: Any, bands: list[str], gbox: Any) -> dict[str, np.ndarray]:
 
     resampling = {b: ("nearest" if b == "scl" else "bilinear") for b in bands}
     ds = odc.stac.load(
-        [item], bands=bands, geobox=gbox, groupby="id", resampling=resampling, chunks=None
+        [item],
+        bands=bands,
+        geobox=gbox,
+        groupby="id",
+        resampling=resampling,
+        chunks=None,
+        pool=len(bands) if len(bands) > 1 else None,  # bands of one item in parallel (latency)
     )
     return {b: ds[b].values[0] for b in bands}
 

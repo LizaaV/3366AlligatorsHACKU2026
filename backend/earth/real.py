@@ -339,10 +339,14 @@ def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -
     res = es.choose_resolution(area, settings.SERIES_RESOLUTION_M)
     gbox = es.geobox(area, res)
     inside = es.area_mask(area, gbox)
-    items = es.search(area, periods[0][0] - timedelta(days=1), periods[-1][1] + timedelta(days=1))
-    by_period = _bucket(es.group(items, area), periods)
-    chosen = _clearest_per_period(by_period, gbox, inside)
-    bands = _read_parallel([(c.group.items, [a_band, b_band], gbox) for c in chosen])
+    span = (periods[0][0] - timedelta(days=1), periods[-1][1] + timedelta(days=1))
+    by_period = _bucket(es.group(es.search_long(area, *span), area), periods)
+    chosen = _clearest_per_period(by_period, gbox, inside, [a_band, b_band])
+    missing = [c for c in chosen if c.arrays is None]
+    late = _read_parallel([(c.group.items, [a_band, b_band], gbox) for c in missing])
+    for c, arr in zip(missing, late, strict=True):
+        c.arrays = arr
+    bands = [c.arrays for c in chosen]
     points: list[SeriesPoint] = []
     clouds: list[float] = []
     for c, arr in zip(chosen, bands, strict=True):
@@ -524,6 +528,7 @@ class _Pick:
     cloud: float
     clean: int
     valid: np.ndarray
+    arrays: dict[str, np.ndarray] | None = None  # index bands, if read along with SCL
 
 
 def _read_parallel(jobs: list[tuple[list[Any], list[str], Any]]) -> list[dict[str, np.ndarray]]:
@@ -534,9 +539,13 @@ def _read_parallel(jobs: list[tuple[list[Any], list[str], Any]]) -> list[dict[st
 
 
 def _clearest_per_period(
-    by_period: list[list[es.Group]], gbox: Any, inside: np.ndarray
+    by_period: list[list[es.Group]], gbox: Any, inside: np.ndarray, bands: list[str]
 ) -> list[_Pick]:
-    """SCL-only scans in rounds: periods without a good scene yet get their next candidates."""
+    """Scans in rounds: periods without a good scene yet get their next candidates.
+
+    Round 1 reads SCL and the index bands together (the least tile-cloudy pass is usually the
+    one kept); later rounds read SCL only and the winner's bands are read afterwards.
+    """
     total = int(inside.sum())
     scanned: list[list[_Pick]] = [[] for _ in by_period]
     pos = [0] * len(by_period)
@@ -549,12 +558,13 @@ def _clearest_per_period(
             pos[i] += take
         if not jobs:
             break
-        scls = _read_parallel([(g.items, ["scl"], gbox) for _, g in jobs])
-        for (i, g), arr in zip(jobs, scls, strict=True):
+        want = ["scl", *bands] if take == settings.SERIES_SCAN_ROUNDS[0] else ["scl"]
+        reads = _read_parallel([(g.items, want, gbox) for _, g in jobs])
+        for (i, g), arr in zip(jobs, reads, strict=True):
             valid = inside & ~np.isin(arr["scl"], settings.S2_INVALID_SCL)
             clean = int(valid.sum())
             cloud = 1.0 - clean / total if total else 1.0
-            scanned[i].append(_Pick(g, cloud, clean, valid))
+            scanned[i].append(_Pick(g, cloud, clean, valid, arr if len(want) > 1 else None))
     return [p for p in (pick_clearest(s) for s in scanned) if p is not None]
 
 
