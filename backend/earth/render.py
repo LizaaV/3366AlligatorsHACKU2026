@@ -69,3 +69,52 @@ def write_png(rgba: np.ndarray, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(rgba, mode="RGBA").save(path, optimize=True)
     return path
+
+
+# True colour: one fixed stretch for every scene so before/after look comparable.
+RGB_BLACK = 0.01  # reflectance mapped to black (takes the haze floor off)
+RGB_WHITE = 0.22  # reflectance mapped to white
+RGB_GAMMA = 1 / 1.8
+RGB_OUTSIDE_DIM = 0.4  # pixels outside the outline keep their photo but at 40% brightness
+RGB_MIN_SIDE = 640  # 10 m pixels are tiny on screen: smooth-upscale so it isn't a postage stamp
+
+
+def _resize(a: np.ndarray, size: tuple[int, int]) -> np.ndarray:
+    img = Image.fromarray(a.astype(np.float32), mode="F")
+    return np.asarray(img.resize(size, Image.Resampling.BICUBIC))
+
+
+def _smooth_mask(mask: np.ndarray, size: tuple[int, int]) -> np.ndarray:
+    """Bilinear-upscaled 0..1 mask: a soft outline edge instead of stair steps."""
+    img = Image.fromarray(mask.astype(np.float32), mode="F")
+    return np.clip(np.asarray(img.resize(size, Image.Resampling.BILINEAR)), 0.0, 1.0)
+
+
+def rgb_to_png_array(refl: np.ndarray, inside: np.ndarray | None = None) -> np.ndarray:
+    """(H, W, 3) reflectance (NaN = no data) → RGBA uint8.
+
+    Fixed stretch (0.01–0.22 reflectance, gamma 1/1.8), the same for every scene. No-data pixels
+    are transparent; pixels outside the outline are dimmed to 40% so the area stays readable in
+    context. Small grids are bicubic-upscaled so the longer side is at least 640 px.
+    """
+    h, w = refl.shape[:2]
+    nodata = np.isnan(refl).any(axis=-1)
+    ins = np.ones((h, w), bool) if inside is None else inside
+    chans = np.nan_to_num(refl)
+    k = max(1, int(np.ceil(RGB_MIN_SIDE / max(h, w))))
+    if k > 1:
+        size = (w * k, h * k)
+        chans = np.stack([_resize(chans[..., c], size) for c in range(3)], axis=-1)
+        nodata = _resize(nodata.astype(np.float32), size) > 0.5
+        ins = _smooth_mask(ins, size)
+    t = np.clip((chans - RGB_BLACK) / (RGB_WHITE - RGB_BLACK), 0, 1) ** RGB_GAMMA
+    gain = RGB_OUTSIDE_DIM + (1 - RGB_OUTSIDE_DIM) * ins.astype(np.float32)
+    t = t * gain[..., None]
+    rgba = np.zeros((*t.shape[:2], 4), dtype=np.uint8)
+    rgba[..., :3] = np.rint(t * 255).astype(np.uint8)
+    rgba[..., 3] = np.where(nodata, 0, 255)
+    return rgba
+
+
+def rgb_to_png(refl: np.ndarray, path: Path, inside: np.ndarray | None = None) -> Path:
+    return write_png(rgb_to_png_array(refl, inside), path)

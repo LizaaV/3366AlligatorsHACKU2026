@@ -34,7 +34,7 @@ from earth.errors import (
     NoClearScenes,
     WrongSceneKind,
 )
-from earth.render import colourise, layer_path, layer_url, write_png
+from earth.render import colourise, layer_path, layer_url, rgb_to_png, write_png
 from earth.types import (
     Area,
     Comparison,
@@ -229,7 +229,7 @@ def surroundings(area: Area, ring_m: int = 300) -> Area:
 def render(layer: LayerRef) -> RenderedLayer:
     """Writes the PNG now (data/layers/{run_id}/{measure}/{scene}.png) and returns its URL."""
     if layer.measure is None:
-        raise EarthError("Only measure layers can be rendered for now.", "Call index() first.")
+        return _render_rgb(layer)
     values, bounds = _impl().layer_pixels(layer.id)
     run_id = current_run()
     write_png(colourise(values, layer.measure), layer_path(run_id, layer.measure, layer.scene))
@@ -238,6 +238,24 @@ def render(layer: LayerRef) -> RenderedLayer:
         url=layer_url(run_id, layer.measure, layer.scene),
         bounds=bounds,
         measure=layer.measure,
+        scene=layer.scene,
+        date=layer.date,
+    )
+
+
+def _render_rgb(layer: LayerRef) -> RenderedLayer:
+    """A raw layer as a true-colour photo: .../rgb/{scene}.png, `measure=None`."""
+    if settings.impl() == "stub":
+        rgb, inside, bounds = _impl().layer_rgb(layer.id)
+    else:
+        rgb, inside, bounds = importlib.import_module("earth.truecolour").layer_rgb(layer.id)
+    run_id = current_run()
+    rgb_to_png(rgb, layer_path(run_id, None, layer.scene), inside)
+    return RenderedLayer(
+        layer_id=layer.id,
+        url=layer_url(run_id, None, layer.scene),
+        bounds=bounds,
+        measure=None,
         scene=layer.scene,
         date=layer.date,
     )

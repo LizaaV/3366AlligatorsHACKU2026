@@ -395,3 +395,19 @@ def weather(area: Area, last: str = "14d") -> RainSeries:
         lat=round(_HHW_LAT, 4),
         lon=round(_HHW_LON, 4),
     )
+
+
+def layer_rgb(
+    layer_id: str,
+) -> tuple[np.ndarray, np.ndarray, tuple[float, float, float, float]]:
+    """A synthetic 128×128 true-colour image (reflectance), greener when the stub is greener."""
+    area, scene, _ = _layers[layer_id]
+    g = min(max((_value("greenness", scene.date, area.is_ring()) + 0.1) / 0.9, 0.0), 1.0)
+    rng = np.random.default_rng(zlib.crc32(scene.id.encode()))
+    tex = rng.normal(0, 0.012, (128, 128))
+    green = np.array([0.04, 0.09, 0.035])
+    brown = np.array([0.15, 0.12, 0.09])
+    base = brown * (1 - g) + green * g
+    img = (base[None, None, :] + tex[..., None]).astype(np.float32).clip(0.005, None)
+    yy, xx = np.mgrid[-1:1:128j, -1:1:128j]
+    return img, (xx**2 + yy**2) <= 1, area.bbox()
