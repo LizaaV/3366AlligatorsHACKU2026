@@ -2143,6 +2143,373 @@
           }
         }
       }
+    },
+    "/api/watches": {
+      "get": {
+        "tags": [
+          "watches"
+        ],
+        "summary": "List Watches",
+        "operationId": "list_watches_api_watches_get",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WatchDto"
+                  },
+                  "title": "Response List Watches Api Watches Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "watches"
+        ],
+        "summary": "Create Watch",
+        "operationId": "create_watch_api_watches_post",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`place_id` is not one of this user's places"
+          },
+          "422": {
+            "description": "Invalid body, a refused question (`detail` is a `FeasibilityDto`), or too many watches"
+          }
+        }
+      }
+    },
+    "/api/watches/feasibility": {
+      "post": {
+        "tags": [
+          "watches"
+        ],
+        "summary": "Check Feasibility",
+        "operationId": "check_feasibility_api_watches_feasibility_post",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeasibilityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeasibilityDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`place_id` is not one of this user's places"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/watches/{watch_id}": {
+      "patch": {
+        "tags": [
+          "watches"
+        ],
+        "summary": "Patch Watch",
+        "operationId": "patch_watch_api_watches__watch_id__patch",
+        "parameters": [
+          {
+            "name": "watch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "title": "Watch Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchWatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such watch for this user"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "watches"
+        ],
+        "summary": "Delete Watch",
+        "operationId": "delete_watch_api_watches__watch_id__delete",
+        "parameters": [
+          {
+            "name": "watch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "title": "Watch Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such watch for this user"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/watches/{watch_id}/proof": {
+      "get": {
+        "tags": [
+          "watches"
+        ],
+        "summary": "Get Proof",
+        "operationId": "get_proof_api_watches__watch_id__proof_get",
+        "parameters": [
+          {
+            "name": "watch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "title": "Watch Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchProofDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such watch for this user"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3054,6 +3421,80 @@
         "title": "CreatePlaceRequest",
         "description": "Send `geometry` (a GeoJSON polygon; `center` is then ignored and recomputed),\nor `center` + `radius_m` for a dropped pin."
       },
+      "CreateWatchRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "category_key": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Category Key",
+            "default": ""
+          },
+          "place_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Id"
+          },
+          "skill_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Skill Id",
+            "default": ""
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "condition": {
+            "type": "string",
+            "maxLength": 300,
+            "title": "Condition",
+            "default": ""
+          },
+          "channels": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "email",
+                "whatsapp",
+                "sms",
+                "push",
+                "slack"
+              ]
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Channels"
+          },
+          "cadence": {
+            "type": "string",
+            "maxLength": 300,
+            "title": "Cadence",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "question"
+        ],
+        "title": "CreateWatchRequest"
+      },
       "DashboardBlockOut": {
         "properties": {
           "block_id": {
@@ -3370,6 +3811,132 @@
         ],
         "title": "ExpectationRow",
         "description": "What a hypothesis predicts per measure, and what was observed."
+      },
+      "FeasibilityDto": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "partial": {
+            "type": "boolean",
+            "title": "Partial",
+            "description": "Answerable only with paid imagery or lower confidence.",
+            "default": false
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "skill_id": {
+            "type": "string",
+            "title": "Skill Id",
+            "default": ""
+          },
+          "category_key": {
+            "type": "string",
+            "title": "Category Key",
+            "default": ""
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric",
+            "default": ""
+          },
+          "condition": {
+            "type": "string",
+            "title": "Condition",
+            "default": ""
+          },
+          "satellites": {
+            "type": "string",
+            "title": "Satellites",
+            "default": "\u2014"
+          },
+          "cadence": {
+            "type": "string",
+            "title": "Cadence",
+            "default": "\u2014"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "paid"
+            ],
+            "title": "Tier",
+            "default": "free"
+          },
+          "cost": {
+            "type": "string",
+            "title": "Cost",
+            "default": "\u2014"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "High",
+              "Medium",
+              "Low"
+            ],
+            "title": "Confidence"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "alternative": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alternative",
+            "description": "Offered when `ok` is false."
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "title",
+          "confidence"
+        ],
+        "title": "FeasibilityDto",
+        "description": "'Can satellites actually watch this?', asked before a watch is created."
+      },
+      "FeasibilityRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "place_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "FeasibilityRequest"
       },
       "GuardEvent": {
         "properties": {
@@ -4281,6 +4848,84 @@
         "type": "object",
         "title": "PatchPlaceRequest",
         "description": "Every field optional. Sending `geometry` (wins over `center`) or `center` + `radius_m`\nreplaces the outline."
+      },
+      "PatchWatchRequest": {
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "condition": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition"
+          },
+          "channels": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "email",
+                    "whatsapp",
+                    "sms",
+                    "push",
+                    "slack"
+                  ]
+                },
+                "type": "array",
+                "maxItems": 5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channels"
+          },
+          "cadence": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cadence"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PatchWatchRequest",
+        "description": "Every field optional; unknown fields and explicit nulls are rejected (422)."
       },
       "PlaceContext": {
         "properties": {
@@ -6159,6 +6804,340 @@
         ],
         "title": "ValueSource",
         "description": "Where a prefilled clarification value came from."
+      },
+      "WatchDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category_key": {
+            "type": "string",
+            "title": "Category Key",
+            "default": ""
+          },
+          "place_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Id",
+            "description": "Null for a general watch, or place deleted."
+          },
+          "skill_id": {
+            "type": "string",
+            "title": "Skill Id",
+            "default": ""
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "condition": {
+            "type": "string",
+            "title": "Condition",
+            "default": ""
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric",
+            "default": ""
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": ""
+          },
+          "ci": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci",
+            "description": "90% interval [low, high]."
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "High",
+              "Medium",
+              "Low"
+            ],
+            "title": "Confidence",
+            "description": "Expected confidence for this question."
+          },
+          "baseline_label": {
+            "type": "string",
+            "title": "Baseline Label",
+            "default": ""
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "delta": {
+            "type": "string",
+            "title": "Delta",
+            "default": ""
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "warn",
+                  "alert"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Null until the first real run."
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "series": {
+            "$ref": "#/components/schemas/WatchSeries"
+          },
+          "channels": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "email",
+                "whatsapp",
+                "sms",
+                "push",
+                "slack"
+              ]
+            },
+            "type": "array",
+            "title": "Channels"
+          },
+          "cadence": {
+            "type": "string",
+            "title": "Cadence",
+            "default": ""
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "paid"
+            ],
+            "title": "Tier",
+            "default": "free"
+          },
+          "satellites": {
+            "type": "string",
+            "title": "Satellites",
+            "default": ""
+          },
+          "ring": {
+            "type": "boolean",
+            "title": "Ring",
+            "default": false
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "next_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run At"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/WatchEvent"
+            },
+            "type": "array",
+            "title": "Events",
+            "description": "Newest first."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "question",
+          "confidence",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WatchDto",
+        "description": "A saved watch.\n\nMeasurement fields (`value`, `ci`, `baseline`, `status`, `last_run_at`, `series`) are\n`null`/empty until a real run has produced them \u2014 the API never invents numbers.\n`enabled: false` means paused; `next_run_at: null` with `enabled: true` means \"not\nscheduled yet\" (there is no scheduler yet, so it is always null for now)."
+      },
+      "WatchEvent": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "alert"
+            ],
+            "title": "Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "text",
+          "level"
+        ],
+        "title": "WatchEvent"
+      },
+      "WatchProofDto": {
+        "properties": {
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/ProofScene"
+            },
+            "type": "array",
+            "title": "Scenes"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "WatchProofDto",
+        "description": "Scenes behind the watch's most recent run (the runs contract's `ProofScene`), plus the\nreproducibility hash. Empty `scenes` and `hash: \"\"` until the watch has run."
+      },
+      "WatchSeries": {
+        "properties": {
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "description": "Unit of every value below, e.g. 'ha'; '' = unitless.",
+            "default": ""
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels",
+            "description": "ISO date of each pass."
+          },
+          "current": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Current",
+            "description": "Measured value per pass."
+          },
+          "band_low": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Band Low",
+            "description": "Baseline band, low edge."
+          },
+          "band_high": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Band High",
+            "description": "Baseline band, high edge."
+          },
+          "mean": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Mean",
+            "description": "Baseline mean per pass."
+          }
+        },
+        "type": "object",
+        "title": "WatchSeries",
+        "description": "History of the watched metric, one point per pass, in **real units** (`unit`).\n\nThe chart normalises for drawing; the API never sends 0..1-scaled values. All arrays have\nthe same length as `labels`. Empty until the watch has real runs."
       }
     }
   }

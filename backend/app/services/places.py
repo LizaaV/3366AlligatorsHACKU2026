@@ -17,7 +17,7 @@ from pathlib import Path
 
 import earth
 from app.schemas.places import CreatePlaceRequest, DetailRow, PatchPlaceRequest, PlaceDto
-from app.services import memory
+from app.services import memory, watches
 from app.services.memory import ID_RE
 from earth import settings as earth_settings
 from earth.errors import BudgetExceeded
@@ -222,7 +222,8 @@ def update_place(user_id: str, place_id: str, req: PatchPlaceRequest) -> PlaceDt
 
 
 def delete_place(user_id: str, place_id: str) -> bool:
-    """Removes the record. Ids are never reused, so the orphaned memory file is unreachable."""
+    """Removes the record and detaches its watches. Ids are never reused, so the orphaned
+    memory file is unreachable."""
     if not ID_RE.fullmatch(place_id):
         return False
     path = _path(user_id)
@@ -232,4 +233,5 @@ def delete_place(user_id: str, place_id: str) -> bool:
         if len(kept) == len(rows):
             return False
         _save(path, kept)
+    watches.detach_place(user_id, place_id)  # its watches become general ones, not deleted
     return True
