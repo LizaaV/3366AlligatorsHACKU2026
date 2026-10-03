@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
+import { api } from '../api';
 import { Btn, ConfidenceBadge, Ms, Tier } from '../components/ui';
 import type { Answer } from '../model';
 import { cloudFromPercent } from '../lib/format';
@@ -61,8 +62,8 @@ function Routing({ route }: { route: RouteOption[] }) {
   );
 }
 
-export function AnswerCard({ answer: a, question, placeId, onRunSkill, onAskFollowup }: { answer: Answer; question: string; placeId: string | null; onRunSkill: (id: string) => void; onAskFollowup?: (q: string) => void }) {
-  const { open, notify, go, places, skills } = useStore();
+export function AnswerCard({ answer: a, question, placeId, runId, onRunSkill, onAskFollowup }: { answer: Answer; question: string; placeId: string | null; runId?: string | null; onRunSkill: (id: string) => void; onAskFollowup?: (q: string) => void }) {
+  const { open, go, places, skills } = useStore();
   const used = a.proof.filter((p) => p.used).length;
   const place = places.find((p) => p.id === placeId);
   // The backend sends the accent colour; it has no notion of our category list.
@@ -201,7 +202,7 @@ export function AnswerCard({ answer: a, question, placeId, onRunSkill, onAskFoll
           </div>
           <div className="row wrap" style={{ marginTop: 10, gap: 8, justifyContent: 'space-between' }}>
             <span className="tiny">Processing hash <span className="muted" style={{ fontFamily: 'ui-monospace, monospace' }}>{a.hash}</span> · re-runnable</span>
-            <Btn size="sm" icon="download" tier="free" onClick={() => notify('Proof pack downloaded · scenes, masks, parameters, hash', undefined, undefined, 'download')}>Proof pack</Btn>
+            {runId && <a className="btn btn-secondary btn-sm" href={api.shares.reportPdfUrl(runId)} download><Ms n="download" />Proof pack (PDF)</a>}
           </div>
         </Section>
       )}
@@ -212,7 +213,7 @@ export function AnswerCard({ answer: a, question, placeId, onRunSkill, onAskFoll
         ) : (
           <Btn variant="primary" icon="pentagon" onClick={() => go('places')}>Pick a place</Btn>
         )}
-        <Btn variant="secondary" icon="ios_share" tier="free" onClick={() => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: a.eyebrow } })}>Export</Btn>
+        <Btn variant="secondary" icon="ios_share" tier="free" onClick={() => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: a.eyebrow, id: runId ?? undefined } })}>Export</Btn>
         <Btn icon="support_agent" tier="paid" tierLabel="from $49" onClick={() => open({ kind: 'expert', context: a.title, placeId })}>Ask an expert</Btn>
       </div>
       {a.kind === 'place' && (

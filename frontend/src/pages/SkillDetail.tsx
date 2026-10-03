@@ -198,7 +198,6 @@ function Detail({ s }: { s: Skill }) {
         <div className="row wrap">
           <Btn icon={isInstalled ? 'remove_circle_outline' : 'download'} onClick={install}>{isInstalled ? 'Uninstall' : 'Install'}</Btn>
           <Btn icon="edit" onClick={() => go('library', 'new', { from: s.id })}>Duplicate &amp; edit</Btn>
-          <Btn icon="ios_share" onClick={() => open({ kind: 'export', target: { kind: 'skill', title: s.name, subtitle: `v${s.version} · by ${s.publisherName}` } })}>Export</Btn>
           <Btn icon="visibility" onClick={() => open({ kind: 'watchBuilder', skillId: s.id })}>Keep watching with this skill</Btn>
         </div>
       </div>

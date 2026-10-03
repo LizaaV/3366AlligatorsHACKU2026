@@ -153,7 +153,6 @@ export function WatchDetail({ id }: { id: string }) {
           <ConfidenceBadge level={w.confidence} />
         </div>
         <div className="row wrap">
-          <Btn icon="ios_share" tier="free" onClick={() => open({ kind: 'export', target: { kind: 'watch', title: w.name, subtitle: place?.name } })}>Export</Btn>
           <Btn icon="support_agent" tier="paid" tierLabel="from $49" onClick={() => open({ kind: 'expert', context: w.name, placeId: w.placeId })}>Ask an expert</Btn>
           <Btn icon="refresh" tier="free" onClick={() => notify(`Re-checking with the latest ${w.satellites.split(' · ')[0]} pass…`, undefined, undefined, 'satellite_alt')}>Run now</Btn>
           <Btn

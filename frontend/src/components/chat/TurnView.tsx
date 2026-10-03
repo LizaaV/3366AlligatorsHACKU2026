@@ -202,6 +202,7 @@ export function TurnView({
           answer={turn.answer}
           question={turn.text}
           placeId={turn.placeId}
+          runId={turn.runId}
           onRunSkill={onRunSkill}
           onAskFollowup={isLast ? onAskFollowup : undefined}
         />
