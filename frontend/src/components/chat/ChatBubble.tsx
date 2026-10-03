@@ -104,7 +104,6 @@ export function ChatBubble() {
             onRetry={run.retry}
             onRunSkill={(id) => go('library', id)}
             onAskFollowup={send}
-            onPickScene={() => undefined}
           />
         ))}
       </div>

@@ -32,7 +32,7 @@ export function TurnView({
   onRunSkill: (id: string) => void;
   onAskFollowup: (q: string) => void;
   /** Move the map's pass cursor to the scene a timeline point names. */
-  onPickScene: (scene: string) => void;
+  onPickScene?: (scene: string) => void;
   /** Open the satellite comparison for this turn's blocks. */
   onCompare?: () => void;
 }) {
