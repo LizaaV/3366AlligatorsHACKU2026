@@ -21,10 +21,12 @@ interface Props {
    * feature was on each. Previously hardcoded in the frontend; now part of the API response.
    */
   timeline?: PassTimeline | null;
+  /** A real rendered layer image from the run, pinned to its WGS84 bounds `[west, south, east, north]`. */
+  raster?: { url: string; bounds: number[] } | null;
 }
 
 /** Sentinel-2 tile map with the AI overlay stack from the prototype. */
-export function MapView({ W, H, cx, cy, center, zoom, place, layers, dateIdx, pass, timeline }: Props) {
+export function MapView({ W, H, cx, cy, center, zoom, place, layers, dateIdx, pass, timeline, raster }: Props) {
   const c = txy(center.lat, center.lon, zoom);
   const x0 = Math.floor(c.x - cx / 256) - 1, x1 = Math.floor(c.x + (W - cx) / 256) + 1;
   const y0 = Math.floor(c.y - cy / 256) - 1, y1 = Math.floor(c.y + (H - cy) / 256) + 1;
@@ -43,6 +45,13 @@ export function MapView({ W, H, cx, cy, center, zoom, place, layers, dateIdx, pa
       labelTop: minY - 36, ha: place.areaHa,
     };
   }
+  // Real layer image: project its corners with the same tile maths as the basemap.
+  let img: null | { left: number; top: number; width: number; height: number } = null;
+  if (raster && raster.bounds.length === 4) {
+    const [w, s, e, n] = raster.bounds;
+    const nw = txy(n, w, zoom), se = txy(s, e, zoom);
+    img = { left: cx + (nw.x - c.x) * 256, top: cy + (nw.y - c.y) * 256, width: (se.x - nw.x) * 256, height: (se.y - nw.y) * 256 };
+  }
   // Feature intensity and cloudiness for the pass being shown. No timeline (a general answer,
   // or a place with no run yet) means no agent overlays to animate.
   const dl = timeline?.intensity[dateIdx] ?? 0;
@@ -58,6 +67,10 @@ export function MapView({ W, H, cx, cy, center, zoom, place, layers, dateIdx, pa
         <img onError={hideBroken} key={t.url} src={t.url} alt="" draggable={false} style={{ position: 'absolute', left: t.left, top: t.top, width: 256, height: 256, userSelect: 'none' }} />
       ))}
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.12)', pointerEvents: 'none' }} />
+      {raster && img && (
+        <img src={raster.url} alt="" draggable={false} onError={hideBroken}
+          style={{ position: 'absolute', left: img.left, top: img.top, width: img.width, height: img.height, opacity: 0.85, pointerEvents: 'none', userSelect: 'none', animation: 'fadeIn .4s ease both' }} />
+      )}
       {ov && (
         <div style={{ position: 'absolute', left: ov.x, top: ov.y, width: 0, height: 0, transform: `scale(${ov.s})`, transformOrigin: '0 0', pointerEvents: 'none' }}>
           <div style={{ position: 'absolute', left: -300, top: -300, width: 600, height: 600, clipPath: ov.clip }}>

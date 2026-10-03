@@ -57,6 +57,15 @@ interface Props {
 export function ArtifactsPanel(p: Props) {
   const { artifacts, selectedId, onSelect, collapsed, onCollapse, expanded, onExpand, width, onResize, mobile } = p;
   const [menu, setMenu] = useState(false);
+  const pick = useRef<HTMLDivElement>(null);
+  // Close the menu on a click anywhere outside it. (A fixed scrim cannot do this: inside the
+  // panel's backdrop-filter it only covers the panel.)
+  useEffect(() => {
+    if (!menu) return;
+    const away = (e: MouseEvent) => { if (!pick.current?.contains(e.target as Node)) setMenu(false); };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [menu]);
   const idx = artifacts.findIndex((a) => a.id === selectedId);
   const current = idx >= 0 ? artifacts[idx] : null;
 
@@ -95,7 +104,7 @@ export function ArtifactsPanel(p: Props) {
     >
       {!mobile && !expanded && <ResizeHandle width={width} onResize={onResize} />}
       <header className="artifacts-head">
-        <div className="artifacts-pick">
+        <div className="artifacts-pick" ref={pick}>
           <button type="button" className="artifacts-select" onClick={() => setMenu((m) => !m)} aria-haspopup="menu" aria-expanded={menu}>
             <Ms n={current?.icon ?? 'dashboard_customize'} size={18} />
             <span className="grow artifacts-name">{current?.name ?? 'Choose an artifact'}</span>
@@ -103,7 +112,6 @@ export function ArtifactsPanel(p: Props) {
           </button>
           {menu && (
             <>
-              <div className="artifacts-scrim" onClick={() => setMenu(false)} />
               <div className="menu artifacts-menu" role="menu">
                 {KIND_ORDER.map((kind) => {
                   const list = artifacts.filter((a) => a.kind === kind);

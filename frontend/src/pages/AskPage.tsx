@@ -19,7 +19,7 @@ import { turnsFromThread } from '../components/chat/threadTurns';
 import { LayerRail } from '../components/place';
 import { ArtifactsContext } from '../components/artifacts/ArtifactsContext';
 import { ArtifactsPanel, MIN_PANEL_W, usePanelWidth } from '../components/artifacts/ArtifactsPanel';
-import { deriveArtifacts, primaryArtifactOf } from '../components/artifacts/artifacts';
+import { catalogLayerFor, deriveArtifacts, primaryArtifactOf } from '../components/artifacts/artifacts';
 import '../components/chat/chat.css';
 
 function useViewport() {
@@ -183,6 +183,23 @@ export function AskPage({ active }: { active: boolean }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLayer, selectedId]);
+
+  // The real rendered image for the layer on show: the selected layer artifact, else the agent
+  // layer most recently switched on. Taken from the newest run that rendered that measure.
+  const rasterLayerId = activeLayer ?? [...layers].reverse().find((l) => l.isAgentMade && l.on && l.ready)?.id ?? null;
+  const raster = useMemo(() => {
+    if (!rasterLayerId) return null;
+    for (const turn of [...turns].reverse()) {
+      for (const b of turn.blocks) {
+        if (b.type !== 'then_now' && b.type !== 'highlight') continue;
+        const ref = b.type === 'then_now' ? b.after : b.base;
+        if (ref?.url && ref.bounds && catalogLayerFor(ref.layer_id, b.measure, (id) => id === rasterLayerId) === rasterLayerId) {
+          return { url: ref.url, bounds: ref.bounds };
+        }
+      }
+    }
+    return null;
+  }, [rasterLayerId, turns]);
 
   const setLayersOn = useCallback(
     (ids: string[]) => setLayers((ls) => ls.map((l) => (ids.includes(l.id) ? { ...l, ready: true, on: true } : l))),
@@ -379,7 +396,7 @@ export function AskPage({ active }: { active: boolean }) {
           onPickLocation={(p) => setGlobePick({ lat: p.lat, lon: p.lon })}
         />
       </Suspense>
-      {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} layers={mapLayers} dateIdx={dateIdx} pass={pass} timeline={timeline} />}
+      {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} layers={mapLayers} dateIdx={dateIdx} pass={pass} timeline={timeline} raster={raster} />}
 
       {/* LAYER RAIL (place view): right edge, under the zoom and globe buttons. */}
       {isMap && (

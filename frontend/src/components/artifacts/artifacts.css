@@ -13,7 +13,6 @@
 .artifacts-select { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--r); background: var(--glass-fill); border: 1px solid var(--glass-border); color: #fff; font: 600 14px/1.3 var(--font); text-align: left; }
 .artifacts-select:hover { background: var(--glass-fill-hover); }
 .artifacts-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.artifacts-scrim { position: fixed; inset: 0; z-index: 79; }
 .artifacts-menu { top: calc(100% + 6px); left: 0; right: 0; min-width: 0; max-height: min(60vh, 460px); overflow-y: auto; }
 .artifacts-group { display: flex; align-items: center; gap: 6px; padding: 8px 10px 4px; }
 .artifacts-item { display: flex; flex-direction: column; min-width: 0; }
