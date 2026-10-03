@@ -65,6 +65,9 @@ class Method(BaseModel):
     cards: list[CardRef] = Field(default_factory=list)
     skill: SkillRef | None = None
     code_ref: str | None = Field(None, description="Reference to the script that ran.")
+    model: str | None = Field(
+        None, description="LLM model id behind the answer; None for presets and templates."
+    )
 
 
 class Answer(BaseModel):

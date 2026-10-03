@@ -3,11 +3,12 @@
 **Who this is for:** @LizaaV and @annaclairebb (frontend), plus anyone calling the backend.
 **Source of truth:** `contracts/openapi.json` (generated from the backend's Pydantic schemas). This guide explains what OpenAPI can't: how the live stream works, the order of events, how to read it in the browser, and how fields map onto the existing mocks in `frontend/src/data/`.
 
-> **Status (Sat 3 Oct):** the contract is real; the "thinking" is not yet.
+> **Status (Sun 4 Oct):** the agent is live. The contract only grew, additively.
 >
-> - `POST /api/runs` plays a **scripted run on the Hoo Hok Wai ponds** through the real plumbing: Meet's `earth` library in stub mode, the knowledge cards and the run store.
-> - Every answer from it has `preset: true`.
-> - When the agent loop (A3) lands, the same endpoints and events carry real answers, and **nothing in this guide changes**.
+> - When the server has `ANTHROPIC_API_KEY`, `POST /api/runs` runs the **agent loop** (A3, Claude Opus 5.5). Clarification cards and refusals now come from real runs. Agent answers have `preset: false` and `method.model` set. How the agent works: [AGENT.md](AGENT.md).
+> - Without a key, with `AGENT_MODE=preset`, or once the daily spend cap is reached, the server falls back to the **scripted Hoo Hok Wai run** (`preset: true`), but only for that place (section 3.4).
+> - New: `RunRequest.provider`, `RunRecord.provider` / `model`, `Method.model`, a **429** cooldown, and **429 / 503** on `/reply`.
+> - Fix your stream reader if it normalises `\r\n` per chunk (section 3.6).
 
 ---
 
@@ -58,28 +59,37 @@ npx openapi-typescript ../contracts/openapi.json -o src/api/schema.d.ts
   "place_id": null,
   "thread_id": null,
   "skill_id": null,
-  "lang": "en"
+  "lang": "en",
+  "provider": null
 }
 ```
 
 | Field | Notes |
 |---|---|
 | `question` | Required, 1–2000 characters |
-| `area` | Optional. Either `{point: {lat, lon, radius_m}}` or `{geojson: <Feature, FeatureCollection or geometry>}`, plus an optional `name`. Outlines are capped at 10,000 points, 200 features and nesting depth 8 (422 beyond that). If omitted, the stub uses Hoo Hok Wai |
-| `place_id` | A saved place, so the agent can prefill from its memory |
+| `area` | Optional. Either `{point: {lat, lon, radius_m}}` or `{geojson: <Feature, FeatureCollection or geometry>}`, plus an optional `name`. Outlines are capped at 10,000 points, 200 features and nesting depth 8 (422 beyond that). **Send it whenever the user picked a place.** If omitted, the agent works without an outline: it can look up a place named in the question, or ask. It never uses the demo place as a stand-in. Only the preset fallback assumes Hoo Hok Wai |
+| `place_id` | A saved place. The agent prefills clarification answers from its memory, and `remember: true` on `/reply` saves to it. The agent takes the outline from the saved place only once the places service is installed, so send `area` too |
 | `thread_id` | To ask a **follow-up** in the same conversation. Must be a thread id this user got from an earlier `run_started`; anything else → 404 |
-| `skill_id` | Optional: force a specific skill |
-| `lang` | Optional, default `"en"`. The language you want the answer in, as a BCP 47 tag (`en`, `zh-Hant`, `yue`, `pt-BR`…). Stored on the run (`RunRecord.lang`). **For now answers are always English**; translated answers come later, and nothing changes for the frontend when they do |
+| `skill_id` | Optional hint: the agent is told the user picked this skill and runs it if it fits the question |
+| `lang` | Optional, default `"en"`. The language you want the answer in, as a BCP 47 tag (`en`, `zh-Hant`, `yue`, `pt-BR`…). Stored on the run (`RunRecord.lang`). **For now answers are always English**; a non-English question gets the caveat "Answers are in English for now." Translated answers come later, and nothing changes for the frontend when they do |
+| `provider` | Optional, `"claude"` or `null`. Omit it (or send `null`) for the server default. Naming a provider the server has not configured → **400** |
 
 Errors **before** the stream starts are plain JSON:
 
-- **400:** bad area, bad ids, bad `X-User-Id`
+- **400:** bad area, bad ids, bad `X-User-Id`, or a `provider` the server has not configured
 - **404:** unknown thread
 - **422:** validation
+- **429:** too many runs. Either the same user started a run less than 3 s ago (`RUN_COOLDOWN_S`), or 3 agent runs are already streaming on the server. The response has a `Retry-After` header (seconds) and a text `detail`. Wait, then retry. Only agent runs are limited; the preset fallback is not
 
 ### 3.2 What comes back
 
-The response has `Content-Type: text/event-stream`. Each message is an `event:` line plus a `data:` line holding JSON. Lines end with `\r\n`, and messages are separated by a blank line. Every JSON payload also carries its own `"event"` field, so you can ignore the `event:` line and just parse `data`. Lines starting with `:` are keep-alive pings; skip them.
+The response has `Content-Type: text/event-stream`.
+
+- Each message is an `event:` line plus a `data:` line holding JSON. Every JSON payload also carries its own `"event"` field, so you can ignore the `event:` line and just parse `data`.
+- Lines end with `\r\n`, and messages are separated by a blank line. A `\r\n` can be split across two network chunks; section 3.6 handles that.
+- Lines starting with `:` are keep-alive pings; skip them.
+
+Agent runs take tens of seconds, with gaps of several seconds between events while the model thinks.
 
 **Every stream ends with exactly one `done`.** That's your signal to stop the spinner.
 
@@ -88,37 +98,57 @@ The response has `Content-Type: text/event-stream`. Each message is an `event:` 
 | Event | When | Payload (key fields) | Show it as |
 |---|---|---|---|
 | `run_started` | First | `run_id`, `thread_id` | Store both: `run_id` for reload/reply/share, `thread_id` for follow-ups |
-| `guard` | Second | `scope` (`answerable` · `partial` · `out_of_scope` · `not_allowed` · `emergency` · `off_topic`), `rule_id`, `reason` | Usually nothing. On a refusal it's followed by a `limits` block and `done{status: "refused"}` |
-| `hypotheses_registered` | Before any data is read | `hypotheses` (card ids), `expectation_table` [{`hypothesis`, `expected` {measure → text}, `observed`, `verdict`}], `post_hoc` | "What I'm checking" line or chips; the table becomes the "What else could it be" view |
-| `clarification_needed` | When the agent needs the user | `questions` [{`key`, `label`, `options`, `value` (prefill), `source` {`from`: `memory`·`inferred`, `saved`}}], `remember` | The clarification card. Show a "From memory · 12 Sep" badge when `source.from == "memory"`. The stream then ends with `done{status: "waiting_user"}` (section 4) |
+| `guard` | Second | `scope` (`answerable` · `partial` · `out_of_scope` · `not_allowed` · `emergency` · `off_topic`), `rule_id`, `reason` | Usually nothing. On a refusal it's followed by a `limits` block and `done{status: "refused"}`. Rarely, a **second** `guard{scope: "not_allowed", rule_id: null}` arrives mid-run when the AI model itself declines; a `limits` block and `done{status: "refused"}` follow. Show the latest `guard` |
+| `hypotheses_registered` | Before any data is read, and again if the agent adds causes later | `hypotheses` (card ids), `expectation_table` [{`hypothesis`, `expected` {measure → text}, `observed`, `verdict`}], `post_hoc` | "What I'm checking" line or chips. Append the new ones; `post_hoc: true` means they were added after data was read (confidence capped at Low). Code always adds `seasonal` and look-alikes. The final verdicts arrive in the `hypotheses` block |
+| `clarification_needed` | When the agent needs the user (at most twice per run) | `questions` [{`key`, `label`, `options`, `value` (prefill), `source` {`from`: `memory`·`inferred`, `saved`}}], `remember` | The clarification card: 1–3 questions, 2–5 option chips each. Show a "From memory · 12 Sep" badge when `source.from == "memory"`. The stream then ends with `done{status: "waiting_user"}` (section 4) |
 | `clarification_answered` | First event of a reply stream | `answers`, `remember` | Collapse the card into a summary line |
 | `step_started` | Each visible step begins | `index`, `title`, `desc`, `tool` | A step row with a spinner |
 | `step_finished` | Each step ends | `index`, `title`, `desc`, `tool`, `result`, `ms`, `provenance`, `error` | Tick the row and show `result`. **Same shape as the mock `Step` in `agent.ts`** |
-| `block_ready` | A visual is ready | `block` (typed; section 6) | Render the block; at most one has `primary: true` |
+| `block_ready` | A visual is ready | `block` (typed; section 6) | Render the block; at most one has `primary: true`. Ids are unique within a run |
 | `answer` | The answer is ready | `answer` (section 5) | The answer card |
-| `error` | Something failed | `message`, `recoverable`, `kind` (e.g. `no_clear_scenes`) | An inline notice; if `recoverable` is false, a final `done{status: "failed"}` follows |
-| `done` | Always last | `run_id`, `status` (`done` · `waiting_user` · `failed` · `refused`), `tokens`, `cost_usd`, `ms` | Stop loading |
+| `error` | Something failed | `message`, `recoverable`, `kind` | An inline notice. A `done{status: "failed"}` always follows. `recoverable: true` means trying again later may work. Kinds: `llm_unavailable` (the AI model could not be reached), `agent_unavailable` (no live analysis on this server, only the demo place), `spend_cap` (daily budget used up), or an `earth` kind such as `no_clear_scenes` |
+| `done` | Always last | `run_id`, `status` (`done` · `waiting_user` · `failed` · `refused`), `tokens`, `cost_usd`, `ms` | Stop loading. `tokens` and `cost_usd` are filled for agent runs (0 for the preset) |
+
+**Steps in an agent run.** Each tool the agent uses is a step: "Read the card: …", "List what could explain it", "Run the pond-filling-check skill", "Run an analysis script", "Ask you", "Check the answer". Each satellite call inside a script is its own step too ("Find satellite passes", "Track a measure over time", "Compare before and after", …).
+
+- Indexes keep increasing across the whole run, including after a reply. Key rows by `index`.
+- "Check the answer" can appear more than once: code rejected a draft ("2 problem(s) found; revising the answer") and the agent fixed it.
 
 ### 3.4 Typical orders
 
 ```text
-Normal run:      run_started → guard → hypotheses_registered → (step_started → step_finished)×N
-                 → block_ready×M → answer → done{status: "done"}
+Agent run:       run_started → guard → step "Look up the place" → steps "Read the card: …"
+                 → step "List what could explain it" + hypotheses_registered
+                 → step "Run the … skill" (or "Run an analysis script"): its satellite steps,
+                   then block_ready for each visual it made
+                 → step "Check the answer" (repeated if a draft was rejected)
+                 → block_ready{type: "hypotheses"} → answer → done{status: "done"}
 
-Needs the user:  run_started → guard → … → clarification_needed → done{status: "waiting_user"}
+Needs the user:  run_started → guard → … → step "Ask you" → clarification_needed → done{status: "waiting_user"}
                  … user answers …  POST /reply →  clarification_answered → steps → blocks → answer → done
 
 Refused:         run_started → guard{scope: "not_allowed", rule_id: "identify_person"}
-                 → block_ready{type: "limits"} → done{status: "refused"}      (emitted once A3 lands)
+                 → block_ready{type: "limits"} → done{status: "refused"}
 
-Failed:          … → error{recoverable: false, kind: "no_clear_scenes"} → done{status: "failed"}
+Redirected:      run_started → guard{scope: "emergency" | "off_topic" | "out_of_scope"}
+                 → block_ready{type: "limits"} → answer{kind: "general"} → done{status: "done"}
+
+No live agent:   run_started → error{kind: "agent_unavailable" | "spend_cap", recoverable: false}
+                 → done{status: "failed"}          (a place other than the demo place, see below)
+
+Failed:          … → error{kind: "llm_unavailable" | "no_clear_scenes" | …} → done{status: "failed"}
 ```
 
-Steps and blocks can interleave in real runs; render each as it arrives.
+Steps and blocks interleave; render each as it arrives.
 
-### 3.5 A real captured stream (stub run, trimmed)
+- **Explanation questions** ("what is greenness?") read cards, measure nothing and end with `answer{kind: "general"}`.
+- **Runs that hit a limit** (turns, code runs, the 150 s clock, a draft that keeps failing the checks) still end with an `answer`: a measure-only one built by code from what was measured, with `cause: null` and Low confidence.
 
-Captured from the running server with `curl -N -X POST localhost:8000/api/runs -H 'content-type: application/json' -d '{"question":"Have these ponds been filled in?"}'`. It had 32 events: 11 steps, 5 blocks.
+**Preset fallback.** When the server has no AI model configured, runs in `AGENT_MODE=preset`, or has used up its daily budget, it answers with the scripted Hoo Hok Wai run (`preset: true`). It does so only when the request names no place, or its `area` is the Hoo Hok Wai outline. Any other place gets the "No live agent" order above, never the demo answer for the wrong place.
+
+### 3.5 A real captured stream (preset run, trimmed)
+
+This is the scripted preset run (what the server streams without an AI model). Agent runs use the same events in the orders shown in 3.4; a live pond run on stub data had 25 to 27 steps and 5 to 6 blocks in 35 to 57 s. Captured from the running server with `curl -N -X POST localhost:8000/api/runs -H 'content-type: application/json' -d '{"question":"Have these ponds been filled in?"}'`. It had 32 events: 11 steps, 5 blocks.
 
 ```text
 event: run_started
@@ -166,7 +196,16 @@ The steps in that run:
 
 ### 3.6 Reading the stream in the browser
 
-The browser's built-in `EventSource` only does GET, and we POST. So read the stream with `fetch`. Drop this into `frontend/src/api/` and type `StreamEvent` from the generated schema:
+The browser's built-in `EventSource` only does GET, and we POST. So read the stream with `fetch`. Drop this into `frontend/src/api/` and type `StreamEvent` from the generated schema.
+
+The reader must handle two network details:
+
+- **A `\r\n` split across two chunks.** One chunk ends with `\r` and the next starts with `\n`. If you normalise each chunk on its own, that `\r\n` is either missed or counted as two line ends. Then a blank line is missed (two events merge and `JSON.parse` throws) or invented (an event is cut in half). So normalise line ends on the **accumulated buffer**, and hold back a trailing lone `\r` until the next chunk arrives.
+- **A last event without its blank line.** When the stream ends, parse what is left in the buffer as one more event.
+
+`frontend/src/api/stream.ts` currently normalises per chunk and drops a final unterminated event; port these two changes.
+
+`TextDecoderStream` already handles multi-byte characters (e.g. Chinese) split across chunks.
 
 ```ts
 // frontend/src/api/stream.ts
@@ -192,19 +231,31 @@ export async function streamRun(
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
-    buffer += value.replace(/\r\n/g, '\n');
+    buffer += value;
+    // Normalise \r\n and lone \r on the whole buffer (a \r\n can be split across chunks),
+    // holding back a trailing \r: its \n may be the first character of the next chunk.
+    const held = buffer.endsWith('\r');
+    buffer = (held ? buffer.slice(0, -1) : buffer).replace(/\r\n?/g, '\n') + (held ? '\r' : '');
     let cut: number;
     while ((cut = buffer.indexOf('\n\n')) !== -1) {
-      const message = buffer.slice(0, cut);
+      emitMessage(buffer.slice(0, cut), onEvent);
       buffer = buffer.slice(cut + 2);
-      const data = message
-        .split('\n')
-        .filter((line) => line.startsWith('data:'))
-        .map((line) => line.slice(5).trimStart())
-        .join('\n');
-      if (data) onEvent(JSON.parse(data) as StreamEvent); // ':' ping lines have no data
     }
   }
+  // End of stream: a trailing \r is a line end now, and the last event may have no blank line.
+  for (const message of buffer.replace(/\r\n?/g, '\n').split('\n\n')) {
+    emitMessage(message, onEvent);
+  }
+}
+
+/** One SSE message: join its `data:` lines (':' ping lines and empty leftovers have none). */
+function emitMessage(message: string, onEvent: (ev: StreamEvent) => void): void {
+  const data = message
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).replace(/^ /, ''))
+    .join('\n');
+  if (data) onEvent(JSON.parse(data) as StreamEvent);
 }
 ```
 
@@ -237,12 +288,18 @@ If the user navigates away, call `abort()` on the `AbortController`. The server 
 await streamRun(`/api/runs/${runId}/reply`, { answers: { use: 'Fish ponds', since: 'This year' }, remember: true }, onEvent);
 ```
 
-- **Same handler, same `run_id`.** The reply stream starts with `clarification_answered`, then continues with steps, blocks, `answer` and `done`.
+- **Same handler, same `run_id`.** The reply stream starts with `clarification_answered`, then continues with steps, blocks, `answer` and `done`. Step `index` continues from where the first stream stopped.
 - Only keys that were asked are accepted.
 - `remember: true` saves the answers to the place's memory, if the run has a `place_id`.
-- Replying to a run that isn't waiting gives **409**. A run you don't own gives **404**.
+- Errors before the stream:
+  - **409:** the run isn't waiting.
+  - **404:** a run you don't own.
+  - **429** (with `Retry-After`): 3 agent runs are already streaming.
+  - **503:** the run's AI model is not available any more, or the daily budget is used up. Nothing about the run changes, so the user can retry later.
 
-> The current stub run never asks a question. This flow goes live with A3, and the contract above is frozen.
+> **Live since A3.** The agent asks when the answer depends on something only the user knows. That is at most twice per run, with 1–3 questions of 2–5 options each. The card shows options only; send one of them. A value that is not one of the options is treated as private: the agent never repeats it in its answer.
+>
+> In the live test, "How much forest did the whole Amazon basin lose this year?" asked the user to pick a smaller area. The run waited with `done{waiting_user}` after 7 s, and the reply streamed the rest. The preset run never asks.
 
 ## 5. The answer (`answer` event / `RunRecord.answer`)
 
@@ -250,11 +307,11 @@ The backend `Answer` is built to drop into the existing answer card in `frontend
 
 | Backend field | Frontend `Answer` field | Notes |
 |---|---|---|
-| `kind`, `title`, `eyebrow`, `color` | same | `kind`: `place` or `general` |
-| `l1`, `cause` | same | `cause` is `null` for **measure-only** answers (no knowledge card matched); show "Cause unknown" |
+| `kind`, `title`, `eyebrow`, `color` | same | `kind`: `place`, or `general` for explanations (no data read) and policy replies (emergency, off-topic, blame) |
+| `l1`, `cause` | same | `cause` is `null` for **measure-only** answers (no knowledge card is supported, or code can't tell two causes apart); show "Cause unknown" |
 | `l2`, `todo` | same | |
-| `stats` [{`l`, `v`, `ci`}] | `stats` | same keys |
-| `confidence` {`level`, `pct`, `note`} | same | Capped at **Low** while cards are drafts |
+| `stats` [{`l`, `v`, `ci`}] | `stats` | same keys. Every number is checked by code against what the run measured |
+| `confidence` {`level`, `pct`, `note`} | same | Computed by code, never by the AI model. Capped at **Low** while cards are drafts (all are today). Policy replies (emergency, off-topic, blame) show High 90: they are fixed texts, not an analysis |
 | `caveats` | same | The "what it can't tell" list |
 | `route` [{`sat`, `status`, `why`}] | same | |
 | `proof` [{`id`, `date`, `sat`, `cloud`, `used`, `why`}] | same | |
@@ -264,8 +321,14 @@ The backend `Answer` is built to drop into the existing answer card in `frontend
 | `sentence` | *(new)* | The one-sentence answer: show under the title |
 | `blocks` | *(new)* | The same blocks that were streamed as `block_ready` |
 | `followups` | *(new)* | Up to 3 suggested next questions (chips) |
-| `method` {`cards`[{`id`, `version`, `status`}], `skill`, `code_ref`} | *(new)* | "Method" panel; link cards to `/api/knowledge/cards/{id}` |
-| `measure_only`, `preset` | *(new)* | Flags. Show a small "demo data" tag when `preset` is true |
+| `method` {`cards`[{`id`, `version`, `status`}], `skill`, `code_ref`, `model`} | *(new)* | "Method" panel; link cards to `/api/knowledge/cards/{id}`. `model` is the AI model id behind the answer (e.g. `claude-opus-5-5`); `null` for preset, policy and code-built (template) answers |
+| `measure_only`, `preset` | *(new)* | Flags. Show a small "demo data" tag when `preset` is true. Agent answers have `preset: false` |
+
+**`RunRecord`** (`GET /api/runs/{id}`) also carries:
+
+- `provider` and `model`: which AI ran the agent, e.g. `"claude"` and `"claude-opus-5-5"`. Both are `null` for preset runs.
+- `cost` {`input_tokens`, `output_tokens`, `usd`}.
+- `params`: only public keys such as `skill_id`, `script_params`, `script_block_ids`. The agent's private state (its transcript and the user's remembered values) is never returned.
 
 ## 6. Blocks (visuals)
 
@@ -308,11 +371,13 @@ Map image URLs (`/api/layers/...png`) are always given inside blocks; use them a
 
 | Code | Meaning | `detail` |
 |---|---|---|
-| 400 | Bad input: ids, `X-User-Id`, area, reply answers too long | text, or `{kind, message, hint}` for areas |
+| 400 | Bad input: ids, `X-User-Id`, area, reply answers too long, a `provider` the server has not configured | text, or `{kind, message, hint}` for areas |
 | 404 | Not found, or not yours (runs, threads, cards, layers) | text |
 | 409 | Reply to a run that isn't waiting for the user | text |
 | 422 | Request didn't match the schema (FastAPI validation), or unusable area | FastAPI validation list / `{kind, message, hint}` |
+| 429 | Too many runs: the same user within 3 s, or 3 agent runs already streaming. Wait `Retry-After` seconds | text |
 | 501 | Place search not available (geocoder missing) | text |
+| 503 | `/reply` only: the run's AI model is not available, or the daily budget is used up | text |
 
 Once a stream has started, problems arrive as `error` events, never as HTTP errors.
 

@@ -1,34 +1,57 @@
 """Runs endpoints (BUILD-PLAN I5): start a run as a server-sent event stream, read it back,
 and reply to clarification questions (which streams the rest of the run).
 
-For now both streams serve the preset run (`app.services.preset_run`); the agent loop (A3)
-plugs in behind the same contract. Threads (`GET /api/threads...`) belong to A4.
+A new run goes to the agent loop (`app.services.agent.loop`, A3) when an LLM provider is
+configured; otherwise (no provider, `AGENT_MODE=preset`, or the daily spend cap reached) it
+serves the scripted preset run (`app.services.preset_run`) only when the request is about
+the preset's place (no place given, or the Hoo Hok Wai outline); a request for another
+place gets an honest `error` (kind `agent_unavailable` or `spend_cap`) and `done{failed}`,
+never the demo answer for the wrong place. Both use the same stream contract. Threads
+(`GET /api/threads...`) belong to A4.
 """
 
 from __future__ import annotations
 
 import asyncio
+import logging
+import math
 import re
 import typing
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
 from fastapi import APIRouter, Depends, HTTPException
 from sse_starlette import EventSourceResponse
 
 import earth
+from app.core.config import settings
 from app.schemas.areas import AreaInput
 from app.schemas.runs import ID_PATTERN, ReplyRequest, RunRecord, RunRequest
 from app.schemas.stream import StreamEvent, to_sse
 from app.services import memory, places
 from app.services import runs as run_store
+from app.services.agent import llm, policy
+from app.services.agent.loop import (
+    LOOP_KEY,
+    lookup_place,
+    resume_agent_run,
+    stream_agent_run,
+    stream_unavailable,
+)
+from app.services.agent.state import AGENT_KEY
 from app.services.preset_run import resume_preset_run, stream_preset_run
 from app.services.user import current_user
+from earth.presets import HOO_HOK_WAI
 
 router = APIRouter(tags=["runs"])
+log = logging.getLogger(__name__)
 
 _ID_RE = re.compile(ID_PATTERN)
 MAX_KEY = memory.MAX_KEY
 MAX_VALUE = memory.MAX_VALUE
+#: Share of overlap (intersection over union) that makes an outline the preset's place.
+PRESET_OVERLAP = 0.5
+_NO_AGENT = "Live analysis is not available on this server right now; only the demo place works."
 
 
 def _event_names() -> list[str]:
@@ -78,14 +101,88 @@ def _own_run(run_id: str, user_id: str) -> RunRecord:
     return record
 
 
+def _public(record: RunRecord) -> RunRecord:
+    """The record as the API shows it: without the agent's private state (the transcript
+    with the provider's raw payload, and the remembered values kept for the leak check)."""
+    private = (AGENT_KEY, LOOP_KEY)
+    if not any(k in record.params for k in private):
+        return record
+    params = {k: v for k, v in record.params.items() if k not in private}
+    return record.model_copy(update={"params": params})
+
+
+def _usable(provider: llm.LLMProvider) -> bool:
+    """False for the scripted test provider with nothing scripted (never a real agent)."""
+    remaining = getattr(provider, "remaining", None)
+    return not (provider.name == "fake" and remaining == (0, 0))
+
+
+@dataclass(frozen=True)
+class _NoAgent:
+    """Why a request cannot get an agent run: `kind` and `message` for the `error` event."""
+
+    kind: str
+    message: str
+
+
+def _agent_provider(req: RunRequest) -> llm.LLMProvider | _NoAgent:
+    """The provider for an agent run, or why there is none (reason logged).
+
+    Raises 400 when the request names a provider that is not configured.
+    """
+    if req.provider is not None and req.provider not in llm.available_providers():
+        raise HTTPException(
+            status_code=400, detail=f"The {req.provider} provider is not configured here."
+        )
+    if settings.agent_mode == "preset":
+        log.info("no agent run: AGENT_MODE is preset")
+        return _NoAgent("agent_unavailable", _NO_AGENT)
+    try:
+        provider = llm.get_provider(req.provider)
+    except llm.ProviderUnavailable as exc:
+        if req.provider is not None:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        log.info("no agent run: no LLM provider (%s)", exc)
+        return _NoAgent("agent_unavailable", _NO_AGENT)
+    if not _usable(provider):
+        log.info("no agent run: the fake provider has nothing scripted")
+        return _NoAgent("agent_unavailable", _NO_AGENT)
+    try:
+        policy.check_spend_cap()
+    except policy.SpendCapReached as exc:
+        log.warning("no agent run: the daily spend cap is reached")
+        return _NoAgent(exc.code, exc.message)
+    return provider
+
+
+def _is_preset_place(area: earth.Area) -> bool:
+    """True when `area` is (mostly) the preset's outline (Hoo Hok Wai)."""
+    try:
+        a, b = area.geometry(), HOO_HOK_WAI.geometry()
+        union = a.union(b).area
+        return union > 0 and a.intersection(b).area / union >= PRESET_OVERLAP
+    except Exception:  # noqa: BLE001 — a geometry that cannot be compared is not the preset
+        return False
+
+
+def _preset_fits(req: RunRequest, user_id: str) -> bool:
+    """The scripted preset answers this request truthfully: it names no place, or its place
+    (outline or saved place) is the preset's. Anything else must never get the demo answer."""
+    if req.area is None and not req.place_id:
+        return True
+    area = req.area.to_area() if req.area is not None else lookup_place(user_id, req.place_id)
+    return area is not None and _is_preset_place(area)
+
+
 @router.post(
     "/runs",
     summary="Start a run (server-sent events)",
     response_class=EventSourceResponse,
     responses=_sse_responses(
         {
-            400: {"description": "Invalid area, thread id or X-User-Id."},
+            400: {"description": "Invalid area, thread id or X-User-Id, or unknown provider."},
             404: {"description": "Thread not found for this user."},
+            429: {"description": "Too many runs: wait `Retry-After` seconds."},
         }
     ),
 )
@@ -94,7 +191,11 @@ async def start_run(req: RunRequest, user_id: str = Depends(current_user)) -> Ev
     `answer` (or `error`), and always `done` last. If the run needs the user it sends
     `clarification_needed` then `done{status: waiting_user}`; continue with `/reply`.
 
-    `thread_id` must come from an earlier `run_started` for this user (404 otherwise)."""
+    `thread_id` must come from an earlier `run_started` for this user (404 otherwise).
+    Agent runs are rate-limited per user and by the number running at once (429 with
+    `Retry-After`). Without a configured LLM provider, or once the daily spend cap is
+    reached, the preset run is served for the preset's place only; any other place gets an
+    `error` (kind `agent_unavailable` or `spend_cap`) and `done{status: failed}`."""
     if req.area is not None:
         try:
             req.area.to_area()
@@ -112,13 +213,28 @@ async def start_run(req: RunRequest, user_id: str = Depends(current_user)) -> Ev
         runs = run_store.list_runs(req.thread_id)
         if not runs or any(r.user_id != user_id for r in runs):
             raise HTTPException(status_code=404, detail="Thread not found.")
-    return EventSourceResponse(_sse(stream_preset_run(req, user_id)))
+    provider = await asyncio.to_thread(_agent_provider, req)
+    if isinstance(provider, _NoAgent):
+        if await asyncio.to_thread(_preset_fits, req, user_id):
+            return EventSourceResponse(_sse(stream_preset_run(req, user_id)))
+        events = stream_unavailable(req, user_id, kind=provider.kind, message=provider.message)
+        return EventSourceResponse(_sse(events))
+    try:
+        policy.check_run_slots()
+        policy.check_cooldown(user_id)
+    except (policy.TooManyRuns, policy.CooldownActive) as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=exc.message,
+            headers={"Retry-After": str(max(1, math.ceil(exc.retry_after)))},
+        ) from exc
+    return EventSourceResponse(_sse(stream_agent_run(req, user_id, provider)))
 
 
 @router.get("/runs/{run_id}", response_model=RunRecord, summary="Read a stored run")
 def get_run(run_id: str, user_id: str = Depends(current_user)) -> RunRecord:
     """The full stored run (answer, blocks, steps and the event log for replay)."""
-    return _own_run(run_id, user_id)
+    return _public(_own_run(run_id, user_id))
 
 
 @router.post(
@@ -130,6 +246,11 @@ def get_run(run_id: str, user_id: str = Depends(current_user)) -> RunRecord:
             400: {"description": "Invalid run id, answers or X-User-Id."},
             404: {"description": "Run not found for this user."},
             409: {"description": "The run is not waiting for the user."},
+            429: {"description": "Too many runs streaming: wait `Retry-After` seconds."},
+            503: {
+                "description": "The run's LLM provider is not available right now, or the "
+                "daily budget for analyses is used up."
+            },
         }
     ),
 )
@@ -146,6 +267,27 @@ async def reply(
         raise HTTPException(
             status_code=400, detail=f"Keys up to {MAX_KEY} and answers up to {MAX_VALUE} chars."
         )
+    provider: llm.LLMProvider | None = None
+    if AGENT_KEY in record.params:
+        # Resolved first: if the agent can't continue, nothing about the run changes.
+        try:
+            provider = llm.get_provider(record.provider or settings.llm_provider)
+        except llm.ProviderUnavailable as exc:
+            raise HTTPException(
+                status_code=503, detail="The agent is not available right now; try later."
+            ) from exc
+        try:
+            await asyncio.to_thread(policy.check_spend_cap)
+        except policy.SpendCapReached as exc:
+            raise HTTPException(status_code=503, detail=exc.message) from exc
+        try:
+            policy.check_run_slots()
+        except policy.TooManyRuns as exc:
+            raise HTTPException(
+                status_code=429,
+                detail=exc.message,
+                headers={"Retry-After": str(max(1, math.ceil(exc.retry_after)))},
+            ) from exc
     asked = run_store.asked_keys(record)
     accepted = {k: v for k, v in body.answers.items() if not asked or k in asked}
     # Memory first: if it refuses, nothing about the run has changed yet.
@@ -163,4 +305,6 @@ async def reply(
         raise HTTPException(status_code=404, detail="Run not found.") from exc
     except run_store.RunStateError as exc:  # another reply got there first
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if provider is not None:
+        return EventSourceResponse(_sse(resume_agent_run(record, answered, provider)))
     return EventSourceResponse(_sse(resume_preset_run(record, answered)))

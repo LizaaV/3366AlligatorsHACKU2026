@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
 
@@ -70,6 +70,11 @@ class RunRequest(BaseModel):
         description="Language for the answer text (BCP 47, e.g. 'en', 'zh-Hant', 'yue'). "
         "Stored on the run; answers are English until translation lands.",
     )
+    provider: Literal["claude"] | None = Field(
+        None,
+        description="LLM provider for the agent. Omit for the server default; 400 if the "
+        "requested provider is not configured on the server.",
+    )
 
 
 class ReplyRequest(BaseModel):
@@ -122,6 +127,8 @@ class RunRecord(BaseModel):
     script: str | None = Field(None, description="Last successful script (dashboard refresh).")
     params: dict[str, Any] = Field(default_factory=dict)
     cost: Cost | None = None
+    provider: str | None = Field(None, description="LLM provider that ran the agent, if any.")
+    model: str | None = Field(None, description="LLM model id that ran the agent, if any.")
     events: list[StreamEvent] = Field(
         default_factory=list, description="Full event log, for replay."
     )

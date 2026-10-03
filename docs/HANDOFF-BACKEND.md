@@ -371,6 +371,8 @@ write code ──► run ──► CHECK ──ok──► result
 
 ### B3.2 The three calls
 
+> **Superseded (Sun 4 Oct).** The three-call pipeline below was replaced by the guard plus tool-use loop (ARCHITECTURE §4.0). For the calls, `max_tokens`, effort and retry rules in force now, see [AGENT.md](AGENT.md) (sections 3, 4 and 6). This section is kept for history.
+
 | Call | Input | Structured output | max_tokens | effort |
 |---|---|---|---|---|
 | **A. Guard** | question, place facts, policy rule summaries | `{scope, rule_id, reason, clarify?: [≤2 questions]}`. `rule_id` must exist in `rules.yaml` | 300 | low |
@@ -844,6 +846,15 @@ Watch = skill + place + schedule + condition + channels. v1: `POST /api/watches/
 Output dominates. Levers: reuse skills, keep effort low/medium, cache the prefix, keep follow-up context to a ~1K summary.
 
 ### B11.2 Hackathon limits (simple, team decision)
+
+> **Superseded (Sun 4 Oct).** These limits predate the agent loop. The current values, with the costs and times measured live, are in [AGENT.md](AGENT.md) (sections 6, 7 and 13). This section is kept for history. In short:
+>
+> - turns: 12 per run;
+> - code or skill runs: 6;
+> - wall clock: 150 s;
+> - `max_tokens`: 16,000 per turn, 4,000 for the guard;
+> - cooldown: 3 s per user, and at most 3 runs at once;
+> - spend cap: $20 per UTC day.
 
 | Limit | Value |
 |---|---|

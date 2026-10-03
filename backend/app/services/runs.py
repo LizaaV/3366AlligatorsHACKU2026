@@ -21,7 +21,8 @@ from typing import Any, get_args
 from pydantic import TypeAdapter
 
 import earth
-from app.schemas.runs import ID_PATTERN, RunRecord, RunStatus, Step
+from app.schemas.answer import Method
+from app.schemas.runs import ID_PATTERN, Cost, RunRecord, RunStatus, Step
 from app.schemas.stream import (
     AnswerEvent,
     BlockReady,
@@ -34,22 +35,31 @@ from app.schemas.stream import (
 from earth import settings
 
 __all__ = [
+    "SCRIPT_BLOCKS_KEY",
+    "SCRIPT_PARAMS_KEY",
     "RunStateError",
     "RunStoreError",
     "append_event",
     "apply_reply",
     "db_path",
+    "get_owned_run",
     "get_run",
     "list_runs",
     "list_threads",
     "save_run",
+    "set_cost",
+    "set_method",
     "set_provenance",
+    "set_script",
+    "spent_usd_since",
+    "update_params",
     "update_status",
 ]
 
 _ID_RE = re.compile(ID_PATTERN)
 _STATUSES: frozenset[str] = frozenset(get_args(RunStatus))
 _EVENT = TypeAdapter(StreamEvent)
+_PARAMS = TypeAdapter(dict[str, Any])
 _WRITE_LOCK = threading.Lock()
 _INIT_LOCK = threading.Lock()
 _initialised: set[str] = set()
@@ -305,3 +315,70 @@ def apply_reply(
         run.events.append(ev)
         run.status = "running"
     return run, ev
+
+
+def get_owned_run(run_id: str, user_id: str) -> RunRecord | None:
+    """The stored run if it belongs to `user_id`, else None (unknown run or someone else's).
+
+    Raises RunStoreError if either id is malformed.
+    """
+    _check_id(user_id, "user_id")
+    run = get_run(run_id)
+    return run if run is not None and run.user_id == user_id else None
+
+
+def spent_usd_since(since: datetime) -> float:
+    """Total `cost.usd` of the runs created at or after `since` (naive = UTC), across users."""
+    with _db() as conn:
+        row = conn.execute(
+            """
+            SELECT COALESCE(SUM(json_extract(record_json, '$.cost.usd')), 0.0)
+            FROM runs WHERE created_at >= ?
+            """,
+            (_ts(since),),
+        ).fetchone()
+    return float(row[0] or 0.0)
+
+
+def update_params(run_id: str, patch: dict[str, Any]) -> RunRecord:
+    """Merge `patch` into the run's `params` (top-level keys replaced) atomically.
+
+    Values are stored as JSON (models become dicts), so the returned record matches what a
+    later `get_run` reads. Raises KeyError if the run is unknown.
+    """
+    clean = _PARAMS.dump_python(patch, mode="json")
+    with _mutate(run_id) as run:
+        run.params = {**run.params, **clean}
+    return run
+
+
+def set_cost(run_id: str, cost: Cost) -> None:
+    """Replace a run's token usage and cost. Raises KeyError if the run is unknown."""
+    with _mutate(run_id) as run:
+        run.cost = cost.model_copy()
+
+
+#: `RunRecord.params` keys of the last saved script (`set_script`): its exact run params and
+#: the blocks it produced. Public (the API shows them); dashboards refresh from these, never
+#: from the whole `params`, which also holds the agent's private state.
+SCRIPT_PARAMS_KEY = "script_params"
+SCRIPT_BLOCKS_KEY = "script_block_ids"
+
+
+def set_method(run_id: str, method: Method) -> None:
+    """Replace a run's method (cards, skill, script reference, model) with the answer's, so
+    the stored record and its share snapshot carry the provenance. KeyError if unknown."""
+    with _mutate(run_id) as run:
+        run.method = method.model_copy()
+
+
+def set_script(run_id: str, script: str, params: dict[str, Any], block_ids: list[str]) -> None:
+    """Record the last successful script of a run (dashboard refresh): its source in
+    `script`, the exact params it ran with under `params["script_params"]` and the blocks it
+    made under `params["script_block_ids"]`. KeyError if the run is unknown."""
+    clean = _PARAMS.dump_python(
+        {SCRIPT_PARAMS_KEY: params, SCRIPT_BLOCKS_KEY: list(block_ids)}, mode="json"
+    )
+    with _mutate(run_id) as run:
+        run.script = script
+        run.params = {**run.params, **clean}
