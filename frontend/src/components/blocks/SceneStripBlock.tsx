@@ -8,6 +8,7 @@
 
 import { BlockFrame } from './BlockFrame';
 import { Ms } from '../ui';
+import { cloudFromFraction } from '../../lib/format';
 import type { components } from '../../api/schema';
 
 type S = components['schemas'];
@@ -28,7 +29,7 @@ export function SceneStripBlock({ block }: { block: S['SceneStripBlock'] }) {
         {block.scenes.map((s) => (
           <li
             key={s.scene}
-            title={s.why ?? `${s.satellite} · ${Math.round(s.cloud * 100)}% cloud`}
+            title={s.why ?? `${s.satellite} · ${cloudFromFraction(s.cloud)} cloud`}
             style={{
               flex: '0 0 auto',
               width: 72,
@@ -53,7 +54,7 @@ export function SceneStripBlock({ block }: { block: S['SceneStripBlock'] }) {
             <span className="tiny muted" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {s.satellite}
             </span>
-            <span className="tiny">{Math.round(s.cloud * 100)}% cloud</span>
+            <span className="tiny">{cloudFromFraction(s.cloud)} cloud</span>
           </li>
         ))}
       </ol>
