@@ -513,3 +513,13 @@ follow the user to another device). All routes are scoped by `X-User-Id`.
 
 `ThreadSummary` and `ThreadDetail` carry `project_id: string | null`, so the history list shows
 which project each chat is in without a second call.
+
+## 15. Installed skills
+
+Which skills the user installed, stored on the server per `X-User-Id`. Installing is idempotent.
+
+| Route | Result |
+| --- | --- |
+| `GET /api/me/skills` | `{installed: string[]}`, oldest first |
+| `PUT /api/me/skills/{skill_id}` | updated list; **404** when the skill is not in `GET /api/skills` for this user |
+| `DELETE /api/me/skills/{skill_id}` | updated list (also when it was not installed) |

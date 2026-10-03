@@ -6,6 +6,7 @@ from app.api.routes import (
     health,
     knowledge,
     layers,
+    me_skills,
     memory,
     places,
     projects,
@@ -37,3 +38,4 @@ api_router.include_router(catalog_routes.router)
 api_router.include_router(threads.router)
 api_router.include_router(satellites_routes.router)
 api_router.include_router(projects.router)
+api_router.include_router(me_skills.router)
