@@ -45,6 +45,7 @@ cp deploy/.env.example deploy/.env        # then edit: PUBLIC_BASE_URL, HTTP_POR
 | `EARTH_DATA_DIR` | compose | `/data` | Cache, rendered layers, memory, run DB (volume). Set by compose; do not override. |
 | `CORS_ORIGINS` | compose | `["$PUBLIC_BASE_URL"]` | Set by compose from `PUBLIC_BASE_URL`. |
 | `PUBLIC_BASE_URL` | `deploy/.env` | `http://localhost` | Public URL. Compose passes it to the backend (share links read it) and derives `CORS_ORIGINS` from it. |
+| `TRUST_PROXY_HEADERS` | backend (set by compose to `true`) | Trust nginx's `X-Real-IP` for the per-IP run limit. Only safe while the backend is reachable only through nginx. |
 | `HTTP_PORT` | `deploy/.env` | `80` | Host port of nginx. |
 | `VITE_API_SOURCE` | `deploy/.env` | `http` | Frontend build arg: `http` real API, `fixture` mocks. Needs a rebuild. |
 
