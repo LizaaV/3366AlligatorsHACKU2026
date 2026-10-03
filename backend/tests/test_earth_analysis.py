@@ -78,6 +78,29 @@ def test_bucket_orders_candidates_by_tile_cloud():
     assert [x.id for x in out[1]] == ["6", "11", "1"]
 
 
+def test_search_long_covers_the_window_in_contiguous_chunks(monkeypatch, tmp_path):
+    from earth.providers import earth_search as es
+
+    monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    calls = []
+
+    def fake_search(area, start, end):
+        calls.append((start, end))
+        return [
+            SimpleNamespace(
+                id=f"S2B_49QHE_{start:%Y%m%d}_0_L2A", properties={"datetime": str(start)}
+            )
+        ]
+
+    monkeypatch.setattr(es, "search", fake_search)
+    monkeypatch.setattr(es, "_search_settled", lambda area, s, e: fake_search(area, s, e))
+    items = es.search_long(HOO_HOK_WAI, date(2021, 10, 1), date(2026, 10, 3))
+    calls.sort()
+    assert calls[0][0] == date(2021, 10, 1) and calls[-1][1] == date(2026, 10, 3)
+    assert all((b[0] - a[1]).days == 1 for a, b in zip(calls, calls[1:], strict=False))
+    assert len(items) == len(calls)
+
+
 def test_normal_band_uses_earlier_years_only_and_needs_two():
     def pt(y: int, m: int, v: float) -> SeriesPoint:
         return SeriesPoint(date=date(y, m, 10), value=v, scene="S", clean_px=100)
