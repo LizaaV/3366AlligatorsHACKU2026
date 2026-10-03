@@ -6,6 +6,7 @@ PNGs are written when `earth.render()` runs, to
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import numpy as np
@@ -24,11 +25,31 @@ RAMPS: dict[str, tuple[float, float, list[tuple[int, int, int]]]] = {
 }
 
 
+_RUN_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+_SCENE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+
+
+def validate_run_id(run_id: str) -> str:
+    """Run ids become folder names: only `^[a-z0-9][a-z0-9_-]{0,63}$` is allowed."""
+    if not isinstance(run_id, str) or not _RUN_ID.fullmatch(run_id):
+        raise ValueError(f"Invalid run id {run_id!r}: must match {_RUN_ID.pattern}")
+    return run_id
+
+
+def _check_scene(scene: str) -> None:
+    if not isinstance(scene, str) or not _SCENE_ID.fullmatch(scene) or ".." in scene:
+        raise ValueError(f"Invalid scene id {scene!r}")
+
+
 def layer_path(run_id: str, measure: str | None, scene: str) -> Path:
+    validate_run_id(run_id)
+    _check_scene(scene)
     return settings.data_dir() / "layers" / run_id / (measure or "rgb") / f"{scene}.png"
 
 
 def layer_url(run_id: str, measure: str | None, scene: str) -> str:
+    validate_run_id(run_id)
+    _check_scene(scene)
     return f"/api/layers/{run_id}/{measure or 'rgb'}/{scene}.png"
 
 

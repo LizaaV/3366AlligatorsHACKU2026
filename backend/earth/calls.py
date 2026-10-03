@@ -14,6 +14,7 @@ from typing import Any, ParamSpec, TypeVar
 
 from earth import settings
 from earth.errors import BudgetExceeded, EarthError
+from earth.render import validate_run_id
 from earth.types import EarthCall, Provenance
 
 P = ParamSpec("P")
@@ -32,12 +33,12 @@ def set_listener(fn: Callable[[EarthCall], None] | None) -> None:
 def set_run(run_id: str | None) -> None:
     """Which run this process works for (used for layer paths). Defaults to $RUN_ID or "local"."""
     global _run_id, _count
-    _run_id = run_id
+    _run_id = None if run_id is None else validate_run_id(run_id)
     _count = 0
 
 
 def current_run() -> str:
-    return _run_id or os.environ.get("RUN_ID") or "local"
+    return validate_run_id(_run_id or os.environ.get("RUN_ID") or "local")
 
 
 def traced(summarise: Callable[[Any], str]) -> Callable[[Callable[P, R]], Callable[P, R]]:
@@ -58,8 +59,12 @@ def traced(summarise: Callable[[Any], str]) -> Callable[[Callable[P, R]], Callab
                 raise exc
             try:
                 result = fn(*args, **kwargs)
-            except EarthError as exc:
-                _emit(fn.__name__, f"Failed: {exc.message}", start, None, exc.kind)
+            except Exception as exc:
+                if isinstance(exc, EarthError):
+                    _emit(fn.__name__, f"Failed: {exc.message}", start, None, exc.kind)
+                else:
+                    summary = f"Failed: {type(exc).__name__}: {exc}"
+                    _emit(fn.__name__, summary, start, None, type(exc).__name__)
                 raise
             prov = getattr(result, "provenance", None)
             _emit(

@@ -15,6 +15,8 @@ Every function returns small models, never arrays. EARTH_IMPL=stub|real picks th
 from __future__ import annotations
 
 import importlib
+import re
+import typing
 from datetime import date
 from types import ModuleType
 
@@ -24,7 +26,14 @@ from shapely.ops import transform
 from earth import settings, show
 from earth.blocks import Block, validate_block
 from earth.calls import current_run, set_listener, set_run, traced
-from earth.errors import AreaTooSmall, BudgetExceeded, EarthError, InvalidArea, NoClearScenes
+from earth.errors import (
+    AreaTooSmall,
+    BudgetExceeded,
+    EarthError,
+    InvalidArea,
+    NoClearScenes,
+    WrongSceneKind,
+)
 from earth.render import colourise, layer_path, layer_url, write_png
 from earth.types import (
     Area,
@@ -61,6 +70,7 @@ __all__ = [
     "SceneList",
     "Series",
     "Stats",
+    "WrongSceneKind",
     "compare",
     "describe",
     "index",
@@ -81,7 +91,44 @@ def _impl() -> ModuleType:
     return importlib.import_module("earth._stub" if settings.impl() == "stub" else "earth.real")
 
 
+_LAST = re.compile(r"^[1-9]\d{0,3}[dwmy]$")
+_EVERY = ("month", "quarter", "year")
+
+
+def _check_measure(measure: object) -> None:
+    valid = typing.get_args(Measure)
+    if measure not in valid:
+        raise EarthError(
+            f"Unknown measure {measure!r}.", "Use one of: " + ", ".join(f'"{m}"' for m in valid)
+        )
+
+
+def _check_kind(kind: object) -> None:
+    valid = typing.get_args(SceneKind)
+    if kind not in valid:
+        raise EarthError(
+            f"Unknown scene kind {kind!r}.", "Use one of: " + ", ".join(f'"{k}"' for k in valid)
+        )
+
+
+def _check_last(last: object) -> None:
+    if not isinstance(last, str) or not _LAST.fullmatch(last):
+        raise EarthError(
+            f"Can't read last={last!r} as a time window.", 'Use like "60d", "8w", "6m", "1y".'
+        )
+
+
+def _check_every(every: object) -> None:
+    if every not in _EVERY:
+        raise EarthError(f"every={every!r} is not supported.", 'Use "month" | "quarter" | "year".')
+
+
 def _check_size(area: Area) -> None:
+    if area.area_ha > settings.MAX_AREA_HA:
+        raise BudgetExceeded(
+            f"{area.area_ha:.0f} ha is above the {settings.MAX_AREA_HA} ha limit.",
+            "draw a smaller outline (max 25 km² for now)",
+        )
     if area.pixels(10) < settings.MIN_PIXELS_10M:
         raise AreaTooSmall(
             f"{area.area_ha:.2f} ha ≈ {area.pixels(10)} pixels at 10 m. "
@@ -108,6 +155,8 @@ def describe(area: Area) -> PlaceContext:
 def scenes(
     area: Area, last: str = "60d", kind: SceneKind = "optical", max_cloud: int = 30
 ) -> SceneList:
+    _check_last(last)
+    _check_kind(kind)
     return _impl().scenes(area, last=last, kind=kind, max_cloud=max_cloud)
 
 
@@ -119,6 +168,7 @@ def load(area: Area, scene: Scene) -> LayerRef:
 
 @traced(lambda r: f"Computed {r.measure} for {r.date:%d %b %Y}")
 def index(layer: LayerRef, measure: Measure) -> LayerRef:
+    _check_measure(measure)
     return _impl().index(layer, measure)
 
 
@@ -134,6 +184,8 @@ def measure(layer: LayerRef) -> Stats:
     )
 )
 def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -> Series:
+    _check_measure(measure)
+    _check_every(every)
     _check_size(area)
     return _impl().series(area, measure, years=years, every=every)
 
@@ -145,8 +197,15 @@ def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -
     )
 )
 def compare(area: Area, measure: Measure, before: date | str, after: date | str) -> Comparison:
+    _check_measure(measure)
+    d_before, d_after = _as_date(before), _as_date(after)
+    if d_before >= d_after:
+        raise EarthError(
+            f"before ({d_before}) is not earlier than after ({d_after}).",
+            'Pass before < after, ISO dates like "2026-03-01".',
+        )
     _check_size(area)
-    return _impl().compare(area, measure, _as_date(before), _as_date(after))
+    return _impl().compare(area, measure, d_before, d_after)
 
 
 @traced(lambda a: f"Took the {a.area_ha:.0f} ha ring around the area")
@@ -180,4 +239,9 @@ def render(layer: LayerRef) -> RenderedLayer:
 
 
 def _as_date(d: date | str) -> date:
-    return d if isinstance(d, date) else date.fromisoformat(d)
+    if isinstance(d, date):
+        return d
+    try:
+        return date.fromisoformat(d)
+    except (TypeError, ValueError) as exc:
+        raise EarthError(f"Can't read {d!r} as a date.", 'ISO dates like "2026-03-01".') from exc

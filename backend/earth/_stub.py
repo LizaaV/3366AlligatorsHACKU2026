@@ -15,7 +15,7 @@ from itertools import count
 import numpy as np
 
 from earth import settings
-from earth.errors import BudgetExceeded, NoClearScenes
+from earth.errors import BudgetExceeded, NoClearScenes, WrongSceneKind
 from earth.types import (
     Area,
     BandMonth,
@@ -204,8 +204,8 @@ def load(area: Area, scene: Scene) -> LayerRef:
 def index(layer: LayerRef, measure: Measure) -> LayerRef:
     area, scene, _ = _layers[layer.id]
     if (measure == "roughness") != (scene.kind == "radar"):
-        raise NoClearScenes(
-            f"{measure} needs a {'radar' if measure == 'roughness' else 'optical'} scene, "
+        raise WrongSceneKind(
+            f"{measure} needs {'a radar' if measure == 'roughness' else 'an optical'} scene, "
             f"got {scene.kind}.",
             f'Use scenes(area, kind="{"radar" if measure == "roughness" else "optical"}").',
         )

@@ -32,3 +32,7 @@ class BudgetExceeded(EarthError):
 
 class InvalidArea(EarthError):
     kind = "invalid_area"
+
+
+class WrongSceneKind(EarthError):
+    kind = "wrong_scene_kind"
