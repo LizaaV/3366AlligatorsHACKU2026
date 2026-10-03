@@ -1,5 +1,5 @@
-// Regional language support. `ui: true` = interface translated; every language gets agent answers,
-// WhatsApp replies and PDF exports in that language. Missing keys fall back to English.
+// Regional language support. `ui: true` = interface translated; every language can be chosen as
+// the agent's answer language. Missing keys fall back to English.
 
 export interface Lang { code: string; name: string; english: string; region: string; ui: boolean; rtl?: boolean; }
 
@@ -34,116 +34,99 @@ export const LANGS: Lang[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  'nav.ask': 'Ask', 'nav.places': 'Places', 'nav.watches': 'Watches', 'nav.library': 'Library',
+  'nav.ask': 'Ask', 'nav.places': 'Places', 'nav.library': 'Library',
   'hero.eyebrow': 'Connecting satellites to you', 'hero.title': 'Ask the planet a question.',
-  'hero.sub': 'Ask about any field, coast or city. The agent picks the satellites, cleans the images and returns an answer with proof you can keep watching.',
-  'chat.placeholder': 'Ask about any place on Earth…', 'chat.try': 'Try asking', 'chat.place': 'Place', 'chat.noPlace': 'No place · general question',
-  'cta.saveWatch': 'Keep watching', 'cta.export': 'Export', 'cta.expert': 'Ask an expert', 'cta.addPlace': 'Add place', 'cta.newWatch': 'New watch', 'cta.newSkill': 'Build a skill',
-  'cta.askHere': 'Ask about this place', 'cta.explore': 'Library',
-  'tier.free': 'Free', 'tier.paid': 'Paid',
+  'hero.sub': 'Ask about any place on Earth in plain language. The agent reads free satellite data and answers with evidence: before-and-after images, a timeline and the numbers behind it.',
+  'chat.placeholder': 'Ask about any place on Earth…', 'chat.try': 'Try asking', 'chat.place': 'Place', 'chat.noPlace': 'No place · general question', 'cta.addPlace': 'Add place',
   'places.title': 'Places', 'places.sub': 'Fields, plots, sites and water bodies you have saved. Pick one to ask about it.',
-  'watches.title': 'Triggers', 'watches.sub': 'Things the agent looks out for on every new satellite pass, and tells you when they happen.',
-  'library.title': 'Skills library', 'library.sub': 'Reproducible recipes that turn a question into satellite steps. Official skills are built and validated by Constellation.',
-  'common.all': 'All',
+  'watches.title': 'Triggers', 'watches.sub': 'Questions saved to re-check a place. Automatic re-checks are not running yet, so ask again any time to update one.',
+  'library.title': 'Skills library', 'library.sub': 'Reproducible recipes that turn a question into satellite steps. Ready skills run today; concepts show what is planned.',
   'nav.triggers': 'Triggers',
+  'nav.account': 'Account', 'nav.language': 'Language', 'nav.main': 'Main',
 };
 
 const de: Dict = {
-  'nav.ask': 'Fragen', 'nav.places': 'Orte', 'nav.watches': 'Wachen', 'nav.library': 'Bibliothek',
+  'nav.ask': 'Fragen', 'nav.places': 'Orte', 'nav.library': 'Bibliothek',
   'hero.eyebrow': 'Satelliten, verbunden mit dir', 'hero.title': 'Stell dem Planeten eine Frage.',
-  'hero.sub': 'Frag nach jedem Feld, jeder Küste oder Stadt. Der Agent wählt die Satelliten, bereinigt die Bilder und liefert eine Antwort mit Nachweis, die du weiter beobachten kannst.',
-  'chat.placeholder': 'Frag nach einem Ort auf der Erde…', 'chat.try': 'Probier zum Beispiel', 'chat.place': 'Ort', 'chat.noPlace': 'Kein Ort · allgemeine Frage',
-  'cta.saveWatch': 'Weiter beobachten', 'cta.export': 'Exportieren', 'cta.expert': 'Experten fragen', 'cta.addPlace': 'Ort hinzufügen', 'cta.newWatch': 'Neue Wache', 'cta.newSkill': 'Skill bauen',
-  'cta.askHere': 'Zu diesem Ort fragen', 'cta.explore': 'Bibliothek', 'tier.free': 'Gratis', 'tier.paid': 'Kostenpflichtig',
+  'hero.sub': 'Frag in einfacher Sprache nach jedem Ort der Erde. Der Agent liest freie Satellitendaten und antwortet mit Belegen: Vorher-nachher-Bilder, eine Zeitleiste und die Zahlen dahinter.',
+  'chat.placeholder': 'Frag nach einem Ort auf der Erde…', 'chat.try': 'Probier zum Beispiel', 'chat.place': 'Ort', 'chat.noPlace': 'Kein Ort · allgemeine Frage', 'cta.addPlace': 'Ort hinzufügen',
   'places.title': 'Orte', 'places.sub': 'Gespeicherte Felder, Parzellen, Standorte und Gewässer. Wähle einen aus, um danach zu fragen.',
-  'watches.title': 'Wachen', 'watches.sub': 'Fragen, die der Agent bei jedem neuen Satellitenüberflug erneut stellt – nach Thema sortiert.',
+  'watches.title': 'Auslöser', 'watches.sub': 'Bedingungen, die der Agent bei jedem neuen Satellitenüberflug prüft – du erfährst, sobald eine eintritt.',
   'library.title': 'Skill-Bibliothek', 'library.sub': 'Reproduzierbare Rezepte, die eine Frage in Satellitenschritte übersetzen. Offizielle Skills sind von Constellation gebaut und validiert.',
-  'common.all': 'Alle',
   'nav.triggers': 'Auslöser',
+  'nav.account': 'Konto', 'nav.language': 'Sprache', 'nav.main': 'Hauptmenü',
 };
 
 const es: Dict = {
-  'nav.ask': 'Preguntar', 'nav.places': 'Lugares', 'nav.watches': 'Vigilancias', 'nav.library': 'Biblioteca',
+  'nav.ask': 'Preguntar', 'nav.places': 'Lugares', 'nav.library': 'Biblioteca',
   'hero.eyebrow': 'Conectando los satélites contigo', 'hero.title': 'Hazle una pregunta al planeta.',
-  'hero.sub': 'Pregunta por cualquier campo, costa o ciudad. El agente elige los satélites, limpia las imágenes y responde con pruebas que puedes seguir vigilando.',
-  'chat.placeholder': 'Pregunta por cualquier lugar de la Tierra…', 'chat.try': 'Prueba a preguntar', 'chat.place': 'Lugar', 'chat.noPlace': 'Sin lugar · pregunta general',
-  'cta.saveWatch': 'Seguir vigilando', 'cta.export': 'Exportar', 'cta.expert': 'Consultar a un experto', 'cta.addPlace': 'Añadir lugar', 'cta.newWatch': 'Nueva vigilancia', 'cta.newSkill': 'Crear skill',
-  'cta.askHere': 'Preguntar por este lugar', 'cta.explore': 'Biblioteca', 'tier.free': 'Gratis', 'tier.paid': 'De pago',
+  'hero.sub': 'Pregunta en lenguaje sencillo por cualquier lugar de la Tierra. El agente lee datos satelitales gratuitos y responde con pruebas: imágenes de antes y después, una línea de tiempo y las cifras.',
+  'chat.placeholder': 'Pregunta por cualquier lugar de la Tierra…', 'chat.try': 'Prueba a preguntar', 'chat.place': 'Lugar', 'chat.noPlace': 'Sin lugar · pregunta general', 'cta.addPlace': 'Añadir lugar',
   'places.title': 'Lugares', 'places.sub': 'Campos, parcelas, sitios y cuerpos de agua guardados. Elige uno para preguntar.',
-  'watches.title': 'Vigilancias', 'watches.sub': 'Preguntas que el agente repite en cada nuevo paso de satélite, ordenadas por tema.',
+  'watches.title': 'Disparadores', 'watches.sub': 'Condiciones que el agente comprueba en cada nuevo paso de satélite, y te avisa cuando se cumplen.',
   'library.title': 'Biblioteca de skills', 'library.sub': 'Recetas reproducibles que convierten una pregunta en pasos satelitales. Las oficiales las crea y valida Constellation.',
-  'common.all': 'Todo',
   'nav.triggers': 'Disparadores',
+  'nav.account': 'Cuenta', 'nav.language': 'Idioma', 'nav.main': 'Principal',
 };
 
 const fr: Dict = {
-  'nav.ask': 'Demander', 'nav.places': 'Lieux', 'nav.watches': 'Veilles', 'nav.library': 'Bibliothèque',
+  'nav.ask': 'Demander', 'nav.places': 'Lieux', 'nav.library': 'Bibliothèque',
   'hero.eyebrow': 'Les satellites, connectés à vous', 'hero.title': 'Posez une question à la planète.',
-  'hero.sub': "Interrogez n'importe quel champ, côte ou ville. L'agent choisit les satellites, nettoie les images et répond avec des preuves que vous pouvez continuer à suivre.",
-  'chat.placeholder': "Posez une question sur n'importe quel lieu…", 'chat.try': 'Essayez', 'chat.place': 'Lieu', 'chat.noPlace': 'Aucun lieu · question générale',
-  'cta.saveWatch': 'Continuer à surveiller', 'cta.export': 'Exporter', 'cta.expert': 'Demander à un expert', 'cta.addPlace': 'Ajouter un lieu', 'cta.newWatch': 'Nouvelle veille', 'cta.newSkill': 'Créer un skill',
-  'cta.askHere': 'Questionner ce lieu', 'cta.explore': 'Bibliothèque', 'tier.free': 'Gratuit', 'tier.paid': 'Payant',
+  'hero.sub': 'Interrogez n\'importe quel lieu sur Terre en langage courant. L\'agent lit des données satellites gratuites et répond avec des preuves : images avant/après, chronologie et chiffres.',
+  'chat.placeholder': "Posez une question sur n'importe quel lieu…", 'chat.try': 'Essayez', 'chat.place': 'Lieu', 'chat.noPlace': 'Aucun lieu · question générale', 'cta.addPlace': 'Ajouter un lieu',
   'places.title': 'Lieux', 'places.sub': "Champs, parcelles, sites et plans d'eau enregistrés. Choisissez-en un pour poser une question.",
-  'watches.title': 'Veilles', 'watches.sub': "Questions que l'agent repose à chaque nouveau passage satellite, classées par thème.",
+  'watches.title': 'Déclencheurs', 'watches.sub': 'Conditions que l\'agent vérifie à chaque nouveau passage satellite, et vous prévient quand l\'une est remplie.',
   'library.title': 'Bibliothèque de skills', 'library.sub': 'Recettes reproductibles qui transforment une question en étapes satellites. Les skills officiels sont validés par Constellation.',
-  'common.all': 'Tous',
   'nav.triggers': 'Déclencheurs',
+  'nav.account': 'Compte', 'nav.language': 'Langue', 'nav.main': 'Principal',
 };
 
 const pt: Dict = {
-  'nav.ask': 'Perguntar', 'nav.places': 'Lugares', 'nav.watches': 'Vigias', 'nav.library': 'Biblioteca',
+  'nav.ask': 'Perguntar', 'nav.places': 'Lugares', 'nav.library': 'Biblioteca',
   'hero.eyebrow': 'Conectando satélites a você', 'hero.title': 'Faça uma pergunta ao planeta.',
-  'hero.sub': 'Pergunte sobre qualquer campo, costa ou cidade. O agente escolhe os satélites, limpa as imagens e responde com provas que você pode continuar a vigiar.',
-  'chat.placeholder': 'Pergunte sobre qualquer lugar da Terra…', 'chat.try': 'Experimente perguntar', 'chat.place': 'Lugar', 'chat.noPlace': 'Sem lugar · pergunta geral',
-  'cta.saveWatch': 'Continuar vigiando', 'cta.export': 'Exportar', 'cta.expert': 'Perguntar a um especialista', 'cta.addPlace': 'Adicionar lugar', 'cta.newWatch': 'Nova vigia', 'cta.newSkill': 'Criar skill',
-  'cta.askHere': 'Perguntar sobre este lugar', 'cta.explore': 'Biblioteca', 'tier.free': 'Grátis', 'tier.paid': 'Pago',
+  'hero.sub': 'Pergunte em linguagem simples sobre qualquer lugar da Terra. O agente lê dados de satélite gratuitos e responde com provas: imagens de antes e depois, uma linha do tempo e os números.',
+  'chat.placeholder': 'Pergunte sobre qualquer lugar da Terra…', 'chat.try': 'Experimente perguntar', 'chat.place': 'Lugar', 'chat.noPlace': 'Sem lugar · pergunta geral', 'cta.addPlace': 'Adicionar lugar',
   'places.title': 'Lugares', 'places.sub': 'Campos, lotes, locais e corpos d’água salvos. Escolha um para perguntar.',
-  'watches.title': 'Vigias', 'watches.sub': 'Perguntas que o agente refaz a cada nova passagem de satélite, organizadas por tema.',
+  'watches.title': 'Gatilhos', 'watches.sub': 'Condições que o agente verifica a cada nova passagem de satélite, avisando quando uma é atendida.',
   'library.title': 'Biblioteca de skills', 'library.sub': 'Receitas reproduzíveis que transformam uma pergunta em etapas de satélite. Skills oficiais são validados pela Constellation.',
-  'common.all': 'Todos',
   'nav.triggers': 'Gatilhos',
+  'nav.account': 'Conta', 'nav.language': 'Idioma', 'nav.main': 'Principal',
 };
 
 const hi: Dict = {
-  'nav.ask': 'पूछें', 'nav.places': 'स्थान', 'nav.watches': 'निगरानी', 'nav.library': 'लाइब्रेरी',
+  'nav.ask': 'पूछें', 'nav.places': 'स्थान', 'nav.library': 'लाइब्रेरी',
   'hero.eyebrow': 'उपग्रहों को आपसे जोड़ते हुए', 'hero.title': 'धरती से एक सवाल पूछिए।',
-  'hero.sub': 'किसी भी खेत, तट या शहर के बारे में पूछें। एजेंट उपग्रह चुनता है, तस्वीरें साफ़ करता है और सबूत के साथ जवाब देता है।',
-  'chat.placeholder': 'पृथ्वी पर किसी भी जगह के बारे में पूछें…', 'chat.try': 'यह पूछकर देखें', 'chat.place': 'स्थान', 'chat.noPlace': 'कोई स्थान नहीं · सामान्य सवाल',
-  'cta.saveWatch': 'निगरानी जारी रखें', 'cta.export': 'निर्यात', 'cta.expert': 'विशेषज्ञ से पूछें', 'cta.addPlace': 'स्थान जोड़ें', 'cta.newWatch': 'नई निगरानी', 'cta.newSkill': 'स्किल बनाएं',
-  'cta.askHere': 'इस स्थान के बारे में पूछें', 'cta.explore': 'लाइब्रेरी', 'tier.free': 'मुफ़्त', 'tier.paid': 'सशुल्क',
+  'hero.sub': 'पृथ्वी पर किसी भी जगह के बारे में सरल भाषा में पूछें। एजेंट मुफ़्त उपग्रह डेटा पढ़ता है और सबूत के साथ जवाब देता है: पहले-बाद की तस्वीरें, समयरेखा और आँकड़े।',
+  'chat.placeholder': 'पृथ्वी पर किसी भी जगह के बारे में पूछें…', 'chat.try': 'यह पूछकर देखें', 'chat.place': 'स्थान', 'chat.noPlace': 'कोई स्थान नहीं · सामान्य सवाल', 'cta.addPlace': 'स्थान जोड़ें',
   'places.title': 'स्थान', 'places.sub': 'आपके सहेजे गए खेत, प्लॉट और जल स्रोत। पूछने के लिए एक चुनें।',
-  'watches.title': 'निगरानी', 'watches.sub': 'सवाल जो एजेंट हर नए उपग्रह पास पर दोबारा पूछता है, विषय के अनुसार।',
+  'watches.title': 'ट्रिगर', 'watches.sub': 'शर्तें जिन्हें एजेंट हर नए उपग्रह पास पर जाँचता है, और पूरी होने पर आपको बताता है।',
   'library.title': 'स्किल लाइब्रेरी', 'library.sub': 'दोहराए जा सकने वाले तरीके जो सवाल को उपग्रह चरणों में बदलते हैं।',
-  'common.all': 'सभी',
   'nav.triggers': 'ट्रिगर',
+  'nav.account': 'खाता', 'nav.language': 'भाषा', 'nav.main': 'मुख्य',
 };
 
 const sw: Dict = {
-  'nav.ask': 'Uliza', 'nav.places': 'Maeneo', 'nav.watches': 'Ufuatiliaji', 'nav.library': 'Maktaba',
+  'nav.ask': 'Uliza', 'nav.places': 'Maeneo', 'nav.library': 'Maktaba',
   'hero.eyebrow': 'Kuunganisha satelaiti nawe', 'hero.title': 'Uliza sayari swali.',
-  'hero.sub': 'Uliza kuhusu shamba, pwani au mji wowote. Wakala huchagua satelaiti, husafisha picha na kujibu kwa ushahidi.',
-  'chat.placeholder': 'Uliza kuhusu mahali popote Duniani…', 'chat.try': 'Jaribu kuuliza', 'chat.place': 'Mahali', 'chat.noPlace': 'Hakuna mahali · swali la jumla',
-  'cta.saveWatch': 'Endelea kufuatilia', 'cta.export': 'Hamisha', 'cta.expert': 'Uliza mtaalamu', 'cta.addPlace': 'Ongeza mahali', 'cta.newWatch': 'Ufuatiliaji mpya', 'cta.newSkill': 'Tengeneza ujuzi',
-  'cta.askHere': 'Uliza kuhusu mahali hapa', 'cta.explore': 'Maktaba', 'tier.free': 'Bure', 'tier.paid': 'Kulipia',
+  'hero.sub': 'Uliza kuhusu mahali popote Duniani kwa lugha rahisi. Wakala husoma data ya bure ya satelaiti na kujibu kwa ushahidi: picha za kabla na baada, mfuatano wa wakati na takwimu.',
+  'chat.placeholder': 'Uliza kuhusu mahali popote Duniani…', 'chat.try': 'Jaribu kuuliza', 'chat.place': 'Mahali', 'chat.noPlace': 'Hakuna mahali · swali la jumla', 'cta.addPlace': 'Ongeza mahali',
   'places.title': 'Maeneo', 'places.sub': 'Mashamba, viwanja na maji uliyohifadhi. Chagua moja kuuliza.',
-  'watches.title': 'Ufuatiliaji', 'watches.sub': 'Maswali ambayo wakala huuliza tena kila satelaiti inapopita.',
+  'watches.title': 'Vichochezi', 'watches.sub': 'Masharti ambayo wakala hukagua kila satelaiti inapopita, na kukujulisha yanapotimia.',
   'library.title': 'Maktaba ya ujuzi', 'library.sub': 'Mapishi yanayorudiwa yanayogeuza swali kuwa hatua za satelaiti.',
-  'common.all': 'Zote',
   'nav.triggers': 'Vichochezi',
+  'nav.account': 'Akaunti', 'nav.language': 'Lugha', 'nav.main': 'Kuu',
 };
 
 const ar: Dict = {
-  'nav.ask': 'اسأل', 'nav.places': 'الأماكن', 'nav.watches': 'المراقبة', 'nav.library': 'المكتبة',
+  'nav.ask': 'اسأل', 'nav.places': 'الأماكن', 'nav.library': 'المكتبة',
   'hero.eyebrow': 'نصل الأقمار الصناعية بك', 'hero.title': 'اسأل الكوكب سؤالاً.',
-  'hero.sub': 'اسأل عن أي حقل أو ساحل أو مدينة. يختار الوكيل الأقمار الصناعية وينظف الصور ويجيب مع دليل يمكنك متابعته.',
-  'chat.placeholder': 'اسأل عن أي مكان على الأرض…', 'chat.try': 'جرّب أن تسأل', 'chat.place': 'المكان', 'chat.noPlace': 'بدون مكان · سؤال عام',
-  'cta.saveWatch': 'تابع المراقبة', 'cta.export': 'تصدير', 'cta.expert': 'اسأل خبيراً', 'cta.addPlace': 'أضف مكاناً', 'cta.newWatch': 'مراقبة جديدة', 'cta.newSkill': 'أنشئ مهارة',
-  'cta.askHere': 'اسأل عن هذا المكان', 'cta.explore': 'المكتبة', 'tier.free': 'مجاني', 'tier.paid': 'مدفوع',
+  'hero.sub': 'اسأل عن أي مكان على الأرض بلغة بسيطة. يقرأ الوكيل بيانات الأقمار الصناعية المجانية ويجيب بأدلة: صور قبل وبعد، وخط زمني، والأرقام.',
+  'chat.placeholder': 'اسأل عن أي مكان على الأرض…', 'chat.try': 'جرّب أن تسأل', 'chat.place': 'المكان', 'chat.noPlace': 'بدون مكان · سؤال عام', 'cta.addPlace': 'أضف مكاناً',
   'places.title': 'الأماكن', 'places.sub': 'الحقول والقطع والمواقع والمسطحات المائية المحفوظة.',
-  'watches.title': 'المراقبة', 'watches.sub': 'أسئلة يعيد الوكيل طرحها مع كل مرور جديد للقمر الصناعي.',
+  'watches.title': 'المشغّلات', 'watches.sub': 'شروط يتحقق منها الوكيل مع كل مرور جديد للقمر الصناعي، ويخبرك عند تحققها.',
   'library.title': 'مكتبة المهارات', 'library.sub': 'وصفات قابلة لإعادة الإنتاج تحول السؤال إلى خطوات بالأقمار الصناعية.',
-  'common.all': 'الكل',
   'nav.triggers': 'المشغّلات',
+  'nav.account': 'الحساب', 'nav.language': 'اللغة', 'nav.main': 'الرئيسية',
 };
 
 const DICTS: Record<string, Dict> = { en, de, es, fr, pt, hi, sw, ar };

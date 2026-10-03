@@ -1,7 +1,7 @@
 [
   {
     "id": "dry-patch-finder",
-    "categoryKey": "agriculture",
+    "category_key": "agriculture",
     "name": "Dry patch finder",
     "sat": "Sentinel-2 · Landsat 9 thermal",
     "cost": "Free",
@@ -22,7 +22,7 @@
     "runs": 4240,
     "rating": 4.1,
     "version": "2.0.0",
-    "updatedAt": "2026-09-30T00:00:00Z",
+    "updated_at": "2026-09-30T00:00:00Z",
     "steps": [
       "ask.clarify",
       "area.mark",
@@ -40,11 +40,13 @@
       "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "weekly-crop-health",
-    "categoryKey": "agriculture",
+    "category_key": "agriculture",
     "name": "Weekly crop health",
     "sat": "Sentinel-2",
     "cost": "Free",
@@ -65,7 +67,7 @@
     "runs": 2334,
     "rating": 4.5,
     "version": "1.1.1",
-    "updatedAt": "2026-09-26T00:00:00Z",
+    "updated_at": "2026-09-26T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -81,11 +83,13 @@
       "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "pasture-for-herders",
-    "categoryKey": "agriculture",
+    "category_key": "agriculture",
     "name": "Pasture for herders",
     "sat": "Sentinel-2 · Sentinel-1",
     "cost": "Free",
@@ -106,7 +110,7 @@
     "runs": 1039,
     "rating": 4.9,
     "version": "1.2.2",
-    "updatedAt": "2026-09-18T00:00:00Z",
+    "updated_at": "2026-09-18T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -122,11 +126,13 @@
       "Pixels are 10–20 m; features smaller than ~3 pixels can be missed.",
       "Radar can confuse wet soil with water after heavy rain.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "small-field-stress-3-m",
-    "categoryKey": "agriculture",
+    "category_key": "agriculture",
     "name": "Small-field stress (3 m)",
     "sat": "PlanetScope",
     "cost": "$1.80 / km²",
@@ -147,7 +153,7 @@
     "runs": 7533,
     "rating": 4.4,
     "version": "2.3.0",
-    "updatedAt": "2026-08-29T00:00:00Z",
+    "updated_at": "2026-08-29T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -163,11 +169,13 @@
       "Pixels are 3 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "reservoir-level-tracker",
-    "categoryKey": "water",
+    "category_key": "water",
     "name": "Reservoir level tracker",
     "sat": "Sentinel-2 · SWOT",
     "cost": "Free",
@@ -188,7 +196,7 @@
     "runs": 6238,
     "rating": 4.8,
     "version": "2.0.0",
-    "updatedAt": "2026-08-12T00:00:00Z",
+    "updated_at": "2026-08-12T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -204,11 +212,13 @@
       "Pixels are 10 m / 100 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "algae-red-tide-alert",
-    "categoryKey": "water",
+    "category_key": "water",
     "name": "Algae & red tide alert",
     "sat": "Sentinel-3 OLCI",
     "cost": "Free",
@@ -229,7 +239,7 @@
     "runs": 743,
     "rating": 4.3,
     "version": "1.5.2",
-    "updatedAt": "2026-09-30T00:00:00Z",
+    "updated_at": "2026-09-30T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -245,11 +255,13 @@
       "Pixels are 300 m; features smaller than ~1 km can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "irrigation-water-use",
-    "categoryKey": "water",
+    "category_key": "water",
     "name": "Irrigation water use",
     "sat": "Sentinel-2 · Landsat thermal",
     "cost": "Free",
@@ -270,7 +282,7 @@
     "runs": 3037,
     "rating": 4.7,
     "version": "1.0.0",
-    "updatedAt": "2026-09-26T00:00:00Z",
+    "updated_at": "2026-09-26T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -286,11 +298,13 @@
       "Pixels are 30 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "deforestation-alerts",
-    "categoryKey": "forests",
+    "category_key": "forests",
     "name": "Deforestation alerts",
     "sat": "Sentinel-1 · Sentinel-2",
     "cost": "Free",
@@ -311,7 +325,7 @@
     "runs": 5942,
     "rating": 4.2,
     "version": "2.3.0",
-    "updatedAt": "2026-09-18T00:00:00Z",
+    "updated_at": "2026-09-18T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -327,11 +341,13 @@
       "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
       "Radar can confuse wet soil with water after heavy rain.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "eudr-proof-pack",
-    "categoryKey": "forests",
+    "category_key": "forests",
     "name": "EUDR proof pack",
     "sat": "Sentinel-2 · Landsat",
     "cost": "$9 / plot",
@@ -352,7 +368,7 @@
     "runs": 447,
     "rating": 4.6,
     "version": "1.2.2",
-    "updatedAt": "2026-08-29T00:00:00Z",
+    "updated_at": "2026-08-29T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -368,11 +384,13 @@
       "Pixels are 10–30 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "mangrove-extent",
-    "categoryKey": "forests",
+    "category_key": "forests",
     "name": "Mangrove extent",
     "sat": "Sentinel-2",
     "cost": "Free",
@@ -393,7 +411,7 @@
     "runs": 2741,
     "rating": 4.1,
     "version": "1.3.0",
-    "updatedAt": "2026-08-12T00:00:00Z",
+    "updated_at": "2026-08-12T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -409,11 +427,13 @@
       "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "active-fire-map",
-    "categoryKey": "disasters",
+    "category_key": "disasters",
     "name": "Active fire map",
     "sat": "VIIRS / FIRMS",
     "cost": "Free",
@@ -434,7 +454,7 @@
     "runs": 5646,
     "rating": 4.5,
     "version": "2.2.0",
-    "updatedAt": "2026-09-30T00:00:00Z",
+    "updated_at": "2026-09-30T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -450,11 +470,13 @@
       "Pixels are 375 m; features smaller than ~1 km can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "flood-extent",
-    "categoryKey": "disasters",
+    "category_key": "disasters",
     "name": "Flood extent",
     "sat": "Sentinel-1",
     "cost": "Free",
@@ -475,7 +497,7 @@
     "runs": 151,
     "rating": 4.9,
     "version": "1.5.2",
-    "updatedAt": "2026-09-26T00:00:00Z",
+    "updated_at": "2026-09-26T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -491,11 +513,13 @@
       "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
       "Radar can confuse wet soil with water after heavy rain.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "ground-sinking",
-    "categoryKey": "disasters",
+    "category_key": "disasters",
     "name": "Ground sinking",
     "sat": "Sentinel-1 InSAR",
     "cost": "Free",
@@ -516,7 +540,7 @@
     "runs": 2445,
     "rating": 4.4,
     "version": "1.0.0",
-    "updatedAt": "2026-09-18T00:00:00Z",
+    "updated_at": "2026-09-18T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -532,11 +556,13 @@
       "Pixels are ~20 m; features smaller than ~3 pixels can be missed.",
       "Radar can confuse wet soil with water after heavy rain.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "land-use-change",
-    "categoryKey": "urban",
+    "category_key": "urban",
     "name": "Land-use change",
     "sat": "Sentinel-2",
     "cost": "Free",
@@ -557,7 +583,7 @@
     "runs": 5350,
     "rating": 4.8,
     "version": "2.1.0",
-    "updatedAt": "2026-08-29T00:00:00Z",
+    "updated_at": "2026-08-29T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -573,11 +599,13 @@
       "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "urban-heat-map",
-    "categoryKey": "urban",
+    "category_key": "urban",
     "name": "Urban heat map",
     "sat": "Landsat 9 thermal",
     "cost": "Free",
@@ -598,7 +626,7 @@
     "runs": 3444,
     "rating": 4.3,
     "version": "1.2.2",
-    "updatedAt": "2026-08-12T00:00:00Z",
+    "updated_at": "2026-08-12T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -614,11 +642,13 @@
       "Pixels are 30 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "rooftop-solar-potential",
-    "categoryKey": "urban",
+    "category_key": "urban",
     "name": "Rooftop solar potential",
     "sat": "Paid high-res + elevation",
     "cost": "$0.40 / roof",
@@ -639,7 +669,7 @@
     "runs": 2149,
     "rating": 4.7,
     "version": "1.3.0",
-    "updatedAt": "2026-09-30T00:00:00Z",
+    "updated_at": "2026-09-30T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -655,11 +685,13 @@
       "Pixels are 30–50 cm; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "fishing-zones",
-    "categoryKey": "oceans",
+    "category_key": "oceans",
     "name": "Fishing zones",
     "sat": "Sentinel-3 · MODIS/VIIRS",
     "cost": "Free",
@@ -680,7 +712,7 @@
     "runs": 854,
     "rating": 4.2,
     "version": "1.4.1",
-    "updatedAt": "2026-09-26T00:00:00Z",
+    "updated_at": "2026-09-26T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -696,11 +728,13 @@
       "Pixels are 300 m–1 km; features smaller than ~1 km can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "dark-ship-detection",
-    "categoryKey": "oceans",
+    "category_key": "oceans",
     "name": "Dark ship detection",
     "sat": "Sentinel-1",
     "cost": "Free",
@@ -721,7 +755,7 @@
     "runs": 3148,
     "rating": 4.6,
     "version": "1.5.2",
-    "updatedAt": "2026-09-18T00:00:00Z",
+    "updated_at": "2026-09-18T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -737,11 +771,13 @@
       "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
       "Radar can confuse wet soil with water after heavy rain.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "coral-reef-watch",
-    "categoryKey": "oceans",
+    "category_key": "oceans",
     "name": "Coral reef watch",
     "sat": "Sentinel-2 · MODIS SST",
     "cost": "Free",
@@ -762,7 +798,7 @@
     "runs": 1853,
     "rating": 4.1,
     "version": "1.0.0",
-    "updatedAt": "2026-08-29T00:00:00Z",
+    "updated_at": "2026-08-29T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -778,11 +814,13 @@
       "Pixels are 10 m / 1 km; features smaller than ~1 km can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "air-pollution-no",
-    "categoryKey": "air",
+    "category_key": "air",
     "name": "Air pollution (NO₂)",
     "sat": "Sentinel-5P",
     "cost": "Free",
@@ -803,7 +841,7 @@
     "runs": 4758,
     "rating": 4.5,
     "version": "2.3.0",
-    "updatedAt": "2026-08-12T00:00:00Z",
+    "updated_at": "2026-08-12T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -819,11 +857,13 @@
       "Pixels are 5.5 km; features smaller than ~1 km can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "methane-leak-finder",
-    "categoryKey": "air",
+    "category_key": "air",
     "name": "Methane leak finder",
     "sat": "EMIT · Sentinel-5P",
     "cost": "Free",
@@ -844,7 +884,7 @@
     "runs": 2852,
     "rating": 4.9,
     "version": "1.2.2",
-    "updatedAt": "2026-09-30T00:00:00Z",
+    "updated_at": "2026-09-30T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -860,11 +900,13 @@
       "Pixels are 60 m / 5.5 km; features smaller than ~1 km can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "wildfire-smoke-tracker",
-    "categoryKey": "air",
+    "category_key": "air",
     "name": "Wildfire smoke tracker",
     "sat": "Sentinel-5P · VIIRS",
     "cost": "Free",
@@ -885,7 +927,7 @@
     "runs": 1557,
     "rating": 4.4,
     "version": "1.3.0",
-    "updatedAt": "2026-09-26T00:00:00Z",
+    "updated_at": "2026-09-26T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -901,11 +943,13 @@
       "Pixels are 5.5 km; features smaller than ~1 km can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "port-activity-index",
-    "categoryKey": "finance",
+    "category_key": "finance",
     "name": "Port activity index",
     "sat": "Sentinel-1 · Sentinel-2",
     "cost": "Free",
@@ -926,7 +970,7 @@
     "runs": 262,
     "rating": 4.8,
     "version": "1.4.1",
-    "updatedAt": "2026-09-18T00:00:00Z",
+    "updated_at": "2026-09-18T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -942,11 +986,13 @@
       "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
       "Radar can confuse wet soil with water after heavy rain.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "crop-insurance-check",
-    "categoryKey": "finance",
+    "category_key": "finance",
     "name": "Crop insurance check",
     "sat": "Sentinel-1/2 + paid high-res",
     "cost": "$4 / claim",
@@ -967,7 +1013,7 @@
     "runs": 6756,
     "rating": 4.3,
     "version": "2.3.0",
-    "updatedAt": "2026-08-29T00:00:00Z",
+    "updated_at": "2026-08-29T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -983,11 +1029,13 @@
       "Pixels are 10 m / 50 cm; features smaller than ~3 pixels can be missed.",
       "Radar can confuse wet soil with water after heavy rain.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "lender-field-check",
-    "categoryKey": "finance",
+    "category_key": "finance",
     "name": "Lender field check",
     "sat": "Sentinel-2",
     "cost": "Free",
@@ -1008,7 +1056,7 @@
     "runs": 1261,
     "rating": 4.7,
     "version": "1.0.0",
-    "updatedAt": "2026-08-12T00:00:00Z",
+    "updated_at": "2026-08-12T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -1024,11 +1072,13 @@
       "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "poverty-mapping",
-    "categoryKey": "society",
+    "category_key": "society",
     "name": "Poverty mapping",
     "sat": "VIIRS night lights",
     "cost": "Free",
@@ -1049,7 +1099,7 @@
     "runs": 3555,
     "rating": 4.2,
     "version": "1.1.1",
-    "updatedAt": "2026-09-30T00:00:00Z",
+    "updated_at": "2026-09-30T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -1065,11 +1115,13 @@
       "Pixels are 500 m; features smaller than ~1 km can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "mosquito-risk-areas",
-    "categoryKey": "society",
+    "category_key": "society",
     "name": "Mosquito risk areas",
     "sat": "Sentinel-2 · Landsat",
     "cost": "Free",
@@ -1090,7 +1142,7 @@
     "runs": 2260,
     "rating": 4.6,
     "version": "1.2.2",
-    "updatedAt": "2026-09-26T00:00:00Z",
+    "updated_at": "2026-09-26T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -1106,11 +1158,13 @@
       "Pixels are 10–30 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   },
   {
     "id": "heritage-site-watch",
-    "categoryKey": "society",
+    "category_key": "society",
     "name": "Heritage site watch",
     "sat": "Sentinel-2",
     "cost": "Free",
@@ -1131,7 +1185,7 @@
     "runs": 965,
     "rating": 4.1,
     "version": "1.3.0",
-    "updatedAt": "2026-09-18T00:00:00Z",
+    "updated_at": "2026-09-18T00:00:00Z",
     "steps": [
       "area.mark",
       "time.window",
@@ -1147,6 +1201,8 @@
       "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
       "Optical satellites cannot see through cloud; cloudy passes are skipped.",
       "Causes are inferred from patterns, not observed directly — confirm on the ground."
-    ]
+    ],
+    "status": "available",
+    "visibility": "public"
   }
 ]

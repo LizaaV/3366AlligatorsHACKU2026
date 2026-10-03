@@ -9,6 +9,8 @@
  * silently recolour the UI.
  */
 
+import type { Watch } from '../model';
+
 export interface CategoryStyle {
   /** Accent colour for dots, pills and chart series. */
   color: string;
@@ -52,3 +54,28 @@ export const SOURCE_LABEL: Record<string, string> = {
 };
 
 export const sourceLabel = (source: string) => SOURCE_LABEL[source] ?? 'Added manually';
+
+/* ---------------- triggers (watches) ---------------- */
+
+/**
+ * Nothing re-checks triggers on a schedule yet, so a trigger's measurement fields stay null
+ * until a real run fills them. These guards keep the UI from inventing (or crashing on) them.
+ */
+export const hasMeasurement = (w: Watch) =>
+  w.measured !== false && typeof w.value === 'number' && Number.isFinite(w.value);
+export const hasSeries = (w: Watch) => hasMeasurement(w) && (w.series?.current?.length ?? 0) >= 2;
+/** The model defaults a missing status to 'ok'; that is only a real "Normal" once measured. */
+export const hasStatus = (w: Watch) => hasMeasurement(w) && !!w.status && w.status in STATUS_STYLE;
+
+/* ---------------- skills ---------------- */
+
+/**
+ * Whether a skill can actually be run. The API marks unbuilt skills `concept` (and the
+ * caller's own unsaved ones `draft`); only `available` ones have a script behind them.
+ * A skill without the field is treated as runnable, which is what older payloads meant.
+ */
+export const skillStatus = (s: object): 'available' | 'concept' | 'draft' => {
+  const st = (s as { status?: unknown }).status;
+  return st === 'concept' || st === 'draft' ? st : 'available';
+};
+export const skillRunnable = (s: object) => skillStatus(s) === 'available';

@@ -21,7 +21,7 @@ export function MapFrame({ H, center, zoom, setZoom, place, layers, onPick, chil
           onPick((e.clientX - r.left - W / 2) / s, (e.clientY - r.top - H / 2) / s);
         } : undefined}
       >
-        <MapView W={W} H={H} cx={W / 2} cy={H / 2} center={center} zoom={zoom} place={place} layers={layers} dateIdx={7} />
+        <MapView W={W} H={H} cx={W / 2} cy={H / 2} center={center} zoom={zoom} place={place} contour={layers.contour} />
         {children && (
           <svg width={W} height={H} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible' }}>
             {children(s, W, H)}

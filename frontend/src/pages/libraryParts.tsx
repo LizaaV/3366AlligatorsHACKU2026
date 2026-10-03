@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { thumb } from '../lib/geo';
-import { Btn, CatPill, Ms, Tier, hideBroken } from '../components/ui';
+import { Btn, CatPill, Ms, hideBroken } from '../components/ui';
+import { skillStatus } from '../data/presentation';
 import { fmtRuns, slug } from '../lib/format';
 import { useStore } from '../state/store';
 import type { Skill } from '../model';
@@ -12,13 +13,25 @@ export { fmtRuns, slug };
 /** Official = built by Constellation. Community = anyone else; "verified" means the publisher's identity is checked. */
 export const PublisherBadge = ({ s }: { s: Pick<Skill, 'official' | 'verified'> }) =>
   s.official ? (
-    <span className="lib-badge official" title="Built and validated by Constellation"><Ms n="verified" />Official</span>
+    <span className="lib-badge official" title="Built by the Constellation team"><Ms n="verified" />Official</span>
   ) : (
     <span className="lib-badge community" title={s.verified ? 'Community skill from a verified publisher' : 'Community skill'}>
       <Ms n={s.verified ? 'verified_user' : 'groups'} />
       {s.verified ? 'Verified community' : 'Community'}
     </span>
   );
+
+/** Whether a skill can run today. A concept is a planned recipe with no script behind it yet. */
+export const StatusBadge = ({ s }: { s: object }) => {
+  const st = skillStatus(s);
+  return st === 'available' ? (
+    <span className="pill" style={{ color: 'var(--green)' }} title="Runs in the agent today"><Ms n="check_circle" size={14} />Ready</span>
+  ) : (
+    <span className="pill" style={{ color: 'var(--muted)' }} title={st === 'draft' ? 'Your draft, not published' : 'Planned recipe, not runnable yet'}>
+      <Ms n={st === 'draft' ? 'edit_note' : 'lightbulb'} size={14} />{st === 'draft' ? 'Draft' : 'Concept'}
+    </span>
+  );
+};
 
 export function SkillCard({ s, installed, onOpen, delay = 0 }: { s: Skill; installed: boolean; onOpen: () => void; delay?: number }) {
   const { category } = useStore();
@@ -32,16 +45,16 @@ export function SkillCard({ s, installed, onOpen, delay = 0 }: { s: Skill; insta
       <div className="lib-card-body">
         <div className="row wrap" style={{ gap: 6 }}>
           <CatPill category={category(s.categoryKey)} />
-          <Tier tier={s.tier} label={s.tier === 'paid' ? s.cost : 'Free'} />
+          <StatusBadge s={s} />
         </div>
         <div className="lib-card-name">{s.name}</div>
         <div className="lib-sat"><Ms n="satellite_alt" />{s.sat}</div>
         <div className="body-sm">{s.short}</div>
         <div className="lib-card-stats">
-          <span className="row" style={{ gap: 3 }}><span style={{ color: 'var(--yellow)' }}>★</span>{s.rating ? s.rating.toFixed(1) : 'New'}</span>
-          <span className="subtle">·</span>
-          <span>{fmtRuns(s.runs)} runs</span>
-          <span className="subtle">·</span>
+          {typeof s.rating === 'number' && s.rating > 0 && (
+            <><span className="row" style={{ gap: 3 }}><span style={{ color: 'var(--yellow)' }}>★</span>{s.rating.toFixed(1)}</span><span className="subtle">·</span></>
+          )}
+          {typeof s.runs === 'number' && s.runs > 0 && <><span>{fmtRuns(s.runs)} runs</span><span className="subtle">·</span></>}
           <span>v{s.version}</span>
         </div>
         <div className="lib-card-foot">
@@ -98,8 +111,8 @@ export const StorageExplainer = () => (
     <div className="col" style={{ gap: 4 }}>
       <div className="ink" style={{ font: '600 14px/1.4 var(--font)' }}>How skills are stored</div>
       <div className="body-sm">
-        Skills are stored as a versioned JSON manifest (validated against a JSON Schema). The registry keeps each version in a database
-        (Postgres JSONB) with publisher, signature and run stats, so a skill run is reproducible: same modules, same params, same version.
+        A skill is a versioned manifest: an ordered list of modules with their parameters, plus a pointer to the script for skills
+        that run. Same modules, same parameters, same version, so a run can be reproduced and checked.
       </div>
     </div>
   </div>

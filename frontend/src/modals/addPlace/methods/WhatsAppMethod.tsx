@@ -28,7 +28,7 @@ export function WhatsAppMethod({ onChange }: MethodProps) {
         <div className="well row wrap" style={{ padding: '12px 14px', gap: 12 }}>
           <Ms n="link_off" className="muted" />
           <div className="grow body-sm" style={{ minWidth: 180 }}>Connect your WhatsApp number first so we know which pins are yours.</div>
-          <Btn variant="secondary" icon="chat" tier="free" onClick={() => open({ kind: 'connectors', focus: 'whatsapp' })}>Connect WhatsApp</Btn>
+          <Btn variant="secondary" icon="chat" onClick={() => open({ kind: 'connectors', focus: 'whatsapp' })}>Connect WhatsApp</Btn>
         </div>
       ) : (
         <div className="col" style={{ gap: 2 }}>

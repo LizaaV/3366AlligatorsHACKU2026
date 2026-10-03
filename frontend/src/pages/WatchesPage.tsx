@@ -2,10 +2,9 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import type { Place, Watch } from '../model';
 import { thumb } from '../lib/geo';
-import { STATUS_STYLE } from '../data/presentation';
-import { ciLabel, fmtDay, fmtVal, timeKey } from '../lib/format';
-import { Btn, Empty, HistoryChart, Ms, RingOverlay, Tier, Toggle } from '../components/ui';
-import { AskBar } from '../components/AskBar';
+import { STATUS_STYLE, hasMeasurement, hasSeries, hasStatus } from '../data/presentation';
+import { ciLabel, fmtDate, fmtVal } from '../lib/format';
+import { Btn, Empty, HistoryChart, Ms, RingOverlay, Toggle } from '../components/ui';
 import { ErrorState, SkeletonCard } from '../components/async';
 import { WatchDetail } from './WatchDetail';
 
@@ -21,14 +20,13 @@ export function WatchesPage() {
 }
 
 function Overview() {
-  const { watches, places, open, t, categories, channels, loading, errors, reload } = useStore();
+  const { watches, places, open, t, categories, loading, errors, reload } = useStore();
   const [cat, setCat] = useState<number | 'all'>('all');
   const [grouped, setGrouped] = useState(true);
 
   const active = watches.filter((w) => w.enabled);
-  const attention = active.filter((w) => w.status !== 'ok');
-  const soonest = [...active].sort((a, b) => timeKey(a.nextRunAt) - timeKey(b.nextRunAt))[0];
-  const channelsUsed = channels.filter((c) => active.some((w) => w.channels.includes(c.id)));
+  const attention = active.filter((w) => hasStatus(w) && w.status !== 'ok');
+  const checked = watches.filter((w) => w.lastRunAt);
 
   const catsUsed = useMemo(
     () => categories.map((c, i) => ({ c, i, n: watches.filter((w) => w.categoryKey === c.key).length })).filter((x) => x.n > 0),
@@ -40,7 +38,7 @@ function Overview() {
   return (
     <>
       <style>{`
-        .wp-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .wp-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .wp-stats > div { padding: 16px 18px; }
         .wp-stats .v { font-size: 24px; letter-spacing: -0.4px; }
         .wp-card { cursor: pointer; transition: border-color .15s ease; }
@@ -53,45 +51,31 @@ function Overview() {
 
       <div className="page-head">
         <div>
-          <div className="eyebrow">Watches</div>
+          <div className="eyebrow">Triggers</div>
           <div className="h1" style={{ marginTop: 10 }}>{t('watches.title')}</div>
-          <div className="body" style={{ marginTop: 6, maxWidth: 640 }}>{t('watches.sub')}</div>
+          <div className="body" style={{ marginTop: 6, maxWidth: 640 }}>Saved questions about your places, each with the condition you care about.</div>
+          <div className="caption" style={{ marginTop: 6, maxWidth: 640 }}>Automatic re-checks and alerts are not running yet: a trigger shows numbers once a run has measured it.</div>
         </div>
-        <Btn variant="primary" icon="add" tier="free" onClick={() => open({ kind: 'watchBuilder' })}>New watch</Btn>
+        <Btn variant="primary" icon="add" onClick={() => open({ kind: 'watchBuilder' })}>New trigger</Btn>
       </div>
 
       <div className="stats wp-stats">
         <div>
-          <div className="l">Active watches</div>
+          <div className="l">Active triggers</div>
           <div className="v">{active.length}</div>
           <div className="ci">{watches.length - active.length} paused</div>
         </div>
         <div>
           <div className="l">Need attention</div>
-          <div className="v" style={{ color: attention.length ? 'var(--yellow)' : undefined }}>{attention.length}</div>
-          <div className="ci">{attention.length ? attention.map((w) => w.name.split(' · ').pop()).join(', ') : 'All normal'}</div>
+          <div className="v" style={{ color: attention.length ? 'var(--yellow)' : undefined }}>{checked.length ? attention.length : '—'}</div>
+          <div className="ci">{!checked.length ? 'Not checked yet' : attention.length ? attention.map((w) => w.name.split(' · ').pop()).join(', ') : 'All normal'}</div>
         </div>
         <div>
-          <div className="l">Next update</div>
-          <div className="v">{fmtDay(soonest?.nextRunAt ?? null, '—')}</div>
-          <div className="ci">{soonest ? soonest.satellites.split(' · ')[0] : 'No active watches'}</div>
-        </div>
-        <div>
-          <div className="l">Delivery channels</div>
-          <div className="v row" style={{ gap: 6 }}>
-            {channelsUsed.length ? channelsUsed.map((c) => <Ms key={c.id} n={c.icon} size={20} />) : '—'}
-          </div>
-          <div className="ci">{channelsUsed.map((c) => c.name).join(' · ') || 'None yet'}</div>
+          <div className="l">Checked</div>
+          <div className="v">{checked.length}</div>
+          <div className="ci">{checked.length ? `of ${watches.length} triggers` : 'Not checked yet'}</div>
         </div>
       </div>
-
-      <AskBar
-        placeholder="Ask your watches what changed and what it means for you…"
-        suggestions={['What changed since last week?', 'Which place needs attention first?', 'What does this mean for my irrigation?']}
-        scope="watches"
-        onExport={(a) => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: 'From your watches' } })}
-        onExpert={(a) => open({ kind: 'expert', context: a.title, placeId: null })}
-      />
 
       <div className="col" style={{ gap: 16 }}>
         <div className="row wrap" style={{ justifyContent: 'space-between', gap: 12 }}>
@@ -112,14 +96,14 @@ function Overview() {
         </div>
 
         {loading.watches ? (
-          <div className="grid-cards" aria-busy="true" aria-label="Loading watches">
+          <div className="grid-cards" aria-busy="true" aria-label="Loading triggers">
             {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} height={360} />)}
           </div>
         ) : errors.watches ? (
-          <ErrorState error={errors.watches} onRetry={reload} title="Could not load your watches" />
+          <ErrorState error={errors.watches} onRetry={reload} title="Could not load your triggers" />
         ) : watches.length === 0 ? (
-          <Empty icon="visibility" title="No watches yet" body="Tell the agent what to keep an eye on. It checks whether satellites can see it, then alerts you by email, WhatsApp or push.">
-            <Btn variant="primary" icon="add" tier="free" onClick={() => open({ kind: 'watchBuilder' })}>New watch</Btn>
+          <Empty icon="notifications" title="No triggers yet" body="Describe what to look for at a place. The agent checks whether satellites can see it before you save the trigger.">
+            <Btn variant="primary" icon="add" onClick={() => open({ kind: 'watchBuilder' })}>New trigger</Btn>
           </Empty>
         ) : grouped ? (
           groups.map((g, gi) => (
@@ -155,24 +139,23 @@ function AddTile() {
       style={{ minHeight: 280, borderRadius: 'var(--r-lg)', border: '1px dashed var(--hair)', background: 'transparent', color: 'var(--muted)', alignItems: 'center', justifyContent: 'center', gap: 8, font: '600 14px/1.29 var(--font)', padding: 24, textAlign: 'center' }}
     >
       <Ms n="add" size={28} />
-      Ask the agent to build a watch
-      <span className="tiny" style={{ maxWidth: 240 }}>Describe it in a sentence — the agent checks if satellites can see it.</span>
-      <Tier tier="free" />
+      Ask the agent to set a trigger
+      <span className="tiny" style={{ maxWidth: 240 }}>Describe it in a sentence; the agent checks if satellites can see it.</span>
     </button>
   );
 }
 
 /**
- * Thumbnail for a watch. The backend sends a location and a zoom hint, not a baked tile URL —
+ * Thumbnail for a trigger. The backend sends a location and a zoom hint, not a baked tile URL —
  * building the URL is a frontend concern (and lets the basemap provider change freely).
  */
 const thumbFor = (w: Watch, place?: Place) =>
   place ? thumb(place.lat, place.lon, w.thumbnailZoom) : thumb(0, 0, 2);
 
 function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; place?: Place }) {
-  const { go, updateWatch, notify, category, channels } = useStore();
+  const { go, updateWatch, notify, category } = useStore();
   const cat = category(w.categoryKey);
-  const accent = w.enabled && w.status !== 'ok' ? STATUS_STYLE[w.status].color : null;
+  const accent = w.enabled && hasStatus(w) && w.status !== 'ok' ? STATUS_STYLE[w.status].color : null;
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
   return (
@@ -193,7 +176,7 @@ function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; plac
           </span>
         )}
         <span style={{ position: 'absolute', right: 12, bottom: 12 }}>
-          {w.enabled ? <span className="live"><span className="dot" />LIVE</span> : <span className="live" style={{ color: 'var(--muted)' }}><Ms n="pause" size={12} />PAUSED</span>}
+          {w.enabled ? <span className="live" style={{ color: 'var(--muted)' }}>ACTIVE</span> : <span className="live" style={{ color: 'var(--muted)' }}><Ms n="pause" size={12} />PAUSED</span>}
         </span>
       </div>
 
@@ -211,34 +194,42 @@ function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; plac
           <span className="caption row" style={{ gap: 4 }}><Ms n="travel_explore" size={14} />All my places</span>
         )}
 
-        <div className="row wrap" style={{ alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-          <span style={{ font: '700 32px/1.17 var(--font)', letterSpacing: -0.8 }}>{fmtVal(w.value, w.unit)}</span>
-          <span className="body-sm">{w.metric}</span>
-        </div>
-        <div className="tiny" style={{ marginTop: -4 }}>
-          <span className="muted">{ciLabel(w)}</span> · {w.baselineLabel}: {fmtVal(w.baseline, w.unit)}
-        </div>
-        <div className="caption" style={{ color: accent ?? 'var(--muted)' }}>{w.delta}</div>
+        {hasMeasurement(w) ? (
+          <>
+            <div className="row wrap" style={{ alignItems: 'baseline', gap: 8, marginTop: 4 }}>
+              <span style={{ font: '700 32px/1.17 var(--font)', letterSpacing: -0.8 }}>{fmtVal(w.value, w.unit ?? '')}</span>
+              <span className="body-sm">{w.metric}</span>
+            </div>
+            <div className="tiny" style={{ marginTop: -4 }}>
+              {w.ci && <span className="muted">{ciLabel(w)}</span>}
+              {typeof w.baseline === 'number' && <> · {w.baselineLabel}: {fmtVal(w.baseline, w.unit ?? '')}</>}
+            </div>
+            {w.delta && <div className="caption" style={{ color: accent ?? 'var(--muted)' }}>{w.delta}</div>}
+          </>
+        ) : (
+          <div className="col" style={{ gap: 2, marginTop: 4 }}>
+            <span className="body-sm ink">Not checked yet</span>
+            <span className="tiny" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{w.condition || w.question}</span>
+          </div>
+        )}
 
-        <div style={{ marginTop: 4 }}>
-          <HistoryChart series={w.series.current} band={[w.series.bandLow, w.series.bandHigh]} mean={w.series.mean} color={cat.color} height={70} compact />
-        </div>
+        {hasSeries(w) && (
+          <div style={{ marginTop: 4 }}>
+            <HistoryChart series={w.series.current} band={w.series.bandLow?.length ? [w.series.bandLow, w.series.bandHigh] : undefined} mean={w.series.mean?.length ? w.series.mean : undefined} color={cat.color} height={70} compact />
+          </div>
+        )}
 
         <div className="row" style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--hair-soft)', gap: 10 }}>
-          <span className="row" style={{ gap: 4 }} title={w.channels.map((c) => channels.find((x) => x.id === c)?.name).join(', ')}>
-            {w.channels.map((c) => <Ms key={c} n={channels.find((x) => x.id === c)?.icon ?? 'notifications'} size={16} className="muted" />)}
-          </span>
-          <span className="tiny grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.cadence}</span>
-          <Tier tier={w.tier} />
+          <span className="tiny grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.lastRunAt ? `Checked ${fmtDate(w.lastRunAt)}` : 'Not checked yet'}</span>
           <span onClick={stop} onKeyDown={stop}>
             <Toggle
               on={w.enabled}
-              title={w.enabled ? 'Pause watch' : 'Resume watch'}
+              title={w.enabled ? 'Pause trigger' : 'Resume trigger'}
               onClick={() => {
                 const resuming = !w.enabled;
                 void updateWatch(w.id, { enabled: resuming })
                   .then(() => notify(resuming ? `Resumed \u201c${w.name}\u201d` : `Paused \u201c${w.name}\u201d`))
-                  .catch(() => notify('Could not change the watch', undefined, undefined, 'error'));
+                  .catch(() => notify('Could not change the trigger', undefined, undefined, 'error'));
               }}
             />
           </span>

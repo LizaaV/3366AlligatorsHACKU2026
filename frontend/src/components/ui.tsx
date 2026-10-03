@@ -8,13 +8,12 @@ export const Ms = ({ n, size, className = '', style }: { n: string; size?: numbe
   </span>
 );
 
-/** Free / paid marker. Every CTA that triggers work carries one. */
-export const Tier = ({ tier, label }: { tier: 'free' | 'paid'; label?: string }) => (
-  <span className={`tier tier-${tier}`}>
-    {tier === 'paid' && <Ms n="bolt" />}
-    {label ?? (tier === 'free' ? 'Free' : 'Paid')}
-  </span>
-);
+/**
+ * Free / paid marker. Retired: there is no paid plan, so price and "Pro" pills were noise that
+ * promised things the product does not sell. Kept as a no-op so existing call sites still
+ * compile; remove the remaining usages over time.
+ */
+export const Tier = (_props: { tier: 'free' | 'paid'; label?: string }) => null;
 
 type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'text';
@@ -25,11 +24,11 @@ type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   trailing?: string;
 };
 
+// `tier` / `tierLabel` are accepted but no longer rendered (see `Tier`).
 export const Btn = ({ variant = 'ghost', size = 'md', icon, tier, tierLabel, trailing, className = '', children, ...rest }: BtnProps) => (
   <button className={`btn btn-${variant} ${size !== 'md' ? 'btn-' + size : ''} ${className}`} {...rest}>
     {icon && <Ms n={icon} />}
     {children}
-    {tier && <Tier tier={tier} label={tierLabel} />}
     {trailing && <Ms n={trailing} />}
   </button>
 );

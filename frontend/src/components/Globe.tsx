@@ -7,6 +7,8 @@ export function Globe({ visible, autoRotate = true, offsetRight = true }: { visi
   const el = useRef<HTMLDivElement>(null);
   const live = useRef({ visible, autoRotate, offsetRight });
   live.current = { visible, autoRotate, offsetRight };
+  /** Restarts the render loop; set by the mount effect, called when the globe becomes visible. */
+  const resume = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     const host = el.current!;
@@ -27,7 +29,9 @@ export function Globe({ visible, autoRotate = true, offsetRight = true }: { visi
     const map = L.load(base + 'earth-blue-marble.jpg');
     map.encoding = THREE.sRGBEncoding;
     map.anisotropy = 8;
-    const mat = new THREE.MeshPhongMaterial({ map, bumpMap: L.load(base + 'earth-topology.png'), bumpScale: 0.035, specularMap: L.load(base + 'earth-water.png'), specular: new THREE.Color(0x0c1220), shininess: 6 });
+    const bump = L.load(base + 'earth-topology.png');
+    const spec = L.load(base + 'earth-water.png');
+    const mat = new THREE.MeshPhongMaterial({ map, bumpMap: bump, bumpScale: 0.035, specularMap: spec, specular: new THREE.Color(0x0c1220), shininess: 6 });
     const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 96), mat);
     earth.rotation.y = -1.75;
     grp.add(earth);
@@ -89,20 +93,39 @@ export function Globe({ visible, autoRotate = true, offsetRight = true }: { visi
     window.addEventListener('pointerup', up);
     window.addEventListener('pointermove', move);
 
+    // The loop stops itself while the globe is hidden (map mode, another tab) instead of spinning
+    // an idle rAF; `resume` restarts it when it is shown again.
     let raf = 0;
     const loop = () => {
+      if (!live.current.visible) {
+        raf = 0;
+        return;
+      }
       raf = requestAnimationFrame(loop);
-      if (!live.current.visible) return;
       if (!drag && live.current.autoRotate) earth.rotation.y += 0.0011;
       stars.rotation.y += 0.00005;
       sats.update();
       r.render(scene, cam);
     };
-    loop();
+    resume.current = () => {
+      if (!raf) raf = requestAnimationFrame(loop);
+    };
+    resume.current();
 
     return () => {
       cancelAnimationFrame(raf);
+      raf = -1; // never restart after unmount
+      resume.current = () => undefined;
       sats.dispose();
+      earth.geometry.dispose();
+      mat.dispose();
+      map.dispose();
+      bump.dispose();
+      spec.dispose();
+      atm.geometry.dispose();
+      (atm.material as THREE.Material).dispose();
+      g.dispose();
+      (stars.material as THREE.Material).dispose();
       ro.disconnect();
       host.removeEventListener('pointerdown', down);
       window.removeEventListener('pointerup', up);
@@ -111,6 +134,10 @@ export function Globe({ visible, autoRotate = true, offsetRight = true }: { visi
       host.removeChild(r.domElement);
     };
   }, []);
+
+  useEffect(() => {
+    if (visible) resume.current();
+  }, [visible]);
 
   return <div ref={el} style={{ position: 'absolute', inset: 0, opacity: visible ? 1 : 0, transition: 'opacity .6s ease', cursor: 'grab', pointerEvents: visible ? 'auto' : 'none' }} />;
 }

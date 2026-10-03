@@ -233,17 +233,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
-  /** Default the Ask page to the first place once places arrive, unless the URL named one. */
-  const seededPlace = useRef(false);
-  useEffect(() => {
-    if (seededPlace.current || !places.length) return;
-    seededPlace.current = true;
-    if (route.query.place === undefined) setAskPlaceId(places[0].id);
-  }, [places, route.query.place]);
-
+  /*
+   * No place is pre-selected: a plain visit lands on the globe hero, and general questions
+   * work without a place. A place is chosen explicitly (selector, Places page) or by the URL.
+   */
   useEffect(() => {
     if (route.page === 'ask' && route.query.place !== undefined) {
-      seededPlace.current = true;
       setAskPlaceId(route.query.place === 'none' ? null : route.query.place);
     }
   }, [route]);

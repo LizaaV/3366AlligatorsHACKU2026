@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { href, useStore, type Page } from '../state/store';
 import { LANGS } from '../data/i18n';
 import { Ms } from './ui';
@@ -39,26 +39,37 @@ function useClickAway(open: boolean, close: () => void) {
 }
 
 function AccountMenu() {
-  const { open, connectors } = useStore();
+  const { open, t } = useStore();
   const [show, setShow] = useState(false);
-  const ref = useClickAway(show, () => setShow(false));
+  const close = useCallback(() => setShow(false), []);
+  const ref = useClickAway(show, close);
+  const btn = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!show) return;
+    const k = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setShow(false);
+      btn.current?.focus();
+    };
+    document.addEventListener('keydown', k);
+    return () => document.removeEventListener('keydown', k);
+  }, [show]);
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button onClick={() => setShow((s) => !s)} aria-label="Account" style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--hair)', background: 'var(--s2)', font: '600 13px/1 var(--font)' }}>
-        MK
+      <button
+        ref={btn}
+        onClick={() => setShow((s) => !s)}
+        aria-label={t('nav.account')}
+        aria-haspopup="menu"
+        aria-expanded={show}
+        style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--hair)', background: 'var(--s2)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+      >
+        <Ms n="person" size={18} />
       </button>
       {show && (
-        <div className="menu" style={{ right: 0, top: 42, width: 280 }}>
-          <div className="menu-label eyebrow">Account</div>
-          <div style={{ padding: '4px 10px 10px' }}>
-            <div className="ink" style={{ font: '600 14px/1.4 var(--font)' }}>Your workspace</div>
-          </div>
-          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'connectors' }); }}>
-            <Ms n="hub" />Connectors
-            <span className="tiny" style={{ marginLeft: 'auto' }}>{Object.values(connectors).filter((c) => c.connected).length} on</span>
-          </button>
-          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'app' }); }}><Ms n="smartphone" />Get the mobile app</button>
-          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'lang' }); }}><Ms n="translate" />Language</button>
+        <div className="menu" role="menu" style={{ right: 0, top: 42, width: 240 }}>
+          <div className="menu-label eyebrow">{t('nav.account')}</div>
+          <button role="menuitem" className="menu-item" onClick={() => { setShow(false); open({ kind: 'lang' }); }}><Ms n="translate" />{t('nav.language')}</button>
         </div>
       )}
     </div>
@@ -71,7 +82,7 @@ export function TopNav() {
   return (
     <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'var(--nav-h)', zIndex: 90, display: 'flex', alignItems: 'center', gap: 24, padding: '0 20px', background: '#000', borderBottom: '1px solid var(--hair-soft)' }}>
       <Logo />
-      <nav className="hide-mobile" style={{ display: 'flex', gap: 4 }} aria-label="Main">
+      <nav className="hide-mobile" style={{ display: 'flex', gap: 4 }} aria-label={t('nav.main')}>
         {TABS.map((tb) => {
           const on = route.page === tb.page;
           return (
@@ -83,7 +94,7 @@ export function TopNav() {
         })}
       </nav>
       <div className="row" style={{ marginLeft: 'auto', gap: 6 }}>
-        <button className="btn btn-text btn-sm" onClick={() => open({ kind: 'lang' })} title="Language" aria-label={`Language: ${L.english}`}>
+        <button className="btn btn-text btn-sm" onClick={() => open({ kind: 'lang' })} title={t('nav.language')} aria-label={`${t('nav.language')}: ${L.english}`}>
           <Ms n="translate" />
           <span className="hide-mobile">{L.name}</span>
         </button>
@@ -96,7 +107,7 @@ export function TopNav() {
 export function MobileTabs() {
   const { route, t } = useStore();
   return (
-    <nav className="show-mobile" aria-label="Main" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 64, zIndex: 90, display: 'flex', background: '#000', borderTop: '1px solid var(--hair-soft)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <nav className="show-mobile" aria-label={t('nav.main')} style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 64, zIndex: 90, display: 'flex', background: '#000', borderTop: '1px solid var(--hair-soft)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {TABS.map((tb) => {
         const on = route.page === tb.page;
         return (

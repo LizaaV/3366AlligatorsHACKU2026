@@ -16,7 +16,7 @@ export function LanguageModal() {
   };
   return (
     <Modal onClose={close} size="wide" label="Language">
-      <ModalHead eyebrow="Language" title="Choose your language" sub={`${LANGS.length} languages for answers, WhatsApp replies, alerts and PDF reports. ${LANGS.filter((l) => l.ui).length} also translate the whole interface.`} onClose={close} />
+      <ModalHead eyebrow="Language" title="Choose your language" sub={`${LANGS.length} languages for answers. ${LANGS.filter((l) => l.ui).length} also translate the whole interface.`} onClose={close} />
       <div className="row" style={{ gap: 8, height: 42, padding: '0 12px', borderRadius: 8, background: '#000', border: '1px solid var(--hair)' }}>
         <Ms n="search" size={20} className="muted" />
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search language or region" aria-label="Search languages" style={{ flex: 1, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 15px/1.5 var(--font)' }} />

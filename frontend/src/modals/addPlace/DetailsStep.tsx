@@ -1,8 +1,8 @@
-/** Step 3: name it, file it, tag it, and optionally start watching it. */
+/** Step 3: name it, file it, tag it, and optionally save triggers for it. */
 
 import { useStore } from '../../state/store';
-import { Check, Tier } from '../../components/ui';
-import { sourceLabel } from '../../data/presentation';
+import { Check } from '../../components/ui';
+import { skillRunnable, sourceLabel } from '../../data/presentation';
 import { fmtC } from '../../lib/geo';
 import type { Loc } from './types';
 import type { DetailsForm } from './useDetailsForm';
@@ -11,8 +11,10 @@ export function DetailsStep({ loc, ha, form }: { loc: Loc; ha: number; form: Det
   const { categories } = useStore();
   const {
     projects, name, setName, project, setProject, newProject, setNewProject,
-    categoryKey, setCategoryKey, tags, setTags, startWatch, setStartWatch, suggested,
+    categoryKey, setCategoryKey, tags, setTags, startWatch, setStartWatch,
   } = form;
+  // Only skills with a working script can back a trigger; concepts would be a dead end.
+  const suggested = form.suggested.filter(skillRunnable);
 
   return (
     <>
@@ -53,7 +55,7 @@ export function DetailsStep({ loc, ha, form }: { loc: Loc; ha: number; form: Det
       </label>
       {suggested.length > 0 && (
         <div className="field">
-          Start watching <span className="tiny">Optional · re-runs on every new satellite pass</span>
+          Add triggers <span className="tiny">Optional · saved with the place, so you can run them from Triggers</span>
           <div className="col" style={{ gap: 6 }}>
             {suggested.map((sk) => {
               const on = startWatch.includes(sk.id);
@@ -65,7 +67,6 @@ export function DetailsStep({ loc, ha, form }: { loc: Loc; ha: number; form: Det
                     <span style={{ font: '600 14px/1.4 var(--font)' }}>{sk.name}</span>
                     <span className="caption" style={{ display: 'block' }}>{sk.short} · {sk.sat}</span>
                   </span>
-                  <Tier tier={sk.tier} label={sk.tier === 'paid' ? sk.cost : undefined} />
                 </button>
               );
             })}

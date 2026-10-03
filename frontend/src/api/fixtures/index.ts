@@ -12,20 +12,18 @@ import placesJson from './places.json';
 import placeSearchJson from './place-search-results.json';
 import watchesJson from './watches.json';
 import feasibilityJson from './watch-feasibility.json';
-import mapLayersJson from './map-layers.json';
 
 import type {
   InsightDto,
   InsightRequest,
   CatalogDto,
-  CreateWatchRequest,
   FeasibilityDto,
   FeasibilityRequest,
-  MapLayerDto,
   PlaceSearchResultDto,
-  ProofSceneDto,
   SkillDto,
+  SkillManifestDto,
   WatchDto,
+  WatchProofWireDto,
 } from '../types';
 import { approxAreaHa, outerRing, ringToPts } from '../../lib/geo';
 import { ApiError } from '../http';
@@ -36,13 +34,15 @@ type PlaceDto = S['PlaceDto'];
 type CreatePlaceRequest = S['CreatePlaceRequest'];
 type PlaceMemory = S['PlaceMemory'];
 type MemoryPatch = S['MemoryPatch'];
+type CreateWatchRequest = S['CreateWatchRequest'];
+type ProofScene = S['ProofScene'];
 
 /* ---------------- reference data (read-only) ---------------- */
 
 export const catalog = () => catalogJson as unknown as CatalogDto;
 export const skills = () => skillsJson as unknown as SkillDto[];
-export const skillManifest = (id: string) => (skillManifestsJson as unknown as Record<string, unknown>)[id];
-export const mapLayers = () => mapLayersJson as unknown as MapLayerDto[];
+export const skillManifest = (id: string): SkillManifestDto | undefined =>
+  (skillManifestsJson as unknown as Record<string, SkillManifestDto>)[id];
 export const placeSearch = (q: string) => {
   const s = q.trim().toLowerCase();
   const all = placeSearchJson as unknown as PlaceSearchResultDto[];
@@ -111,7 +111,7 @@ export const updatePlace = (placeId: string, patch: { name?: string; categoryKey
 export const deletePlace = (placeId: string) => {
   placeState = placeState.filter((p) => p.id !== placeId);
   // Mirrors the cascade a real backend would do: watches keep existing but lose their place.
-  watchState = watchState.map((w) => (w.placeId === placeId ? { ...w, placeId: null } : w));
+  watchState = watchState.map((w) => (w.place_id === placeId ? { ...w, place_id: null } : w));
 };
 
 /* ---------------- place memory ---------------- */
@@ -163,30 +163,35 @@ export const watches = () => watchState;
 
 export const createWatch = (req: CreateWatchRequest): WatchDto => {
   const template = (watchesJson as unknown as WatchDto[])[0];
+  const now = new Date().toISOString();
+  // Like the real API: nothing has been measured yet, so the numbers are null.
   const watch: WatchDto = {
     ...template,
     id: id('w'),
     name: req.name,
-    categoryKey: req.categoryKey,
-    placeId: req.placeId,
-    skillId: req.skillId,
+    category_key: req.category_key ?? '',
+    place_id: req.place_id ?? null,
+    skill_id: req.skill_id ?? '',
     question: req.question,
-    condition: req.condition,
-    channels: req.channels,
-    cadence: req.cadence,
-    metric: 'First result',
-    value: 0,
+    condition: req.condition ?? '',
+    channels: req.channels ?? [],
+    cadence: req.cadence ?? '',
+    metric: '',
+    value: null,
     unit: '',
-    ci: [0, 0],
-    baseline: 0,
-    delta: 'Waiting for the first pass',
-    confidence: 'Medium',
-    status: 'ok',
+    ci: null,
+    baseline: null,
+    baseline_label: '',
+    delta: '',
+    confidence: 'Low',
+    status: null,
     enabled: true,
-    series: { ...template.series, current: [...template.series.mean] },
-    lastRunAt: null,
-    nextRunAt: null,
-    events: [],
+    series: { unit: '', labels: [], current: [], band_low: [], band_high: [], mean: [] },
+    last_run_at: null,
+    next_run_at: null,
+    events: [{ at: now, text: 'Watch created. No passes measured yet.', level: 'info' }],
+    created_at: now,
+    updated_at: now,
   };
   watchState = [watch, ...watchState];
   return watch;
@@ -255,9 +260,11 @@ export const insight = (req: InsightRequest): InsightDto => {
   }
 
   const line = (w: (typeof all)[number]) =>
-    `${w.name}: ${w.metric} is ${fmt(w.value, w.unit)} (90% range ${fmt(w.ci[0], w.unit)}\u2013${fmt(w.ci[1], w.unit)}) against ${fmt(w.baseline, w.unit)} for the ${w.baselineLabel.toLowerCase()}. ${w.delta}. The rule is \u201c${w.condition}\u201d, and confidence is ${w.confidence.toLowerCase()}.`;
+    w.value === null || w.value === undefined
+      ? `${w.name}: not checked yet.`
+      : `${w.name}: ${w.metric} is ${fmt(w.value, w.unit)}${w.ci ? ` (90% range ${fmt(w.ci[0], w.unit)}\u2013${fmt(w.ci[1], w.unit)})` : ''} against ${fmt(w.baseline ?? 0, w.unit)} for the ${w.baseline_label.toLowerCase()}. ${w.delta}. The rule is \u201c${w.condition}\u201d, and confidence is ${w.confidence.toLowerCase()}.`;
 
-  const attention = scoped.filter((w) => w.status !== 'ok');
+  const attention = scoped.filter((w) => w.status === 'warn' || w.status === 'alert');
   const subject = attention[0] ?? scoped[0];
   const title =
     req.scope === 'watch'
@@ -282,7 +289,7 @@ export const insight = (req: InsightRequest): InsightDto => {
  * satellite in the real archive's naming conventions — plausible, but not real scenes. This is
  * exactly the kind of fabrication that should not live in a component, which is why it is here.
  */
-export const watchProof = (watchId: string): { scenes: ProofSceneDto[]; hash: string } => {
+export const watchProof = (watchId: string): WatchProofWireDto => {
   const w = watchState.find((x) => x.id === watchId);
   const sat = (w?.satellites ?? 'Sentinel-2').split(' \u00b7 ')[0];
   const dates = ['Sep 28', 'Sep 23', 'Sep 18', 'Sep 13', 'Sep 8'];
@@ -298,9 +305,9 @@ export const watchProof = (watchId: string): { scenes: ProofSceneDto[]; hash: st
     return `S2${i % 2 ? 'A' : 'B'}_MSIL2A_2026${md}T172909_N0511_R055_T14SKG`;
   };
   const optical = !/sentinel-1|viirs|firms|swot/i.test(sat);
-  const scenes: ProofSceneDto[] = dates.map((date, i) => {
-    const why = optical && i === 2 ? 'Skipped \u2014 64% cloud over the area' : optical && i === 3 ? 'Skipped \u2014 18 mm rain the day before' : undefined;
-    return { sceneId: sceneId(date, i), date, satellite: sat, cloudPct: why ? 64 : i * 2, used: !why, why };
+  const scenes: ProofScene[] = dates.map((date, i) => {
+    const why = optical && i === 2 ? 'Skipped \u2014 64% cloud over the area' : optical && i === 3 ? 'Skipped \u2014 18 mm rain the day before' : null;
+    return { id: sceneId(date, i), date, sat, cloud: why ? 64 : i * 2, used: !why, why };
   });
   let h = 2166136261;
   for (const c of `${watchId}:${sat}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;

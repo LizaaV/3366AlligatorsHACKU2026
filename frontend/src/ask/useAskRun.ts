@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, api, isEvent, toApiError, type StreamEvent } from '../api';
+import { ApiError, api, isEvent, streamErrorMessage, toApiError, type StreamEvent } from '../api';
 import type { AnswerBlock, Answer, RunStep } from '../model';
 import { toAnswer } from '../model';
 import type { components } from '../api/schema';
@@ -93,6 +93,8 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
   const [turns, setTurns] = useState<AskTurn[]>([]);
   const inflight = useRef<AbortController | null>(null);
   const startedAt = useRef(0);
+  /** Whether the open stream has delivered its `done`; a stream that closes without one failed. */
+  const sawDone = useRef(false);
   /** Mirror of `turns`, so callbacks read the latest without side effects inside an updater
    *  (React double-invokes updaters in StrictMode, which would open two streams). */
   const turnsRef = useRef<AskTurn[]>([]);
@@ -151,10 +153,12 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
         return;
       }
       if (isEvent(ev, 'error')) {
-        patchLast({ streamError: ev });
+        // `agent_unavailable` / `spend_cap` get a friendlier line than the server's.
+        patchLast({ streamError: { ...ev, message: streamErrorMessage(ev) } });
         return;
       }
       if (isEvent(ev, 'done')) {
+        sawDone.current = true;
         patchLast({
           status: ev.status,
           // `waiting_user` keeps the clarification card open rather than ending the turn.
@@ -174,6 +178,7 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
       const ac = new AbortController();
       inflight.current = ac;
       startedAt.current = Date.now();
+      sawDone.current = false;
       patchLast({ phase: 'running', error: undefined, streamError: undefined });
 
       try {
@@ -193,11 +198,23 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
             ac.signal,
           );
         }
+        // The contract ends every stream with exactly one `done`. If the connection closed
+        // without it, the turn would otherwise sit in `running` forever.
+        if (!sawDone.current && !ac.signal.aborted) {
+          patchLast({
+            phase: 'error',
+            error: new ApiError('The run stopped before it finished', 'network'),
+            durationMs: Date.now() - startedAt.current,
+          });
+        }
       } catch (err) {
         if (ac.signal.aborted) return;
         const e = toApiError(err);
         if (e.kind === 'aborted') return;
-        patchLast({ phase: 'error', error: e });
+        // 409 on a follow-up: the conversation is full (30 runs). Drop the thread id so the
+        // next question (or a retry) starts a new conversation instead of hitting 409 again.
+        const conversationFull = kind === 'start' && e.kind === 'conflict' && !!turn.threadId;
+        patchLast({ phase: 'error', error: e, ...(conversationFull ? { threadId: null } : {}) });
       }
     },
     [lang, onEvent, patchLast],

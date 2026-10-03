@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { sourceLabel } from '../data/presentation';
+import { hasStatus, sourceLabel } from '../data/presentation';
 import type { Place, Watch } from '../model';
 import { TILE, txy } from '../lib/geo';
 import { Btn, CatPill, Empty, IconBtn, Ms, RingOverlay, hideBroken } from '../components/ui';
@@ -67,9 +67,7 @@ function CardMenu({ place, onClose }: { place: Place; onClose: () => void }) {
   );
   return (
     <div ref={ref} className="menu" role="menu" style={{ right: 0, top: 'calc(100% + 4px)', minWidth: 220 }} onClick={(e) => e.stopPropagation()}>
-      {item('add_alert', 'Add a watch', () => open({ kind: 'watchBuilder', placeId: place.id }))}
-      {item('ios_share', 'Export place', () => open({ kind: 'export', target: { kind: 'place', title: place.name } }))}
-      {item('support_agent', 'Ask an expert', () => open({ kind: 'expert', context: place.name, placeId: place.id }))}
+      {item('add_alert', 'Add a trigger', () => open({ kind: 'watchBuilder', placeId: place.id }))}
       <div className="divider" style={{ margin: '6px 0' }} />
       {item('delete', 'Delete', () => {
         removePlace(place.id);
@@ -104,7 +102,7 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
           <div className="grow">
             <div className="card-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</div>
             <div className="caption" style={{ marginTop: 4 }}>
-              {place.project} · {ha.toLocaleString()} ha · {sourceLabel(place.source)}
+              {[place.project, typeof ha === 'number' ? `${ha.toLocaleString()} ha` : null, sourceLabel(place.source)].filter(Boolean).join(' · ')}
             </div>
           </div>
           <div style={{ position: 'relative', margin: '-6px -10px 0 0' }} onClick={(e) => e.stopPropagation()}>
@@ -120,7 +118,7 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
 
         <div style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--hair-soft)' }}>
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span className="eyebrow">Watches on this place</span>
+            <span className="eyebrow">Triggers on this place</span>
             <span className="tiny">{watches.length}</span>
           </div>
           {watches.length === 0 ? (
@@ -129,7 +127,7 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
             <div className="col" style={{ gap: 4, marginTop: 8 }}>
               {watches.slice(0, 3).map((w) => (
                 <div key={w.id} className="row body-sm" style={{ gap: 8, minWidth: 0 }}>
-                  <span className="dot" style={{ background: w.enabled ? STATUS_COLOR[w.status] : 'var(--subtle)' }} />
+                  <span className="dot" style={{ background: w.enabled && hasStatus(w) ? STATUS_COLOR[w.status] : 'var(--subtle)' }} />
                   <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--ink)' }}>{w.name}</span>
                   {!w.enabled && <span className="tiny">Paused</span>}
                 </div>
@@ -140,7 +138,7 @@ function PlaceCard({ place, watches }: { place: Place; watches: Watch[] }) {
         </div>
 
         <div style={{ marginTop: 'auto', paddingTop: 8 }}>
-          <Btn variant="primary" icon="forum" tier="free" onClick={(e) => { e.stopPropagation(); ask(); }} style={{ width: '100%' }}>
+          <Btn variant="primary" icon="forum" onClick={(e) => { e.stopPropagation(); ask(); }} style={{ width: '100%' }}>
             Ask about this place
           </Btn>
         </div>
@@ -173,7 +171,7 @@ export function PlacesPage() {
             <h1 className="h1" style={{ margin: '8px 0 0' }}>{t('places.title')}</h1>
             <div className="body" style={{ marginTop: 8 }}>{t('places.sub')}</div>
           </div>
-          <Btn variant="primary" icon="add_location_alt" tier="free" onClick={() => open({ kind: 'addPlace' })}>Add place</Btn>
+          <Btn variant="primary" icon="add_location_alt" onClick={() => open({ kind: 'addPlace' })}>Add place</Btn>
         </div>
 
         <div className="row wrap" style={{ gap: 12, justifyContent: 'space-between' }}>
@@ -202,7 +200,7 @@ export function PlacesPage() {
         ) : shown.length === 0 ? (
           <Empty icon="travel_explore" title="No places match" body={q ? `Nothing in ${project === 'All' ? 'your places' : project} matches “${q}”.` : 'This project has no places yet.'}>
             <Btn onClick={() => { setQ(''); setProject('All'); }}>Clear filters</Btn>
-            <Btn variant="primary" icon="add_location_alt" tier="free" onClick={() => open({ kind: 'addPlace' })}>Add place</Btn>
+            <Btn variant="primary" icon="add_location_alt" onClick={() => open({ kind: 'addPlace' })}>Add place</Btn>
           </Empty>
         ) : (
           <div className="grid-cards">
@@ -217,7 +215,7 @@ export function PlacesPage() {
             >
               <Ms n="add" size={28} />
               Add place
-              <span className="caption" style={{ fontWeight: 500, maxWidth: 220, textAlign: 'center' }}>Search, coordinates, draw, upload a file, parcel ID or a WhatsApp pin</span>
+              <span className="caption" style={{ fontWeight: 500, maxWidth: 220, textAlign: 'center' }}>Search a name, paste coordinates, draw an outline or drop a pin</span>
             </button>
           </div>
         )}

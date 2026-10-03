@@ -9,7 +9,7 @@
  * sent — the backend computes and returns it.
  */
 
-import { request } from '../http';
+import { notAvailable, request } from '../http';
 import { usingFixtures } from '../config';
 import * as fixtures from '../fixtures';
 import type {
@@ -146,12 +146,12 @@ export const placesApi = {
 
 
   /**
-   * TODO(api): POST /api/places/detect-boundary
    * Suggests a field outline around a coordinate — the "AI boundary detector" in the add-place
-   * wizard. The stand-in generates a deterministic field-like shape from the coordinates.
+   * wizard. NOT on the backend: http mode rejects with `not_available` (no request); the
+   * fixture generates a deterministic field-like shape from the coordinates.
    */
   detectBoundary: (lat: number, lon: number, signal?: AbortSignal): Promise<DetectBoundaryResponse> =>
-    request<DetectBoundaryResponse>({
+    !usingFixtures() ? notAvailable('Boundary detection') : request<DetectBoundaryResponse>({
       method: 'POST',
       path: '/places/detect-boundary',
       body: { lat, lon },
@@ -167,10 +167,11 @@ export const placesApi = {
     }),
 
   /**
-   * TODO(api): POST /api/places/parse-file (multipart)
-   * Parses KML / GeoJSON / Shapefile / CSV-of-points into a single outline.
+   * Parses KML / GeoJSON / Shapefile / CSV-of-points into a single outline. NOT on the
+   * backend: http mode rejects with `not_available` (no request); the fixture fakes an outline.
    */
   parseBoundaryFile: (file: File, signal?: AbortSignal): Promise<ParseBoundaryFileResponse> => {
+    if (!usingFixtures()) return notAvailable('Boundary files');
     const form = new FormData();
     form.set('file', file);
     return request<ParseBoundaryFileResponse>({
@@ -193,9 +194,12 @@ export const placesApi = {
     });
   },
 
-  /** TODO(api): POST /api/places/lookup-parcel — queries a cadastre/registry */
+  /**
+   * Queries a cadastre/registry. NOT on the backend: http mode rejects with `not_available`
+   * (no request); the fixture fakes a parcel.
+   */
   lookupParcel: (body: ParcelLookupRequest, signal?: AbortSignal): Promise<ParcelLookupResponse> =>
-    request<ParcelLookupResponse>({
+    !usingFixtures() ? notAvailable('Parcel lookup') : request<ParcelLookupResponse>({
       method: 'POST',
       path: '/places/lookup-parcel',
       body,

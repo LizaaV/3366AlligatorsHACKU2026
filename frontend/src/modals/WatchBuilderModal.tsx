@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { ApiError, api, toApiError } from '../api';
 import type { ChannelId, Feasibility } from '../model';
-import { LANGS } from '../data/i18n';
-import { Btn, Check, Modal, ModalHead, Ms, Tier } from '../components/ui';
+import { Btn, Modal, ModalHead, Ms } from '../components/ui';
 import { ErrorState } from '../components/async';
 
 const EXAMPLES = [
@@ -15,10 +14,10 @@ const EXAMPLES = [
 
 const CHECK_STEPS = ['Reading your request', 'Matching a skill', 'Checking satellite coverage & revisit', 'Estimating accuracy'];
 
-type Stage = 'ask' | 'check' | 'deliver';
+type Stage = 'ask' | 'check' | 'save';
 
 export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean }) {
-  const { places, skills, channels: catalogChannels, category, close, addWatch, notify, go, connectors, setConnectors, lang, open } = useStore();
+  const { places, skills, category, close, addWatch, notify, go } = useStore();
   const presetSkill = skillId ? skills.find((x) => x.id === skillId) : undefined;
   const autoText = presetSkill ? `Tell me when ${presetSkill.name.toLowerCase()} finds something new` : '';
 
@@ -27,13 +26,11 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
   const [place, setPlace] = useState<string>(placeId === undefined ? (places[0]?.id ?? '') : placeId ?? '');
   const [checking, setChecking] = useState(0); // steps done; CHECK_STEPS.length = finished
   const [feas, setFeas] = useState<Feasibility | null>(null);
-  const [option, setOption] = useState<'free' | 'paid'>('free');
   const [condition, setCondition] = useState('');
-  const [channels, setChannels] = useState<ChannelId[]>(['email']);
+  // No delivery channel is built yet; the API still takes one, so the default is sent as is.
+  const channels: ChannelId[] = ['email'];
   const [error, setError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
-  const [waNumber, setWaNumber] = useState('');
-  const [alertLang, setAlertLang] = useState(lang);
   const timers = useRef<number[]>([]);
 
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
@@ -71,7 +68,6 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
       // Use the threshold the person typed, if there is one.
       const num = query.match(/(\d+(?:\.\d+)?)\s*(ha|km|%|\u00b0C|\u00b5g\/L)/i);
       setCondition(num && f.ok ? `${f.metric} above ${num[1]} ${num[2]}` : f.condition);
-      setOption(f.partial ? 'free' : f.tier);
       setFeas(f);
     } catch (err) {
       setError(toApiError(err));
@@ -81,16 +77,10 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
     }
   };
 
-  const effTier: 'free' | 'paid' =
-    (feas?.partial ? option : feas?.tier) === 'paid' || channels.some((c) => catalogChannels.find((x) => x.id === c)?.tier === 'paid') ? 'paid' : 'free';
-
-  const toggle = (c: ChannelId) => setChannels((s) => (s.includes(c) ? s.filter((x) => x !== c) : [...s, c]));
-
   const create = async () => {
     if (!feas || saving) return;
     setSaving(true);
     setError(null);
-    const lowFree = feas.partial && option === 'free';
     try {
       const created = await addWatch({
         name: `${feas.title} \u00b7 ${placeObj?.name ?? 'all my places'}`,
@@ -104,10 +94,10 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
       });
       close();
       notify(
-        lowFree ? 'Watch created with free imagery at low confidence' : 'Watch created',
+        feas.partial ? 'Trigger saved (low confidence on free imagery)' : 'Trigger saved',
         'Open',
         () => go('triggers', created.id),
-        'visibility',
+        'notifications',
       );
     } catch (err) {
       setError(toApiError(err));
@@ -119,11 +109,11 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
   const stepIdx = stage === 'ask' ? 0 : stage === 'check' ? 1 : 2;
 
   return (
-    <Modal onClose={close} size="wide" label="Build a watch">
+    <Modal onClose={close} size="wide" label="Set a trigger">
       <ModalHead
-        eyebrow={fromAnswer ? 'Watch this answer' : 'New watch'}
-        title={stage === 'ask' ? 'What should we watch?' : stage === 'check' ? 'Can satellites see this?' : 'Where should alerts go?'}
-        sub={stage === 'ask' ? 'Say it in your own words. The agent checks if it can be watched from space before you commit.' : undefined}
+        eyebrow={fromAnswer ? 'Trigger from this answer' : 'New trigger'}
+        title={stage === 'ask' ? 'What should the trigger look for?' : stage === 'check' ? 'Can satellites see this?' : 'Save the trigger'}
+        sub={stage === 'ask' ? 'Say it in your own words. The agent checks whether satellites can see it before you save.' : undefined}
         onClose={close}
       />
 
@@ -131,7 +121,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
 
       {/* stage indicator */}
       <div className="row" style={{ gap: 6 }} aria-label={`Step ${stepIdx + 1} of 3`}>
-        {['Describe', 'Check', 'Deliver'].map((l, i) => (
+        {['Describe', 'Check', 'Save'].map((l, i) => (
           <div key={l} className="row grow" style={{ gap: 8, flexDirection: 'column', alignItems: 'stretch' }}>
             <span style={{ height: 3, borderRadius: 2, background: i <= stepIdx ? '#fff' : 'var(--s3)' }} />
             <span className="tiny" style={{ color: i === stepIdx ? '#fff' : undefined }}>{i + 1}. {l}</span>
@@ -150,7 +140,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
             placeholder="Tell me when…"
             rows={3}
             style={{ fontSize: 18, lineHeight: 1.5 }}
-            aria-label="What should we watch?"
+            aria-label="What should the trigger look for?"
           />
           <div className="row wrap">
             {EXAMPLES.map((ex) => (
@@ -166,7 +156,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
           </label>
           <div className="modal-foot">
             <Btn variant="text" onClick={close}>Cancel</Btn>
-            <Btn variant="primary" icon="travel_explore" tier="free" disabled={!text.trim()} onClick={() => runCheck(text)}>Check if it’s possible</Btn>
+            <Btn variant="primary" icon="travel_explore" disabled={!text.trim()} onClick={() => runCheck(text)}>Check if it’s possible</Btn>
           </div>
         </>
       )}
@@ -189,93 +179,33 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
             </div>
           )}
 
-          {feas && <Result feas={feas} option={option} setOption={setOption} condition={condition} setCondition={setCondition} onAlternative={runCheck} />}
+          {feas && <Result feas={feas} condition={condition} setCondition={setCondition} onAlternative={runCheck} />}
 
           <div className="modal-foot">
             <Btn variant="text" icon="arrow_back" onClick={() => { setStage('ask'); setFeas(null); }}>Edit request</Btn>
-            {feas?.ok && <Btn variant="primary" trailing="arrow_forward" onClick={() => setStage('deliver')}>Next: delivery</Btn>}
+            {feas?.ok && <Btn variant="primary" trailing="arrow_forward" onClick={() => setStage('save')}>Next</Btn>}
           </div>
         </>
       )}
 
-      {stage === 'deliver' && feas && (
+      {stage === 'save' && feas && (
         <>
-          <div className="col" style={{ gap: 2 }}>
-            {catalogChannels.map((c) => {
-              const on = channels.includes(c.id);
-              const waMissing = c.id === 'whatsapp' && !connectors.whatsapp.connected;
-              return (
-                <div key={c.id} className="col" style={{ borderBottom: '1px solid var(--hair-soft)', padding: '10px 0', gap: 10 }}>
-                  <button className="row" onClick={() => toggle(c.id)} aria-pressed={on} style={{ gap: 12, background: 'none', border: 0, padding: 0, textAlign: 'left', width: '100%' }}>
-                    <Check on={on} />
-                    <Ms n={c.icon} size={20} className="muted" />
-                    <span className="grow">
-                      <span className="body-sm ink" style={{ display: 'block' }}>{c.name}</span>
-                      <span className="tiny">
-                        {c.id === 'email' && connectors.email.connected ? connectors.email.address : c.id === 'whatsapp' && connectors.whatsapp.connected ? connectors.whatsapp.number : c.note}
-                      </span>
-                    </span>
-                    <Tier tier={c.tier} label={c.tier === 'paid' ? c.note.split(' ')[0] === 'Pro' ? 'Pro' : c.note.split(' / ')[0] : undefined} />
-                  </button>
-                  {on && waMissing && (
-                    <div className="row wrap" style={{ gap: 8, paddingLeft: 30 }}>
-                      <input className="input" style={{ flex: '1 1 180px', height: 36 }} placeholder="+1 555 010 2030" inputMode="tel" value={waNumber} onChange={(e) => setWaNumber(e.target.value)} aria-label="WhatsApp number" />
-                      <Btn
-                        size="sm"
-                        icon="link"
-                        disabled={waNumber.replace(/\D/g, '').length < 7}
-                        onClick={() => {
-                          setConnectors({ ...connectors, whatsapp: { connected: true, number: waNumber.trim() } });
-                          notify('WhatsApp connected — we sent a test message', undefined, undefined, 'chat');
-                        }}
-                      >
-                        Connect WhatsApp
-                      </Btn>
-                    </div>
-                  )}
-                  {on && c.id === 'push' && !connectors.push.connected && (
-                    <div className="tiny" style={{ paddingLeft: 30 }}>
-                      Install the app to receive push alerts.{' '}
-                      <button onClick={() => open({ kind: 'app' })} style={{ border: 0, background: 'none', padding: 0, color: 'var(--blue)', font: 'inherit' }}>Get the app</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="row wrap" style={{ gap: 16, alignItems: 'flex-end' }}>
-            <label className="field" style={{ flex: '1 1 220px' }}>
-              Alert language
-              <select className="input" value={alertLang} onChange={(e) => setAlertLang(e.target.value)}>
-                {LANGS.map((l) => <option key={l.code} value={l.code}>{l.name}{l.name !== l.english ? ` · ${l.english}` : ''}</option>)}
-              </select>
-            </label>
-            <div className="tiny" style={{ flex: '1 1 220px', paddingBottom: 10 }}>Messages, maps and PDF reports are written in this language — including regional languages.</div>
-          </div>
-
           <div className="sunk" style={{ padding: '12px 16px' }}>
             <div className="body-sm">
-              <span className="ink">Checks {feas.cadence.charAt(0).toLowerCase() + feas.cadence.slice(1)}</span> with {feas.partial && option === 'free' ? 'Sentinel-2' : feas.satellites}. You’ll hear from us when <span className="ink">{condition || feas.condition}</span>
-              {placeObj ? ` on ${placeObj.name}` : ' on any of your places'}. First result after the next pass.
+              Look for <span className="ink">{condition || feas.condition}</span>
+              {placeObj ? ` on ${placeObj.name}` : ' on any of your places'}, using {feas.satellites}.
             </div>
           </div>
-
-          {channels.includes('whatsapp') && !connectors.whatsapp.connected && (
-            <div className="tiny" style={{ color: 'var(--yellow)' }}>Connect WhatsApp above, or untick it, to start.</div>
-          )}
-
+          <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
+            <Ms n="info" size={16} className="subtle" style={{ marginTop: 2 }} />
+            <span className="tiny">
+              Automatic re-checks and alerts are not running yet. The trigger is saved with your question, so you can open it from Triggers and run it on the latest imagery at any time.
+            </span>
+          </div>
           <div className="modal-foot">
             <Btn variant="text" icon="arrow_back" onClick={() => setStage('check')}>Back</Btn>
-            <Btn
-              variant="primary"
-              icon="visibility"
-              tier={effTier}
-              tierLabel={effTier === 'paid' ? (feas.partial && option === 'paid' ? feas.cost.split(' · ').pop() : 'Paid') : 'Free'}
-              disabled={channels.length === 0 || (channels.includes('whatsapp') && !connectors.whatsapp.connected)}
-              onClick={create}
-            >
-              Start watching
+            <Btn variant="primary" icon="notifications" disabled={saving} onClick={create}>
+              {saving ? 'Saving…' : 'Save trigger'}
             </Btn>
           </div>
         </>
@@ -284,19 +214,17 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { p
   );
 }
 
-function Result({ feas, option, setOption, condition, setCondition, onAlternative }: {
+function Result({ feas, condition, setCondition, onAlternative }: {
   feas: Feasibility;
-  option: 'free' | 'paid';
-  setOption: (o: 'free' | 'paid') => void;
   condition: string;
   setCondition: (s: string) => void;
   onAlternative: (q: string) => void;
 }) {
   const { skills } = useStore();
   const skill = skills.find((x) => x.id === feas.skillId);
-  const tone = !feas.ok ? { c: 'var(--red)', bg: 'rgba(230,43,30,.1)', icon: 'block', t: 'This can’t be watched from space' }
-    : feas.partial ? { c: 'var(--yellow)', bg: 'rgba(255,207,37,.08)', icon: 'error', t: 'Yes, with a trade-off' }
-    : { c: 'var(--green)', bg: 'rgba(0,202,142,.08)', icon: 'check_circle', t: 'Yes, the agent can watch this' };
+  const tone = !feas.ok ? { c: 'var(--red)', bg: 'rgba(230,43,30,.1)', icon: 'block', t: 'Satellites can’t see this' }
+    : feas.partial ? { c: 'var(--yellow)', bg: 'rgba(255,207,37,.08)', icon: 'error', t: 'Yes, at lower confidence' }
+    : { c: 'var(--green)', bg: 'rgba(0,202,142,.08)', icon: 'check_circle', t: 'Yes, satellites can see this' };
 
   return (
     <div className="col fade-up" style={{ gap: 16 }}>
@@ -308,40 +236,12 @@ function Result({ feas, option, setOption, condition, setCondition, onAlternativ
         </div>
       </div>
 
-      {feas.ok && !feas.partial && (
+      {feas.ok && (
         <div className="stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
           <div><div className="l">Skill</div><div className="v" style={{ fontSize: 14 }}>{skill?.name ?? feas.title}</div></div>
           <div><div className="l">Satellite</div><div className="v" style={{ fontSize: 14 }}>{feas.satellites}</div></div>
-          <div><div className="l">How often</div><div className="v" style={{ fontSize: 14 }}>{feas.cadence}</div></div>
+          <div><div className="l">Satellite revisit</div><div className="v" style={{ fontSize: 14 }}>{feas.cadence}</div></div>
           <div><div className="l">Confidence</div><div className="v" style={{ fontSize: 14 }}>{feas.confidence}</div></div>
-          <div><div className="l">Cost</div><div className="v row" style={{ fontSize: 14, gap: 4 }}>{feas.cost}<Tier tier={feas.tier} /></div></div>
-        </div>
-      )}
-
-      {feas.partial && (
-        <div className="col" style={{ gap: 8 }} role="radiogroup" aria-label="Choose data source">
-          {([
-            ['free', 'Free · Sentinel-2 10 m', 'Low confidence on a plot this small. Every ~5 days.', 'Free'],
-            ['paid', `Paid · ${feas.satellites}`, `${feas.confidence} confidence. ${feas.cadence}.`, feas.cost],
-          ] as const).map(([k, t, d, cost]) => (
-            <button
-              key={k}
-              role="radio"
-              aria-checked={option === k}
-              onClick={() => setOption(k)}
-              className="row"
-              style={{ gap: 12, padding: '12px 14px', textAlign: 'left', borderRadius: 'var(--r)', background: option === k ? 'var(--s2)' : 'transparent', border: `1px solid ${option === k ? '#fff' : 'var(--hair)'}` }}
-            >
-              <span style={{ width: 16, height: 16, borderRadius: '50%', border: `1.5px solid ${option === k ? '#fff' : 'var(--subtle)'}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-                {option === k && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
-              </span>
-              <span className="grow">
-                <span className="body-sm ink" style={{ display: 'block', fontWeight: 600 }}>{t}</span>
-                <span className="tiny">{d}</span>
-              </span>
-              <Tier tier={k} label={k === 'paid' ? cost.split(' · ').pop() : 'Free'} />
-            </button>
-          ))}
         </div>
       )}
 
@@ -366,7 +266,7 @@ function Result({ feas, option, setOption, condition, setCondition, onAlternativ
 
       {!feas.ok && feas.alternative && (
         <div className="col" style={{ gap: 8 }}>
-          <div className="tiny">What the agent can watch instead</div>
+          <div className="tiny">What the agent can check instead</div>
           <button className="chip" style={{ alignSelf: 'flex-start', color: '#fff' }} onClick={() => onAlternative(feas.alternative!)}>
             <Ms n="auto_awesome" />{feas.alternative}<Ms n="arrow_forward" className="ms-flip" />
           </button>

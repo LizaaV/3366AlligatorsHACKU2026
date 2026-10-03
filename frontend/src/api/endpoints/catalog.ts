@@ -1,42 +1,47 @@
 /**
  * Reference data: categories, satellites, skill modules, delivery channels, languages and map
- * layers.
+ * layers — all from `GET /api/catalog` (`docs/API.md` §14).
  *
- * The agent's clarifying questions used to live here too, behind a proposed
- * `GET /api/ask/clarifying-questions`. The contract has no such endpoint: the agent decides
- * what it needs to ask mid-run and emits `clarification_needed` on the stream instead.
+ * The agent's clarifying questions are not here: the agent decides what it needs to ask
+ * mid-run and emits `clarification_needed` on the stream instead.
  *
- * All of it is backend-owned registry data. Category *colour* is the one exception and is
- * merged in from `data/presentation.ts` by `toCategory()`.
+ * All of it is backend-owned registry data. Colours are the exception: category colour comes
+ * from `data/presentation.ts` via `toCategory()`, layer colour from `toMapLayer()`.
  */
 
 import { request } from '../http';
 import * as fixtures from '../fixtures';
-import type { CatalogDto, MapLayerDto } from '../types';
-import { toCategory, toMapLayer, type Catalog, type MapLayer } from '../../model';
+import type { CatalogDto } from '../types';
+import { CONTOUR_LAYER, toCategory, toMapLayer, type Catalog, type MapLayer } from '../../model';
+
+const fetchCatalog = (signal?: AbortSignal) =>
+  request<CatalogDto>({
+    method: 'GET',
+    path: '/catalog',
+    signal,
+    fixture: fixtures.catalog,
+  });
+
+const layersOf = (d: CatalogDto): MapLayer[] => [
+  CONTOUR_LAYER,
+  ...(d.map_layers ?? []).filter((l) => l.id !== CONTOUR_LAYER.id).map(toMapLayer),
+];
 
 export const catalogApi = {
-  /** TODO(api): GET /api/catalog — see docs/data/README.md */
+  /** GET /api/catalog */
   get: (signal?: AbortSignal): Promise<Catalog> =>
-    request<CatalogDto>({
-      method: 'GET',
-      path: '/catalog',
-      signal,
-      fixture: fixtures.catalog,
-    }).then((d) => ({
+    fetchCatalog(signal).then((d) => ({
       categories: d.categories.map(toCategory),
       satellites: d.satellites,
       modules: d.modules,
       channels: d.channels,
       languages: d.languages,
+      mapLayers: layersOf(d),
     })),
 
-  /** TODO(api): GET /api/map-layers — could also be folded into /catalog */
-  mapLayers: (signal?: AbortSignal): Promise<MapLayer[]> =>
-    request<MapLayerDto[]>({
-      method: 'GET',
-      path: '/map-layers',
-      signal,
-      fixture: fixtures.mapLayers,
-    }).then((ls) => ls.map(toMapLayer)),
+  /**
+   * The layer panel's list. There is no `/api/map-layers`: the list is `map_layers` inside
+   * `GET /api/catalog`, so this reads the catalog. The user-drawn contour comes first.
+   */
+  mapLayers: (signal?: AbortSignal): Promise<MapLayer[]> => fetchCatalog(signal).then(layersOf),
 };

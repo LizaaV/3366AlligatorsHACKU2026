@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from '../state/store';
 import type { Skill } from '../model';
 import { Btn, Empty, Eyebrow, Ms } from '../components/ui';
 import { ErrorState, SkeletonCard } from '../components/async';
+import { skillStatus } from '../data/presentation';
 import { SkillCard } from './libraryParts';
 import { SkillDetail } from './SkillDetail';
 import { SkillBuilder } from './SkillBuilder';
@@ -20,44 +21,26 @@ export function LibraryPage() {
 }
 
 type Source = 'all' | 'official' | 'community' | 'installed';
-type Price = 'any' | 'free' | 'paid';
-
-const isTyping = (el: EventTarget | null) => {
-  const n = el as HTMLElement | null;
-  return !!n && (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA' || n.tagName === 'SELECT' || n.isContentEditable);
-};
+type Readiness = 'any' | 'available' | 'concept';
 
 function LibraryHome() {
-  const { t, go, skills, installed, modal, route, categories, category, loading, errors, reload } = useStore();
-  const initialCat = route.query.cat !== undefined && /^[0-8]$/.test(route.query.cat) ? +route.query.cat : null;
+  const { t, go, skills, installed, route, categories, category, loading, errors, reload } = useStore();
+  const initialCat = route.query.cat !== undefined && /^\d+$/.test(route.query.cat) ? +route.query.cat : null;
   const [cat, setCat] = useState<number | null>(initialCat);
   const [q, setQ] = useState('');
   const [src, setSrc] = useState<Source>('all');
-  const [price, setPrice] = useState<Price>('any');
-
-  // Keys 1–9 pick a block, 0 shows all, arrows step through (as in the prototype's Explore sheet).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (modal || isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (/^[1-9]$/.test(e.key)) setCat(+e.key - 1);
-      else if (e.key === '0') setCat(null);
-      else if (e.key === 'ArrowRight') setCat((c) => (c === null ? 0 : (c + 1) % 9));
-      else if (e.key === 'ArrowLeft') setCat((c) => (c === null ? 8 : (c + 8) % 9));
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [modal]);
+  const [ready, setReady] = useState<Readiness>('any');
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return skills.filter((s) => {
       if (cat !== null && s.categoryKey !== categories[cat]?.key) return false;
       if (src === 'installed' && !installed.includes(s.id)) return false;
-      if (price !== 'any' && s.tier !== price) return false;
+      if (ready !== 'any' && (skillStatus(s) === 'available') !== (ready === 'available')) return false;
       if (needle && !`${s.name} ${s.short} ${s.sat} ${s.publisherName} ${category(s.categoryKey).name}`.toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [skills, categories, category, cat, src, price, q, installed]);
+  }, [skills, categories, category, cat, src, ready, q, installed]);
 
   const official = filtered.filter((s) => s.official);
   const community = filtered.filter((s) => !s.official);
@@ -65,7 +48,7 @@ function LibraryHome() {
   const showCommunity = src !== 'official';
   const nothing = (!showOfficial || !official.length) && (!showCommunity || !community.length);
 
-  const reset = () => { setQ(''); setSrc('all'); setPrice('any'); setCat(null); };
+  const reset = () => { setQ(''); setSrc('all'); setReady('any'); setCat(null); };
 
   return (
     <>
@@ -75,7 +58,7 @@ function LibraryHome() {
           <h1 className="h1" style={{ margin: '10px 0 0' }}>{t('library.title')}</h1>
           <p className="body-lg" style={{ margin: '10px 0 0' }}>{t('library.sub')}</p>
         </div>
-        <Btn variant="primary" icon="construction" tier="free" onClick={() => go('library', 'new')}>Build a skill</Btn>
+        <Btn variant="primary" icon="construction" onClick={() => go('library', 'new')}>Build a skill</Btn>
       </div>
 
       <div className="lib-toolbar">
@@ -85,7 +68,7 @@ function LibraryHome() {
         </label>
         <div className="lib-segs">
           <Seg<Source> value={src} onChange={setSrc} label="Source" options={[['all', 'All'], ['official', 'Official'], ['community', 'Community'], ['installed', 'Installed']]} />
-          <Seg<Price> value={price} onChange={setPrice} label="Price" options={[['any', 'Any price'], ['free', 'Free'], ['paid', 'Paid']]} />
+          <Seg<Readiness> value={ready} onChange={setReady} label="Readiness" options={[['any', 'All'], ['available', 'Ready to run'], ['concept', 'Concepts']]} />
         </div>
       </div>
 
@@ -100,7 +83,7 @@ function LibraryHome() {
       ) : nothing ? (
         <Empty icon="search_off" title="No skills match" body="Try another category or clear the filters. You can also build the skill you need from modules.">
           <Btn icon="restart_alt" onClick={reset}>Clear filters</Btn>
-          <Btn variant="primary" icon="construction" tier="free" onClick={() => go('library', 'new')}>Build a skill</Btn>
+          <Btn variant="primary" icon="construction" onClick={() => go('library', 'new')}>Build a skill</Btn>
         </Empty>
       ) : (
         <>
@@ -108,7 +91,7 @@ function LibraryHome() {
             <Section
               title="Official · by Constellation"
               badge={<span className="lib-badge official"><Ms n="verified" />Verified</span>}
-              line="Built and validated by Constellation. Accuracy tested on ground-truth plots."
+              line="Built by the Constellation team. “Ready” skills run in the agent today; concepts are planned recipes that cannot run yet."
               items={official}
               installed={installed}
               onOpen={(id) => go('library', id)}
@@ -118,7 +101,7 @@ function LibraryHome() {
             <Section
               title="Community · by other developers"
               badge={<span className="lib-badge community"><Ms n="groups" />Community</span>}
-              line="Shared by other teams. Check the accuracy notes before relying on them."
+              line="Skills you and others have drafted. Check the accuracy notes before relying on them."
               items={community}
               installed={installed}
               onOpen={(id) => go('library', id)}
@@ -184,10 +167,28 @@ function Hotbar({ cat, setCat }: { cat: number | null; setCat: React.Dispatch<Re
 
   const c = cat === null ? null : categories[cat];
 
+  // Keyboard lives on the tab list itself (not the whole page), with a roving tabindex: Tab
+  // enters on the selected category, ← → Home End move, 0 is "All" and 1–9 jump.
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const total = categories.length + 1; // slot 0 is "All"
+    const cur = cat === null ? 0 : cat + 1;
+    let next: number | null = null;
+    if (e.key === 'ArrowRight') next = (cur + 1) % total;
+    else if (e.key === 'ArrowLeft') next = (cur - 1 + total) % total;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = total - 1;
+    else if (/^[0-9]$/.test(e.key) && +e.key < total) next = +e.key;
+    if (next === null) return;
+    e.preventDefault();
+    setCat(next === 0 ? null : next - 1);
+    (ref.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next])?.focus();
+  };
+
   return (
     <div className="lib-hotbar-row">
-      <div className="lib-hotbar" ref={ref} role="tablist" aria-label="Categories">
-        <button className={`lib-hb ${cat === null ? 'on' : ''}`} onClick={() => setCat(null)} title="All categories" role="tab" aria-selected={cat === null}
+      <div className="lib-hotbar" ref={ref} role="tablist" aria-label="Categories" onKeyDown={onKeyDown}>
+        <button className={`lib-hb ${cat === null ? 'on' : ''}`} onClick={() => setCat(null)} title="All categories" aria-label="All categories" role="tab" aria-selected={cat === null} tabIndex={cat === null ? 0 : -1}
           style={{ color: cat === null ? '#fff' : undefined }}>
           <span className="n">0</span>
           <Ms n="apps" />
@@ -196,7 +197,7 @@ function Hotbar({ cat, setCat }: { cat: number | null; setCat: React.Dispatch<Re
         {categories.map((k, i) => {
           const sel = cat === i;
           return (
-            <button key={k.key} className={`lib-hb ${sel ? 'on' : ''}`} onClick={() => setCat(i)} title={k.name} role="tab" aria-selected={sel} aria-label={k.name}
+            <button key={k.key} className={`lib-hb ${sel ? 'on' : ''}`} onClick={() => setCat(i)} title={k.name} role="tab" aria-selected={sel} aria-label={k.name} tabIndex={sel ? 0 : -1}
               style={{ color: sel ? k.color : undefined }}>
               <span className="n">{i + 1}</span>
               <Ms n={k.icon} />
@@ -213,7 +214,7 @@ function Hotbar({ cat, setCat }: { cat: number | null; setCat: React.Dispatch<Re
         <div className="body-sm">{c ? c.uses : 'Farms, water, forests, disasters, cities, oceans, air, finance and public good.'}</div>
         <div className="caption">
           {c ? <>Main free satellites: {c.sats}</> : 'Main free satellites: Sentinel-1/2/3/5P, Landsat, VIIRS, MODIS'}
-          <span className="hide-mobile"> · Click, swipe sideways or use ← → and 0–9 to switch</span>
+          <span className="hide-mobile"> · Click, swipe sideways, or focus the bar and use ← → and 0–9</span>
         </div>
       </div>
     </div>

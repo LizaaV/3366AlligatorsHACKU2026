@@ -1,4 +1,4 @@
-/** Reuse a place that another project already has. The outline is copied; watches are not. */
+/** Reuse a place that another project already has. The outline is copied; triggers are not. */
 
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../../../state/store';
@@ -44,7 +44,7 @@ export function ProjectMethod({ onChange }: MethodProps) {
           ))}
         </div>
       )}
-      {!fromProject && <div className="caption">Pick a project to see its places. The outline is copied; watches are not.</div>}
+      {!fromProject && <div className="caption">Pick a project to see its places. The outline is copied; triggers are not.</div>}
     </div>
   );
 }

@@ -5,9 +5,10 @@ import { useResource } from '../hooks/useResource';
 import type { Skill } from '../model';
 import { DEFAULT_CENTER, fmtC, quad } from '../lib/geo';
 import { fmtDate } from '../lib/format';
-import { Btn, CatPill, Empty, Ms, Tier, hideBroken } from '../components/ui';
+import { Btn, CatPill, Empty, Ms, hideBroken } from '../components/ui';
+import { skillStatus } from '../data/presentation';
 import { ErrorState, Skeleton } from '../components/async';
-import { CopyBtn, JsonCode, PublisherBadge, StorageExplainer, fmtRuns } from './libraryParts';
+import { CopyBtn, JsonCode, PublisherBadge, StatusBadge, StorageExplainer, fmtRuns } from './libraryParts';
 
 const fmtParam = (v: unknown) => (Array.isArray(v) ? `[${v.join(', ')}]` : String(v));
 
@@ -26,7 +27,7 @@ export function SkillDetail({ id }: { id: string }) {
 }
 
 function Detail({ s }: { s: Skill }) {
-  const { go, places, askPlaceId, setAskPlace, installed, toggleInstall, notify, open, category, modules } = useStore();
+  const { go, places, askPlaceId, setAskPlace, installed, open, category, modules } = useStore();
   const [tab, setTab] = useState<'overview' | 'file'>('overview');
   const [placeId, setPlaceId] = useState<string | null>(
     (askPlaceId && places.some((p) => p.id === askPlaceId) ? askPlaceId : places[0]?.id) ?? null,
@@ -35,6 +36,8 @@ function Detail({ s }: { s: Skill }) {
   const c = category(s.categoryKey);
   const ref = s.reference ?? DEFAULT_CENTER;
   const isInstalled = installed.includes(s.id);
+  const status = skillStatus(s);
+  const runnable = status === 'available';
   // The manifest is the backend's stored representation, so it is fetched rather than rebuilt.
   const manifestRes = useResource(useCallback((signal) => api.skills.manifest(s.id, signal), [s.id]), [s.id]);
   const json = manifestRes.data ? JSON.stringify(manifestRes.data, null, 2) : '';
@@ -45,18 +48,13 @@ function Detail({ s }: { s: Skill }) {
     go('ask', undefined, { place: place.id, skill: s.id });
   };
 
-  const install = () => {
-    toggleInstall(s.id);
-    notify(isInstalled ? `Removed “${s.name}” from your skills` : `Installed “${s.name}” — the agent can now use it in Ask`, isInstalled ? 'Undo' : undefined, isInstalled ? () => toggleInstall(s.id) : undefined, isInstalled ? 'remove_circle' : 'download_done');
-  };
-
   const meta: { l: string; v: React.ReactNode }[] = [
     { l: 'Satellite', v: s.sat },
-    { l: 'Cost', v: <>{s.tier === 'paid' ? s.cost : 'Free sources'}<Tier tier={s.tier} /></> },
+    { l: 'Status', v: runnable ? 'Ready to run' : status === 'draft' ? 'Draft' : 'Concept, not runnable yet' },
     { l: 'Category', v: <><span className="sq" style={{ background: c.color }} />{c.name}</> },
     { l: 'Developer', v: <>{s.publisherName}{s.official ? <Ms n="verified" size={16} className="lib-v-official" /> : s.verified ? <Ms n="verified_user" size={16} className="lib-v-community" /> : null}</> },
-    { l: 'Resolution', v: s.res },
-    { l: 'Revisit', v: s.revisit },
+    ...(s.res ? [{ l: 'Resolution', v: s.res }] : []),
+    ...(s.revisit ? [{ l: 'Revisit', v: s.revisit }] : []),
   ];
 
   return (
@@ -80,13 +78,12 @@ function Detail({ s }: { s: Skill }) {
         <div className="lib-pubrow">
           <span className="ink" style={{ fontWeight: 600 }}>by {s.publisherName}</span>
           <PublisherBadge s={s} />
+          <StatusBadge s={s} />
           <span>v{s.version}</span>
           <span className="sep">·</span>
           <span>Updated {fmtDate(s.updatedAt)}</span>
-          <span className="sep">·</span>
-          <span>{fmtRuns(s.runs)} runs</span>
-          <span className="sep">·</span>
-          <span><span style={{ color: 'var(--yellow)' }}>★</span> {s.rating ? s.rating.toFixed(1) : 'No ratings yet'}</span>
+          {typeof s.runs === 'number' && s.runs > 0 && <><span className="sep">·</span><span>{fmtRuns(s.runs)} runs</span></>}
+          {typeof s.rating === 'number' && s.rating > 0 && <><span className="sep">·</span><span><span style={{ color: 'var(--yellow)' }}>★</span> {s.rating.toFixed(1)}</span></>}
           {isInstalled && <span className="tag"><Ms n="check" />Installed</span>}
         </div>
 
@@ -105,16 +102,16 @@ function Detail({ s }: { s: Skill }) {
 
             <div>
               <div className="eyebrow" style={{ marginBottom: 8 }}>How it works</div>
-              <div className="body">{s.long}</div>
+              <div className="body">{s.long || s.short}</div>
             </div>
 
             <div>
               <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
                 <span className="eyebrow">Steps</span>
-                <span className="caption">{s.steps.length} modules · same order on every run</span>
+                <span className="caption">{s.steps?.length ?? 0} modules · same order on every run</span>
               </div>
               <ol className="lib-steps">
-                {s.steps.map((sid: string, i: number) => {
+                {(s.steps ?? []).map((sid: string, i: number) => {
                   const m = modules.find((x) => x.id === sid);
                   if (!m) return null;
                   const params = Object.entries(m.params || {});
@@ -145,10 +142,12 @@ function Detail({ s }: { s: Skill }) {
                 <span className="eyebrow">Accuracy &amp; limits</span>
                 <Ms n={s.official ? 'fact_check' : 'info'} size={18} className="muted" />
               </div>
-              <div className="ink" style={{ font: '600 15px/1.45 var(--font)' }}>{s.accuracy}</div>
-              <ul className="lib-limits">
-                {s.limits.map((l: string) => <li key={l}>{l}</li>)}
-              </ul>
+              <div className="ink" style={{ font: '600 15px/1.45 var(--font)' }}>{s.accuracy || 'Not validated yet: no accuracy figure has been measured for this skill.'}</div>
+              {(s.limits?.length ?? 0) > 0 && (
+                <ul className="lib-limits">
+                  {s.limits.map((l: string) => <li key={l}>{l}</li>)}
+                </ul>
+              )}
             </div>
           </>
         ) : (
@@ -172,34 +171,43 @@ function Detail({ s }: { s: Skill }) {
           </>
         )}
 
-        <div className="well lib-try">
-          <div className="eyebrow">Try it on my place</div>
-          {places.length ? (
+        {runnable ? (
+          <div className="well lib-try">
+            <div className="eyebrow">Try it on my place</div>
+            {places.length ? (
+              <div className="row wrap">
+                {places.map((p) => (
+                  <button key={p.id} className={`lib-try-chip ${p.id === placeId ? 'on' : ''}`} onClick={() => setPlaceId(p.id)} aria-pressed={p.id === placeId}>
+                    <Ms n={p.circle ? 'radio_button_unchecked' : 'pentagon'} />
+                    {p.name}
+                    <span className="subtle">{p.areaHa} ha</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="body-sm">You have no saved places yet. Add one in Places, then come back to run this skill on it.</div>
+            )}
             <div className="row wrap">
-              {places.map((p) => (
-                <button key={p.id} className={`lib-try-chip ${p.id === placeId ? 'on' : ''}`} onClick={() => setPlaceId(p.id)} aria-pressed={p.id === placeId}>
-                  <Ms n={p.circle ? 'radio_button_unchecked' : 'pentagon'} />
-                  {p.name}
-                  <span className="subtle">{p.areaHa} ha</span>
-                </button>
-              ))}
+              <Btn variant="primary" icon="play_arrow" disabled={!place} onClick={run}>
+                Run on {place ? place.name : 'a place'}
+              </Btn>
+              {!places.length && <Btn icon="add_location_alt" onClick={() => go('places')}>Add a place</Btn>}
             </div>
-          ) : (
-            <div className="body-sm">You have no saved places yet. Add one in Places, then come back to run this skill on it.</div>
-          )}
-          <div className="row wrap">
-            <Btn variant="primary" icon="play_arrow" tier={s.tier} tierLabel={s.tier === 'paid' ? s.cost : undefined} disabled={!place} onClick={run}>
-              Run on {place ? place.name : 'a place'}
-            </Btn>
-            {!places.length && <Btn icon="add_location_alt" onClick={() => go('places')}>Add a place</Btn>}
           </div>
-        </div>
+        ) : (
+          <div className="well lib-try">
+            <div className="row" style={{ gap: 8 }}><Ms n="lightbulb" className="muted" /><span className="eyebrow">{status === 'draft' ? 'Draft' : 'Concept'}</span></div>
+            <div className="body-sm">
+              {status === 'draft'
+                ? 'This is a draft you saved from the skill builder. Drafts cannot run yet.'
+                : 'This skill is a planned recipe: the steps are written down, but there is no tested script behind it yet, so it cannot be run. You can still ask the agent about a place in your own words.'}
+            </div>
+          </div>
+        )}
 
         <div className="row wrap">
-          <Btn icon={isInstalled ? 'remove_circle_outline' : 'download'} onClick={install}>{isInstalled ? 'Uninstall' : 'Install'}</Btn>
           <Btn icon="edit" onClick={() => go('library', 'new', { from: s.id })}>Duplicate &amp; edit</Btn>
-          <Btn icon="ios_share" onClick={() => open({ kind: 'export', target: { kind: 'skill', title: s.name, subtitle: `v${s.version} · by ${s.publisherName}` } })}>Export</Btn>
-          <Btn icon="visibility" onClick={() => open({ kind: 'watchBuilder', skillId: s.id })}>Keep watching with this skill</Btn>
+          {runnable && <Btn icon="notifications" onClick={() => open({ kind: 'watchBuilder', skillId: s.id })}>Set a trigger with this skill</Btn>}
         </div>
       </div>
     </div>

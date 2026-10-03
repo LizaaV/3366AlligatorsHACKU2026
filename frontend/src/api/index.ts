@@ -5,9 +5,10 @@
  * `fetch` directly. Each endpoint carries a `TODO(api)` comment naming the route it expects;
  * the shapes are documented for the backend team in `docs/data/README.md`.
  *
- * While `VITE_API_SOURCE=fixture` (the default), endpoints resolve from local stand-ins after
- * an artificial delay, so loading and error states are real today. Putting an endpoint live
- * means deleting its `fixture` property — no call site changes.
+ * With `VITE_API_SOURCE=http` every call goes to the FastAPI backend and carries the browser's
+ * `X-User-Id` (see `identity.ts`). With `fixture`, endpoints resolve from local stand-ins after
+ * an artificial delay. Endpoints the backend does not have reject with kind `not_available`
+ * in http mode without making a request.
  */
 
 import { areasApi } from './endpoints/areas';
@@ -19,6 +20,8 @@ import { insightsApi } from './endpoints/insights';
 import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
 import { watchesApi } from './endpoints/watches';
+import { threadsApi } from './endpoints/threads';
+import { sharesApi } from './endpoints/shares';
 
 export const api = {
   catalog: catalogApi,
@@ -30,11 +33,19 @@ export const api = {
   knowledge: knowledgeApi,
   insights: insightsApi,
   exports: exportsApi,
+  threads: threadsApi,
+  shares: sharesApi,
 };
 
 export { ApiError, toApiError } from './http';
+export type { ApiErrorKind } from './http';
+export { userId } from './identity';
+export { streamErrorMessage } from './stream';
 export { API_BASE, API_SOURCE, usingFixtures } from './config';
-export type { RunRequest, ReplyRequest, RunRecord, BackendAnswer } from './endpoints/runs';
+export type { RunRequest, ReplyRequest, RunRecord, BackendAnswer, ShareCreated, InsightSaved } from './endpoints/runs';
+export type { ThreadSummary, ThreadDetail } from './endpoints/threads';
+export type { SharedRun } from './endpoints/shares';
+export type { WatchPatch } from './endpoints/watches';
 export type { AreaResolveRequest, AreaResolveResponse, Area, AreaMatch, PlaceContext } from './endpoints/areas';
 export { DEFAULT_PIN_RADIUS_M } from './endpoints/areas';
 export { isEvent } from './stream';

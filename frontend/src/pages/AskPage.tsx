@@ -3,13 +3,13 @@ import { useStore } from '../state/store';
 // three.js is ~600 kB and only the landing globe needs it, so it is split out of the main
 // bundle and loaded when the globe first renders.
 const Globe = lazy(() => import('../components/Globe').then((m) => ({ default: m.Globe })));
-import { MapView, type MapLayers } from '../components/MapView';
-import { Btn, CatPill, Check, IconBtn, Ms, Tier, hideBroken } from '../components/ui';
+import { MapView } from '../components/MapView';
+import { Btn, CatPill, Check, IconBtn, Ms, hideBroken } from '../components/ui';
 import { ErrorState } from '../components/async';
 import { api } from '../api';
 import { useResource } from '../hooks/useResource';
 import type { MapLayer, Place } from '../model';
-import { layerIdsFrom, passTimelineFrom, toSearchHits } from '../model';
+import { mapImagesFrom, passTimelineFrom, toSearchHits } from '../model';
 import { sourceLabel } from '../data/presentation';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, circlePts, fmtC, ptsToRing, thumb, type Pt } from '../lib/geo';
 import { LANGS } from '../data/i18n';
@@ -73,16 +73,18 @@ export function AskPage({ active }: { active: boolean }) {
     setZoom(p.zoom);
   }, []);
 
-  // Selecting a place (from Places page, selector or URL) shows it on the map; "no place" returns to the globe.
+  // Selecting a place (from Places page, selector or URL) shows it on the map; "no place" returns
+  // to the globe. Landing has no place selected, so a plain visit stays on the globe hero.
   const lastPlace = useRef<string | null | undefined>(undefined);
   useEffect(() => {
+    // A place named by the URL may arrive before the places list: wait until it resolves.
+    if (askPlaceId && !place) return;
     if (lastPlace.current === askPlaceId) return;
     const first = lastPlace.current === undefined;
     lastPlace.current = askPlaceId;
-    if (first && !route.query.place) return; // landing stays on the globe
     if (place) flyTo(place);
-    else setMode('globe');
-  }, [askPlaceId, place, flyTo, route.query.place]);
+    else if (!first) setMode('globe');
+  }, [askPlaceId, place, flyTo]);
 
   useEffect(() => () => window.clearInterval(playT.current), []);
 
@@ -95,10 +97,10 @@ export function AskPage({ active }: { active: boolean }) {
   // The contract streams a `timeline` block rather than a `timeline` field on the answer.
   const timeline = useMemo(() => (last ? passTimelineFrom(last.blocks) : null), [last]);
 
-  const setLayersOn = useCallback(
-    (ids: string[]) => setLayers((ls) => ls.map((l) => (ids.includes(l.id) ? { ...l, ready: true, on: true } : l))),
-    [],
-  );
+  // Real images the agent rendered for the latest answer, by layer id; one is shown on the map.
+  const images = useMemo(() => (last ? mapImagesFrom(last.blocks) : {}), [last]);
+  const [overlayId, setOverlayId] = useState<string | null>(null);
+  const [overlayWhen, setOverlayWhen] = useState<'before' | 'after'>('after');
 
   /**
    * Clicking a point on a timeline block moves the map's pass cursor to that scene.
@@ -121,7 +123,7 @@ export function AskPage({ active }: { active: boolean }) {
   useEffect(() => {
     if (stage === 'idle') return;
     if (stage === 'starting') {
-      setLayers((ls) => ls.map((l) => (l.isAgentMade ? { ...l, ready: false, on: false } : l)));
+      setOverlayId(null);
       return;
     }
     if (stage === 'locating') {
@@ -136,13 +138,12 @@ export function AskPage({ active }: { active: boolean }) {
     }
     if (stage === 'analysing') {
       setPass(null);
-      setLayersOn(['ndvi']);
       return;
     }
     if (stage === 'done') {
       setPass(null);
-      const ids = last ? layerIdsFrom(last.blocks) : [];
-      if (ids.length) setLayersOn(ids);
+      setOverlayId(Object.keys(images)[0] ?? null);
+      setOverlayWhen('after');
       setDateIdx(Math.max(0, (timeline?.dates.length ?? 1) - 1));
       return;
     }
@@ -188,7 +189,7 @@ export function AskPage({ active }: { active: boolean }) {
     [ask, askPlaceId, notify, places, skills],
   );
 
-  // Deep link from the library: #/ask?place=np&skill=weekly-crop-health runs it on that place.
+  // Deep link from the library: #/ask?place=np&skill=pond-filling-check runs it on that place.
   const deepLinked = useRef(false);
   useEffect(() => {
     const sk = route.query.skill;
@@ -255,42 +256,47 @@ export function AskPage({ active }: { active: boolean }) {
   };
 
   const toolClick = (k: string) => {
-    if (['draw', 'contours', 'coords', 'ref'].includes(k)) return setPop((p) => (p === k ? null : k));
+    if (['draw', 'contours', 'coords'].includes(k)) return setPop((p) => (p === k ? null : k));
     if (k === 'layers') { setPop(null); return setPanel((p) => (p === 'layers' ? null : 'layers')); }
-    if (k === 'undo') return drawing && drawPts.length ? setDrawPts((d) => d.slice(0, -1)) : notify('Nothing to undo', undefined, undefined, 'info');
-    if (k === 'redo') return notify('Nothing to redo', undefined, undefined, 'info');
-    if (k === 'pin') { setPop(null); return notify('Placemark added at map centre', 'Save as place', () => open({ kind: 'addPlace' }), 'location_on'); }
-    if (k === 'measure') { setPop(null); return notify(place ? `${place.name} is ${Math.round(Math.sqrt((place.areaHa * 10000) / Math.PI) * 2)} m across` : 'Pick a place to measure', undefined, undefined, 'straighten'); }
   };
 
   /* ---------------- derived ---------------- */
 
-  const on = (id: string) => { const l = layers.find((x) => x.id === id); return !!(l && l.on && l.ready); };
-  const mapLayers: MapLayers = { contour: on('contour'), ndmi: on('ndmi'), ndvi: on('ndvi'), lst: on('lst'), dry: on('dry'), clouds: on('clouds') };
+  const overlayPair = overlayId ? images[overlayId] : undefined;
+  const overlay = overlayPair ? overlayPair[overlayWhen] : null;
+  const overlayName = overlayId ? layers.find((l) => l.id === overlayId)?.name ?? overlayId : '';
   const isMap = mode === 'map';
-  const showHero = !isMap && !turns.length && !sheet && H >= 640 && !mobile;
+  const showHero = !isMap && !turns.length && !sheet && H >= 560 && !mobile;
   const cloudy = timeline?.cloudyIndices.includes(dateIdx) ?? false;
   const placeWatches = place ? watches.filter((w) => w.placeId === place.id) : [];
   const L = LANGS.find((l) => l.code === lang)!;
 
+  // Questions the backend can actually answer today. The pond check is the one real skill;
+  // the others are free-form questions the agent handles from the knowledge cards.
+  const hasPondSkill = skills.some((x) => x.id === 'pond-filling-check');
   const suggestions = place
     ? [
-        { icon: 'water_drop', text: 'Where are the dry patches in my field?', go: () => ask('Where are the dry patches in my field?') },
-        { icon: 'eco', text: `How healthy is ${place.name} this week?`, go: () => runSkill('weekly-crop-health') },
-        { icon: 'local_fire_department', text: 'Any fires within 10 km of this place?', go: () => runSkill('active-fire-map') },
+        hasPondSkill
+          ? { icon: 'water', text: 'Have these ponds been filled in?', go: () => runSkill('pond-filling-check') }
+          : { icon: 'water', text: 'Have these ponds been filled in?', go: () => ask('Have these ponds been filled in?') },
+        { icon: 'apartment', text: 'Has this area been built on since 2022?', go: () => ask('Has this area been built on since 2022?') },
+        { icon: 'water_drop', text: 'Is there less water here than last year?', go: () => ask('Is there less water here than last year?') },
       ]
     : [
-        { icon: 'satellite_alt', text: 'Which free satellite is best for crop health?', go: () => ask('Which free satellite is best for crop health?') },
-        { icon: 'flood', text: 'How can I map a flood through clouds?', go: () => ask('How can I map a flood through clouds?') },
-        { icon: 'pentagon', text: 'Pick one of my places to ask about it', go: () => setPop('place') },
+        { icon: 'eco', text: 'What does the greenness index measure?', go: () => ask('What does the greenness index (NDVI) measure?') },
+        { icon: 'satellite_alt', text: 'Which free satellites can see through clouds?', go: () => ask('Which free satellites can see through clouds?') },
+        { icon: 'pentagon', text: 'Pick a place to ask about it', go: () => setPop('place') },
       ];
 
   const sq = searchQ.trim().toLowerCase();
 
   // Geocoder results come from the API; the user's own places are matched locally since they
-  // are already loaded.
+  // are already loaded. Too-short queries are not sent (the backend rejects them with a 422).
   const geo = useResource(
-    useCallback((signal) => api.areas.resolve({ query: sq }, signal).then(toSearchHits), [sq]),
+    useCallback(
+      (signal: AbortSignal) => (sq.length >= 2 ? api.areas.resolve({ query: sq }, signal).then(toSearchHits) : Promise.resolve([])),
+      [sq],
+    ),
     [sq],
   );
 
@@ -323,15 +329,11 @@ export function AskPage({ active }: { active: boolean }) {
     [places, sq, geo.data, setAskPlace, flyTo, notify, open],
   );
 
-  const tools = [
-    ...(compact ? [] : [{ k: 'undo', icon: 'undo', title: 'Undo' }, { k: 'redo', icon: 'redo', title: 'Redo' }, { k: '|' }]),
-    { k: 'coords', icon: 'my_location', title: 'Search by coordinates' },
-    { k: 'pin', icon: 'location_on', title: 'Add placemark' },
-    { k: 'draw', icon: 'polyline', title: 'Draw a contour', caret: true },
+  const tools: { k: string; icon?: string; title?: string; caret?: boolean }[] = [
+    { k: 'coords', icon: 'my_location', title: 'Go to coordinates' },
+    { k: 'draw', icon: 'polyline', title: 'Draw an outline', caret: true },
     { k: 'contours', icon: 'pentagon', title: 'My places', caret: true },
     { k: '|' },
-    { k: 'measure', icon: 'straighten', title: 'Measure distance' },
-    { k: 'ref', icon: 'image', title: 'Reference image' },
     { k: 'layers', icon: 'layers', title: 'Layers' },
   ];
 
@@ -340,7 +342,22 @@ export function AskPage({ active }: { active: boolean }) {
       <Suspense fallback={null}>
         <Globe visible={active && !isMap} offsetRight={!mobile} />
       </Suspense>
-      {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} layers={mapLayers} dateIdx={dateIdx} pass={pass} timeline={timeline} />}
+      {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} contour overlay={overlay} pass={pass} />}
+
+      {/* REAL LAYER: which rendered image is on the map, and before/after */}
+      {isMap && overlayPair && (
+        <div className="panel row fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : 20, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100% - 32px)', top: mobile ? 64 : 90, gap: 10, padding: '6px 6px 6px 14px', zIndex: 14 }}>
+          <span className="sq" style={{ width: 10, height: 10, background: layers.find((l) => l.id === overlayId)?.color ?? '#fff' }} />
+          <span style={{ font: '600 13px/1.38 var(--font)' }}>{overlayName}</span>
+          <span className="tiny muted">{overlay?.date}</span>
+          {(['before', 'after'] as const).map((w) => (
+            <button key={w} className={`chip ${overlayWhen === w ? 'on' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setOverlayWhen(w)} aria-pressed={overlayWhen === w}>
+              {w === 'before' ? 'Before' : 'After'}
+            </button>
+          ))}
+          <IconBtn icon="close" className="sm" onClick={() => setOverlayId(null)} aria-label="Hide layer" />
+        </div>
+      )}
 
       {/* DRAW CAPTURE */}
       {drawing && (
@@ -364,15 +381,15 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* HERO */}
       {showHero && (
-        <div style={{ position: 'absolute', left: 48, bottom: 128, maxWidth: 560, pointerEvents: 'none', animation: 'fadeUp .6s ease both' }}>
-          <div className="eyebrow muted" style={{ marginBottom: 16 }}>{t('hero.eyebrow')}</div>
-          <div className="display">{t('hero.title')}</div>
-          <div className="body-lg" style={{ marginTop: 16, maxWidth: 480 }}>{t('hero.sub')}</div>
+        // Sits below the chat panel; the title scales with the window height so it never runs under it.
+        <div style={{ position: 'absolute', left: 48, bottom: 40, maxWidth: 560, pointerEvents: 'none', animation: 'fadeUp .6s ease both' }}>
+          <div className="eyebrow muted" style={{ marginBottom: 12 }}>{t('hero.eyebrow')}</div>
+          <div className="display" style={{ fontSize: 'clamp(34px, 6.2vh, 64px)', letterSpacing: -1.5 }}>{t('hero.title')}</div>
+          <div className="body-lg" style={{ marginTop: 12, maxWidth: 480 }}>{t('hero.sub')}</div>
           <div className="row wrap" style={{ marginTop: 20, gap: 8, pointerEvents: 'auto' }}>
             <span className="pill" style={{ background: 'var(--s1)' }}><Ms n="translate" size={14} />{LANGS.length} languages</span>
-            <button className="pill" style={{ background: 'var(--s1)', border: 0 }} onClick={() => open({ kind: 'connectors', focus: 'whatsapp' })}><Ms n="chat" size={14} />Ask on WhatsApp</button>
-            <button className="pill" style={{ background: 'var(--s1)', border: 0 }} onClick={() => open({ kind: 'app' })}><Ms n="smartphone" size={14} />iOS & Android</button>
-            <span className="pill" style={{ background: 'var(--s1)' }}><span className="dot" style={{ background: 'var(--green)' }} />Free satellites first</span>
+            <span className="pill" style={{ background: 'var(--s1)' }}><Ms n="satellite_alt" size={14} />Sentinel-1/2 · Landsat</span>
+            <span className="pill" style={{ background: 'var(--s1)' }}><span className="dot" style={{ background: 'var(--green)' }} />Free, open data</span>
           </div>
         </div>
       )}
@@ -408,7 +425,7 @@ export function AskPage({ active }: { active: boolean }) {
                   </button>
                 ))}
                 <div className="divider" style={{ margin: '6px 4px' }} />
-                <button className="menu-item" onClick={() => { setPop(null); open({ kind: 'addPlace' }); }}><Ms n="add_location_alt" />{t('cta.addPlace')}<Tier tier="free" /></button>
+                <button className="menu-item" onClick={() => { setPop(null); open({ kind: 'addPlace' }); }}><Ms n="add_location_alt" />{t('cta.addPlace')}</button>
               </div>
             )}
           </div>
@@ -442,7 +459,7 @@ export function AskPage({ active }: { active: boolean }) {
                 />
               ))}
               {last?.phase === 'done' && (
-                <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => { run.reset(); setLayers(catalogLayers); }}>
+                <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => { run.reset(); setOverlayId(null); }}>
                   <Ms n="add_comment" />New chat
                 </button>
               )}
@@ -470,8 +487,8 @@ export function AskPage({ active }: { active: boolean }) {
                 </div>
                 <div className="col" style={{ gap: 6 }}>
                   <div className="row" style={{ justifyContent: 'space-between' }}>
-                    <span className="eyebrow">Watches here · {placeWatches.length}</span>
-                    <button className="btn btn-text btn-sm" onClick={() => open({ kind: 'watchBuilder', placeId: place.id })}><Ms n="add" />Add watch<Tier tier="free" /></button>
+                    <span className="eyebrow">Triggers here · {placeWatches.length}</span>
+                    <button className="btn btn-text btn-sm" onClick={() => open({ kind: 'watchBuilder', placeId: place.id })}><Ms n="add" />Add trigger</button>
                   </div>
                   {placeWatches.slice(0, 3).map((w) => (
                     <button key={w.id} onClick={() => go('triggers', w.id)} className="row" style={{ gap: 8, padding: '6px 8px', borderRadius: 8, background: 'var(--s2)', border: 0, textAlign: 'left' }}>
@@ -480,7 +497,7 @@ export function AskPage({ active }: { active: boolean }) {
                       <span className="tiny ink">{w.value}{w.unit ? ' ' + w.unit : ''}</span>
                     </button>
                   ))}
-                  {!placeWatches.length && <span className="caption">Nothing is being watched here yet.</span>}
+                  {!placeWatches.length && <span className="caption">No triggers on this place yet.</span>}
                 </div>
                 <div className="row wrap" style={{ gap: 6 }}>
                   {place.tags.map((tg) => <span key={tg} className="tag">{tg}</span>)}
@@ -524,7 +541,7 @@ export function AskPage({ active }: { active: boolean }) {
                   <div className="menu" style={{ left: -40, top: 52, width: 290 }}>
                     <div className="menu-label eyebrow">Add line or shape</div>
                     <button className="menu-item on" onClick={() => { const c = place; setPop(null); setDrawing(true); setDrawPts([]); setMode('map'); if (c) { setCenter({ lat: c.lat, lon: c.lon }); setZoom(16); } }}><Ms n="polyline" />Path or polygon</button>
-                    <button className="menu-item" onClick={addCircle}><Ms n="radio_button_unchecked" />Circle<span style={{ marginLeft: 'auto', padding: '2px 8px', borderRadius: 9999, background: '#fff', color: '#000', font: '600 12px/1.38 var(--font)' }}>New</span></button>
+                    <button className="menu-item" onClick={addCircle}><Ms n="radio_button_unchecked" />Circle</button>
                     <button className="menu-item" onClick={() => { setPop(null); open({ kind: 'addPlace' }); }}><Ms n="upload_file" /><span className="col">Upload outline<span className="tiny">KML, GeoJSON or Shapefile</span></span></button>
                   </div>
                 )}
@@ -550,13 +567,6 @@ export function AskPage({ active }: { active: boolean }) {
                     <Btn variant="primary" onClick={() => { const la = parseFloat(coord.lat), lo = parseFloat(coord.lon); if (isNaN(la) || isNaN(lo) || Math.abs(la) > 85 || Math.abs(lo) > 180) return notify('Enter a valid latitude and longitude', undefined, undefined, 'error'); setMode('map'); setCenter({ lat: la, lon: lo }); setZoom(15); setPop(null); }}>Fly there</Btn>
                   </div>
                 )}
-                {pop === 'ref' && tl.k === 'ref' && (
-                  <div className="menu col" style={{ right: -60, top: 52, width: 300, padding: 12, gap: 10 }}>
-                    <div className="row" style={{ justifyContent: 'space-between' }}><span className="eyebrow">Reference image</span><span className="tiny muted">Basemap · 2020 · 10 m</span></div>
-                    <img onError={hideBroken} src={thumb(center.lat, center.lon, Math.min(17, zoom))} alt="" style={{ width: '100%', aspectRatio: '1', borderRadius: 8, display: 'block', background: '#000', objectFit: 'cover' }} />
-                    <div className="caption muted">{place?.name ?? 'Map centre'} · {fmtC(center.lat, center.lon)}</div>
-                  </div>
-                )}
               </div>
             ),
           )}
@@ -570,18 +580,21 @@ export function AskPage({ active }: { active: boolean }) {
             <div><div className="eyebrow">Layers</div><div className="subhead" style={{ marginTop: 6 }}>{place?.name ?? 'No place selected'}</div></div>
             <IconBtn icon="close" className="sm" onClick={() => setPanel(null)} aria-label="Close layers" />
           </div>
-          {!layers.some((l) => l.isAgentMade && l.ready) && <div className="sunk body-sm" style={{ margin: '0 20px 12px', padding: 12, fontSize: 13 }}>Layers made by the agent appear here after you ask a question about this place.</div>}
+          {!Object.keys(images).length && <div className="sunk body-sm" style={{ margin: '0 20px 12px', padding: 12, fontSize: 13 }}>Satellite layers appear here after the agent answers a question about a place. They are the real images it measured.</div>}
           <div className="col" style={{ padding: '0 8px 12px' }}>
-            {layers.map((l) => (
-              <button key={l.id} className="menu-item" style={{ opacity: l.ready ? 1 : 0.4, gap: 12 }} onClick={() => (l.ready ? setLayers((ls) => ls.map((x) => (x.id === l.id ? { ...x, on: !x.on } : x))) : notify('Ask the agent about this place to generate this layer', undefined, undefined, 'info'))}>
-                <Check on={l.on && l.ready} />
+            {layers.filter((l) => l.isAgentMade).map((l) => {
+              const ready = !!images[l.id];
+              return (
+              <button key={l.id} className="menu-item" style={{ opacity: ready ? 1 : 0.4, gap: 12 }} onClick={() => (ready ? (setOverlayId((cur) => (cur === l.id ? null : l.id)), setMode('map')) : notify('Ask the agent about this place to render this layer', undefined, undefined, 'info'))}>
+                <Check on={overlayId === l.id} />
                 <span className="sq" style={{ width: 10, height: 10, background: l.color }} />
                 <span className="col grow"><span style={{ font: '600 14px/1.4 var(--font)' }}>{l.name}</span><span className="tiny">{l.source}</span></span>
-                {l.isAgentMade && <span className="badge-ai">AI</span>}
+                {l.index && <span className="tiny muted">{l.index}</span>}
               </button>
-            ))}
+              );
+            })}
           </div>
-          <div className="caption" style={{ borderTop: '1px solid var(--hair-soft)', padding: '14px 20px 18px' }}>Use the timeline at the bottom to step through each satellite pass.</div>
+          <div className="caption" style={{ borderTop: '1px solid var(--hair-soft)', padding: '14px 20px 18px' }}>One layer at a time; switch Before / After on the map.</div>
         </div>
       )}
 
@@ -611,8 +624,8 @@ export function AskPage({ active }: { active: boolean }) {
         <Btn variant="primary" icon="auto_stories" onClick={() => { setSheet(true); setPop(null); setPanel(null); }}>{mobile ? '' : 'Skills'}</Btn>
         <Btn icon="layers" onClick={() => { setPop(null); setPanel((p) => (p === 'layers' ? null : 'layers')); }} style={{ background: panel === 'layers' ? 'var(--s3)' : undefined }}>{mobile ? '' : 'Layers'}</Btn>
         {!mobile && (
-          <Btn icon="visibility" onClick={() => go('triggers')}>
-            Watches<span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999, background: '#fff', color: '#000', font: '600 11px/18px var(--font)', textAlign: 'center' }}>{watches.filter((w) => w.enabled).length}</span>
+          <Btn icon="notifications_active" onClick={() => go('triggers')}>
+            {t('nav.triggers')}<span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999, background: '#fff', color: '#000', font: '600 11px/18px var(--font)', textAlign: 'center' }}>{watches.filter((w) => w.enabled).length}</span>
           </Btn>
         )}
         {isMap && !mobile && <IconBtn icon="public" title="Back to globe" aria-label="Back to globe" onClick={() => { setMode('globe'); setPlaying(false); setDrawing(false); }} />}
@@ -776,7 +789,7 @@ function TurnView({
                   <input type="checkbox" checked={turn.remember} onChange={(e) => onRemember(e.target.checked)} />
                   Remember these answers for this place
                 </label>
-                <Btn variant="primary" style={{ alignSelf: 'flex-start' }} onClick={onContinue} tier="free">Continue</Btn>
+                <Btn variant="primary" style={{ alignSelf: 'flex-start' }} onClick={onContinue}>Continue</Btn>
               </div>
             )}
           </div>
@@ -824,6 +837,7 @@ function TurnView({
           answer={turn.answer}
           question={turn.text}
           placeId={turn.placeId}
+          runId={turn.runId}
           onRunSkill={onRunSkill}
           onAskFollowup={isLast ? onAskFollowup : undefined}
         />
@@ -900,13 +914,13 @@ function SkillSheet({ cat, setCat, place, onClose, onRun, onOpen }: { cat: numbe
                 <span className="pill" style={{ position: 'absolute', right: 10, top: 10 }}>{s.official ? <><Ms n="verified" size={14} style={{ color: 'var(--blue)' }} />Official</> : 'Community'}</span>
               </button>
               <div className="col" style={{ padding: 16, gap: 8, flex: 1 }}>
-                <div className="row wrap" style={{ gap: 6 }}><CatPill category={category(s.categoryKey)} /><span className="pill">{s.cost}</span></div>
+                <div className="row wrap" style={{ gap: 6 }}><CatPill category={category(s.categoryKey)} /></div>
                 <div style={{ font: '600 18px/1.25 var(--font)', letterSpacing: -0.3 }}>{s.name}</div>
                 <div className="row caption muted" style={{ gap: 6 }}><Ms n="satellite_alt" size={16} />{s.sat}</div>
                 <div className="body-sm">{s.short}</div>
                 <div className="row" style={{ marginTop: 'auto', paddingTop: 8, justifyContent: 'space-between' }}>
                   <span className="tiny">by {s.publisherName}</span>
-                  <Btn size="sm" variant="primary" icon="play_arrow" tier={s.tier} tierLabel={s.tier === 'paid' ? s.cost : undefined} onClick={() => onRun(s.id)}>Run</Btn>
+                  <Btn size="sm" variant="primary" icon="play_arrow" onClick={() => onRun(s.id)}>Run</Btn>
                 </div>
               </div>
             </div>

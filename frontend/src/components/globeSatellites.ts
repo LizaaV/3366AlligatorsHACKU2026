@@ -63,13 +63,39 @@ export function addSatellites(parent: THREE.Object3D) {
   let lastOrbit = 0;
   const tmp = new THREE.Vector3();
 
-  const trackLine = (t: Tracked, fromMin: number, toMin: number, n: number, now: number) => {
-    const pos: number[] = [];
+  /**
+   * Writes the track into the line's preallocated position buffer in place, so the GPU buffer is
+   * reused rather than a new one being allocated (and the old one leaked) on every refresh.
+   */
+  const trackLine = (line: THREE.Line, satrec: SatRec, fromMin: number, toMin: number, n: number, now: number) => {
+    const attr = line.geometry.getAttribute('position') as THREE.BufferAttribute;
+    let k = 0;
     for (let i = 0; i <= n; i++) {
-      const p = subPoint(t.satrec, new Date(now + (fromMin + ((toMin - fromMin) * i) / n) * 60_000));
-      if (p) pos.push(...toLocal(p.lat, p.lon, p.altKm, tmp).toArray());
+      const p = subPoint(satrec, new Date(now + (fromMin + ((toMin - fromMin) * i) / n) * 60_000));
+      if (!p) continue;
+      toLocal(p.lat, p.lon, p.altKm, tmp);
+      attr.setXYZ(k++, tmp.x, tmp.y, tmp.z);
     }
-    return new THREE.Float32BufferAttribute(pos, 3);
+    attr.needsUpdate = true;
+    line.geometry.setDrawRange(0, k);
+    line.geometry.computeBoundingSphere();
+    // Dashed lines need cumulative distances; Line.computeLineDistances() would allocate a new
+    // attribute each time, so fill the preallocated one instead.
+    const dist = line.geometry.getAttribute('lineDistance') as THREE.BufferAttribute | undefined;
+    if (dist) {
+      let d = 0;
+      for (let i = 0; i < k; i++) {
+        if (i > 0) d += Math.hypot(attr.getX(i) - attr.getX(i - 1), attr.getY(i) - attr.getY(i - 1), attr.getZ(i) - attr.getZ(i - 1));
+        dist.setX(i, d);
+      }
+      dist.needsUpdate = true;
+    }
+  };
+
+  const positions = (n: number) => {
+    const a = new THREE.BufferAttribute(new Float32Array((n + 1) * 3), 3);
+    a.setUsage(THREE.DynamicDrawUsage);
+    return a;
   };
 
   void loadTles(ctl.signal)
@@ -89,13 +115,19 @@ export function addSatellites(parent: THREE.Object3D) {
         const fade = new Float32Array((TRAIL_PTS + 1) * 3);
         for (let i = 0; i <= TRAIL_PTS; i++) color.clone().multiplyScalar((i / TRAIL_PTS) ** 1.6 * 0.9).toArray(fade, i * 3);
         tg.setAttribute('color', new THREE.BufferAttribute(fade, 3));
+        tg.setAttribute('position', positions(TRAIL_PTS));
+        tg.setDrawRange(0, 0);
         const trail = new THREE.Line(tg, new THREE.LineBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
 
         const t: Tracked = { sat, satrec: toSatrec(tle), dot, trail };
         if (!shownOrbit.has(sat.family)) {
           shownOrbit.add(sat.family);
+          const og = new THREE.BufferGeometry();
+          og.setAttribute('position', positions(ORBIT_PTS));
+          og.setAttribute('lineDistance', new THREE.BufferAttribute(new Float32Array(ORBIT_PTS + 1), 1).setUsage(THREE.DynamicDrawUsage));
+          og.setDrawRange(0, 0);
           t.orbit = new THREE.Line(
-            new THREE.BufferGeometry(),
+            og,
             new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.012, gapSize: 0.018, transparent: true, opacity: 0.22, depthWrite: false }),
           );
           group.add(t.orbit);
@@ -118,15 +150,14 @@ export function addSatellites(parent: THREE.Object3D) {
     }
     if (now - lastTrail > 2_000) {
       lastTrail = now;
-      for (const t of tracked) t.trail.geometry.setAttribute('position', trackLine(t, -TRAIL_MIN, 0, TRAIL_PTS, now));
+      for (const t of tracked) trackLine(t.trail, t.satrec, -TRAIL_MIN, 0, TRAIL_PTS, now);
     }
     if (now - lastOrbit > 60_000) {
       lastOrbit = now;
       for (const t of tracked) {
         if (!t.orbit) continue;
         const half = periodMin(t.satrec) / 2;
-        t.orbit.geometry.setAttribute('position', trackLine(t, -half, half, ORBIT_PTS, now));
-        t.orbit.computeLineDistances();
+        trackLine(t.orbit, t.satrec, -half, half, ORBIT_PTS, now);
       }
     }
   };

@@ -87,6 +87,23 @@ const writeCache = (tles: TleMap) => {
   }
 };
 
+/** A slow CelesTrak should not hold the globe empty: give up and use the snapshot after this. */
+const FETCH_TIMEOUT_MS = 8_000;
+
+/** `signal` aborted by the caller or after `ms`, whichever comes first. */
+function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const timeout = AbortSignal.timeout(ms);
+  if (!signal) return timeout;
+  const any = (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any;
+  if (any) return any([signal, timeout]);
+  const ac = new AbortController();
+  const abort = () => ac.abort();
+  if (signal.aborted || timeout.aborted) ac.abort();
+  signal.addEventListener('abort', abort, { once: true });
+  timeout.addEventListener('abort', abort, { once: true });
+  return ac.signal;
+}
+
 /** Fresh elements where we can get them, the bundled snapshot for anything we cannot. */
 export async function loadTles(signal?: AbortSignal): Promise<TleMap> {
   // JSON imports widen tuples to string[]; every entry in the snapshot is a TLE line pair.
@@ -94,7 +111,9 @@ export async function loadTles(signal?: AbortSignal): Promise<TleMap> {
   const cached = readCache();
   if (cached) return { ...fallback, ...cached };
   const want = new Set(SATELLITES.map((s) => s.norad));
-  const results = await Promise.allSettled(SOURCES.map((u) => fetch(u, { signal }).then((r) => (r.ok ? r.text() : Promise.reject(r.status)))));
+  const results = await Promise.allSettled(
+    SOURCES.map((u) => fetch(u, { signal: withTimeout(signal, FETCH_TIMEOUT_MS) }).then((r) => (r.ok ? r.text() : Promise.reject(r.status)))),
+  );
   const fresh: TleMap = {};
   for (const r of results) if (r.status === 'fulfilled') Object.assign(fresh, parseTle(r.value, want));
   if (Object.keys(fresh).length) writeCache(fresh);

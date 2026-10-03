@@ -6,6 +6,7 @@ import { PlacesPage } from './pages/PlacesPage';
 import { WatchesPage } from './pages/WatchesPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { ModalHost } from './modals/ModalHost';
+import { ProofPage, proofSlug } from './pages/ProofPage';
 
 function Routes() {
   const { route } = useStore();
@@ -35,10 +36,12 @@ function Routes() {
 }
 
 export function App() {
+  // A share link (`/proof/<slug>`) opens a read-only page instead of the app.
+  const slug = proofSlug();
   return (
     <ErrorBoundary label="app">
       <StoreProvider>
-        <Routes />
+        {slug ? <ProofPage slug={slug} /> : <Routes />}
       </StoreProvider>
     </ErrorBoundary>
   );

@@ -19,7 +19,7 @@ import { ApiError, toApiError } from '../api';
 import type { Place } from '../model';
 import { sourceLabel } from '../data/presentation';
 import { ptsToRing } from '../lib/geo';
-import { Btn, Modal, ModalHead, Ms, Tier } from '../components/ui';
+import { Btn, Modal, ModalHead, Ms } from '../components/ui';
 import { ErrorState } from '../components/async';
 import { Steps } from './addPlace/Steps';
 import { MethodInput } from './addPlace/methods';
@@ -107,7 +107,7 @@ export function AddPlaceModal() {
         ],
       });
 
-      // Watches the user opted into. Each is a separate write; one failing must not lose the place.
+      // Triggers the user opted into. Each is a separate write; one failing must not lose the place.
       const started: string[] = [];
       for (const skillId of form.startWatch) {
         const sk = skills.find((x) => x.id === skillId);
@@ -125,14 +125,14 @@ export function AddPlaceModal() {
           });
           started.push(sk.name);
         } catch {
-          notify(`${created.name} saved, but the “${sk.name}” watch could not be created`, undefined, undefined, 'error');
+          notify(`${created.name} saved, but the “${sk.name}” trigger could not be saved`, undefined, undefined, 'error');
         }
       }
 
       close();
       notify(
         started.length
-          ? `${created.name} saved · ${created.areaHa} ha · ${started.length} watch${started.length > 1 ? 'es' : ''} started`
+          ? `${created.name} saved · ${created.areaHa} ha · ${started.length} trigger${started.length > 1 ? 's' : ''} saved`
           : `${created.name} saved · ${created.areaHa} ha`,
         'Ask about it',
         () => go('ask', undefined, { place: created.id }),
@@ -147,7 +147,7 @@ export function AddPlaceModal() {
 
   return (
     <Modal size="wide" onClose={close} label="Add a place">
-      <ModalHead eyebrow="New place" title="Add a place" sub="Save a field, plot, site or water body once — then ask about it or watch it." onClose={close} />
+      <ModalHead eyebrow="New place" title="Add a place" sub="Save a field, plot, site or water body once — then ask about it or set a trigger on it." onClose={close} />
       <Steps step={step} />
 
       {step === 1 && (
@@ -168,10 +168,7 @@ export function AddPlaceModal() {
                     background: on ? 'var(--s2)' : 'var(--canvas)', border: `1px solid ${on ? '#fff' : 'var(--hair-soft)'}`, color: '#fff',
                   }}
                 >
-                  <span className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
-                    <Ms n={mt.icon} size={22} style={{ color: on ? '#fff' : 'var(--muted)' }} />
-                    {mt.paid ? <Tier tier="paid" label="$0.50" /> : <Tier tier="free" />}
-                  </span>
+                  <Ms n={mt.icon} size={22} style={{ color: on ? '#fff' : 'var(--muted)' }} />
                   <span style={{ font: '600 14px/1.3 var(--font)' }}>{mt.title}</span>
                   <span className="tiny">{mt.hint}</span>
                 </button>
@@ -183,7 +180,6 @@ export function AddPlaceModal() {
               <MethodInput method={method} onChange={onMethodChange} />
             </div>
           )}
-          {!method && <div className="caption">Every method is free except official parcel lookups in a few countries (US, Kenya: $0.50 per parcel found).</div>}
         </>
       )}
 
@@ -196,7 +192,7 @@ export function AddPlaceModal() {
         {step === 1 ? <Btn variant="text" onClick={close}>Cancel</Btn> : <Btn variant="text" icon="arrow_back" onClick={goBack}>Back</Btn>}
         {step === 1 && <Btn variant="primary" trailing="arrow_forward" disabled={!loc} onClick={goStep2}>Continue</Btn>}
         {step === 2 && <Btn variant="primary" trailing="arrow_forward" disabled={!loc || ha <= 0} onClick={goStep3}>Continue</Btn>}
-        {step === 3 && <Btn variant="primary" icon="check" tier="free" disabled={!form.complete || saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save place'}</Btn>}
+        {step === 3 && <Btn variant="primary" icon="check" disabled={!form.complete || saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save place'}</Btn>}
       </div>
     </Modal>
   );

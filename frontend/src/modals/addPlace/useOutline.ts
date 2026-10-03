@@ -12,7 +12,9 @@ import { approxAreaHa, circlePts, fitZoom, mpp, rectPts, ringToPts, type Pt } fr
 import type { Loc, Method, Shape } from './types';
 
 export function useOutline({ loc, step, method }: { loc: Loc | null; step: number; method: Method | null }) {
-  const [shape, setShape] = useState<Shape>('detected');
+  // 'detected' needs POST /places/detect-boundary, which the backend does not have yet, so
+  // every outline starts as the given one or a circle.
+  const [shape, setShape] = useState<Shape>('circle');
   const [radius, setRadius] = useState(300);
   const [rw, setRw] = useState(600);
   const [rh, setRh] = useState(400);
@@ -75,7 +77,8 @@ export function useOutline({ loc, step, method }: { loc: Loc | null; step: numbe
 
   /** Called when the wizard enters step 2, to pick a sensible starting shape. */
   const begin = useCallback((at: Loc, by: Method | null) => {
-    setShape(at.pts ? 'given' : by === 'pin' || by === 'whatsapp' || by === 'coords' ? 'circle' : 'detected');
+    void by;
+    setShape(at.pts ? 'given' : 'circle');
     setZoom(null);
     setDetected(null);
     setDetectError(null);

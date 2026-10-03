@@ -72,7 +72,9 @@
       "revisit": "5 days",
       "tier": "free",
       "kind": "optical",
-      "note": "Multispectral, good for NDVI/NDMI"
+      "note": "Multispectral, good for NDVI/NDMI",
+      "price": null,
+      "connected": true
     },
     {
       "id": "l9",
@@ -81,7 +83,9 @@
       "revisit": "8 days",
       "tier": "free",
       "kind": "thermal",
-      "note": "Surface temperature"
+      "note": "Surface temperature",
+      "price": null,
+      "connected": true
     },
     {
       "id": "s1",
@@ -90,7 +94,9 @@
       "revisit": "6 days",
       "tier": "free",
       "kind": "radar",
-      "note": "Sees through clouds, day and night"
+      "note": "Sees through clouds, day and night",
+      "price": null,
+      "connected": true
     },
     {
       "id": "ps",
@@ -100,7 +106,8 @@
       "tier": "paid",
       "price": "$1.80 / km²",
       "kind": "optical",
-      "note": "For very small fields"
+      "note": "For very small fields",
+      "connected": false
     },
     {
       "id": "hr",
@@ -110,7 +117,8 @@
       "tier": "paid",
       "price": "$12 / km²",
       "kind": "optical",
-      "note": "Very high resolution, tasked"
+      "note": "Very high resolution, tasked",
+      "connected": false
     },
     {
       "id": "s3",
@@ -119,7 +127,9 @@
       "revisit": "Daily",
       "tier": "free",
       "kind": "optical",
-      "note": "Ocean and lake colour"
+      "note": "Ocean and lake colour",
+      "price": null,
+      "connected": true
     },
     {
       "id": "viirs",
@@ -128,7 +138,9 @@
       "revisit": "~12 hours",
       "tier": "free",
       "kind": "thermal",
-      "note": "Active fire hotspots"
+      "note": "Active fire hotspots",
+      "price": null,
+      "connected": true
     },
     {
       "id": "s5p",
@@ -137,7 +149,9 @@
       "revisit": "Daily",
       "tier": "free",
       "kind": "atmos",
-      "note": "Air quality gases"
+      "note": "Air quality gases",
+      "price": null,
+      "connected": true
     }
   ],
   "modules": [
@@ -324,49 +338,56 @@
       "name": "English",
       "english": "English",
       "region": "Global",
-      "ui": true
+      "ui": true,
+      "rtl": false
     },
     {
       "code": "de",
       "name": "Deutsch",
       "english": "German",
       "region": "Europe",
-      "ui": true
+      "ui": true,
+      "rtl": false
     },
     {
       "code": "es",
       "name": "Español",
       "english": "Spanish",
       "region": "Americas · Europe",
-      "ui": true
+      "ui": true,
+      "rtl": false
     },
     {
       "code": "fr",
       "name": "Français",
       "english": "French",
       "region": "Europe · Africa",
-      "ui": true
+      "ui": true,
+      "rtl": false
     },
     {
       "code": "pt",
       "name": "Português",
       "english": "Portuguese",
       "region": "Americas · Africa",
-      "ui": true
+      "ui": true,
+      "rtl": false
     },
     {
       "code": "hi",
       "name": "हिन्दी",
       "english": "Hindi",
       "region": "South Asia",
-      "ui": true
+      "ui": true,
+      "rtl": false
     },
     {
       "code": "sw",
       "name": "Kiswahili",
       "english": "Swahili",
       "region": "East Africa",
-      "ui": true
+      "ui": true,
+      "rtl": false
     },
     {
       "code": "ar",
@@ -381,42 +402,48 @@
       "name": "ગુજરાતી",
       "english": "Gujarati",
       "region": "South Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "mr",
       "name": "मराठी",
       "english": "Marathi",
       "region": "South Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "bn",
       "name": "বাংলা",
       "english": "Bengali",
       "region": "South Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "ta",
       "name": "தமிழ்",
       "english": "Tamil",
       "region": "South Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "te",
       "name": "తెలుగు",
       "english": "Telugu",
       "region": "South Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "pa",
       "name": "ਪੰਜਾਬੀ",
       "english": "Punjabi",
       "region": "South Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "ur",
@@ -431,70 +458,122 @@
       "name": "Hausa",
       "english": "Hausa",
       "region": "West Africa",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "yo",
       "name": "Yorùbá",
       "english": "Yoruba",
       "region": "West Africa",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "am",
       "name": "አማርኛ",
       "english": "Amharic",
       "region": "East Africa",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "tr",
       "name": "Türkçe",
       "english": "Turkish",
       "region": "Europe · Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "id",
       "name": "Bahasa Indonesia",
       "english": "Indonesian",
       "region": "Southeast Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "vi",
       "name": "Tiếng Việt",
       "english": "Vietnamese",
       "region": "Southeast Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "th",
       "name": "ไทย",
       "english": "Thai",
       "region": "Southeast Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "fil",
       "name": "Filipino",
       "english": "Filipino",
       "region": "Southeast Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "zh",
       "name": "中文",
       "english": "Chinese",
       "region": "East Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
     },
     {
       "code": "ja",
       "name": "日本語",
       "english": "Japanese",
       "region": "East Asia",
-      "ui": false
+      "ui": false,
+      "rtl": false
+    }
+  ],
+  "map_layers": [
+    {
+      "id": "ndmi",
+      "name": "NDMI · plant water",
+      "source": "Sentinel-2 B8A / B11",
+      "index": "NDMI",
+      "is_agent_made": true,
+      "url_template": "/api/layers/{run_id}/ndmi/{scene}.png"
+    },
+    {
+      "id": "ndvi",
+      "name": "NDVI · plant health",
+      "source": "Sentinel-2 B4 / B8",
+      "index": "NDVI",
+      "is_agent_made": true,
+      "url_template": "/api/layers/{run_id}/ndvi/{scene}.png"
+    },
+    {
+      "id": "lst",
+      "name": "Surface temperature",
+      "source": "Landsat 9 TIRS",
+      "index": null,
+      "is_agent_made": true,
+      "url_template": "/api/layers/{run_id}/lst/{scene}.png"
+    },
+    {
+      "id": "dry",
+      "name": "Dry spots · 2+ dates",
+      "source": "Agent · anomaly detection",
+      "index": null,
+      "is_agent_made": true,
+      "url_template": "/api/layers/{run_id}/dry/{scene}.png"
+    },
+    {
+      "id": "clouds",
+      "name": "Cloud & shadow mask",
+      "source": "Sentinel-2 SCL",
+      "index": null,
+      "is_agent_made": true,
+      "url_template": "/api/layers/{run_id}/clouds/{scene}.png"
     }
   ]
 }

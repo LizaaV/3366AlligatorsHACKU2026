@@ -13,15 +13,17 @@ import type { MapLayers } from '../../components/MapView';
 
 export type Method = 'search' | 'coords' | 'draw' | 'upload' | 'parcel' | 'whatsapp' | 'pin' | 'project';
 
-export const METHODS: { id: Method; icon: string; title: string; hint: string; paid?: string }[] = [
+/**
+ * The methods offered in step 1. `upload`, `parcel` and `whatsapp` still have components, but
+ * they need backend endpoints that do not exist yet (parse-file, lookup-parcel, a WhatsApp
+ * bot), so they are not listed: a method that can only fail is worse than no method.
+ */
+export const METHODS: { id: Method; icon: string; title: string; hint: string }[] = [
   { id: 'search', icon: 'search', title: 'Search a place name', hint: 'Town, farm, lake, port or region' },
   { id: 'coords', icon: 'my_location', title: 'Coordinates', hint: 'Latitude / longitude or your location' },
   { id: 'draw', icon: 'draw', title: 'Draw on map', hint: 'Click the corners of your field' },
-  { id: 'upload', icon: 'upload_file', title: 'Upload file', hint: 'KML, GeoJSON, Shapefile, CSV of points' },
-  { id: 'parcel', icon: 'grid_view', title: 'Parcel / cadastre ID', hint: 'CAR, INSPIRE, survey number, APN', paid: 'Paid · $0.50/lookup in some countries' },
-  { id: 'whatsapp', icon: 'chat', title: 'WhatsApp location pin', hint: 'Send a pin while standing in the field' },
   { id: 'pin', icon: 'location_on', title: 'Drop pin + radius', hint: 'One tap, then set a radius' },
-  { id: 'project', icon: 'folder_open', title: 'Import from project', hint: 'Reuse a place another project has' },
+  { id: 'project', icon: 'folder_open', title: 'Copy from a project', hint: 'Reuse a place another project has' },
 ];
 
 /** What a locate-method yields. `null` from a method means "not enough input yet". */
@@ -50,5 +52,5 @@ export interface MethodProps {
   onChange: (loc: Loc | null) => void;
 }
 
-export const NO_LAYERS: MapLayers = { contour: false, ndmi: false, ndvi: false, lst: false, dry: false, clouds: false };
-export const CONTOUR: MapLayers = { ...NO_LAYERS, contour: true };
+export const NO_LAYERS: MapLayers = { contour: false };
+export const CONTOUR: MapLayers = { contour: true };
