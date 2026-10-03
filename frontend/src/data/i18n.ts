@@ -46,6 +46,7 @@ const en: Dict = {
   'library.title': 'Skills library', 'library.sub': 'Reproducible recipes that turn a question into satellite steps. Official skills are built and validated by Constellation.',
   'common.all': 'All',
   'nav.triggers': 'Triggers',
+  'hero.line': "Ask any question about any place on Earth — we read free satellite images and answer in plain language.",
 };
 
 const de: Dict = {
@@ -60,6 +61,7 @@ const de: Dict = {
   'library.title': 'Skill-Bibliothek', 'library.sub': 'Reproduzierbare Rezepte, die eine Frage in Satellitenschritte übersetzen. Offizielle Skills sind von Constellation gebaut und validiert.',
   'common.all': 'Alle',
   'nav.triggers': 'Auslöser',
+  'hero.line': "Stell jede Frage zu jedem Ort der Erde — wir lesen freie Satellitenbilder und antworten in einfacher Sprache.",
 };
 
 const es: Dict = {
@@ -74,6 +76,7 @@ const es: Dict = {
   'library.title': 'Biblioteca de skills', 'library.sub': 'Recetas reproducibles que convierten una pregunta en pasos satelitales. Las oficiales las crea y valida Constellation.',
   'common.all': 'Todo',
   'nav.triggers': 'Disparadores',
+  'hero.line': "Haz cualquier pregunta sobre cualquier lugar de la Tierra: leemos imágenes satelitales gratuitas y respondemos con palabras sencillas.",
 };
 
 const fr: Dict = {
@@ -88,6 +91,7 @@ const fr: Dict = {
   'library.title': 'Bibliothèque de skills', 'library.sub': 'Recettes reproductibles qui transforment une question en étapes satellites. Les skills officiels sont validés par Constellation.',
   'common.all': 'Tous',
   'nav.triggers': 'Déclencheurs',
+  'hero.line': "Posez n'importe quelle question sur n'importe quel lieu de la Terre : nous lisons des images satellites gratuites et répondons en langage clair.",
 };
 
 const pt: Dict = {
@@ -102,6 +106,7 @@ const pt: Dict = {
   'library.title': 'Biblioteca de skills', 'library.sub': 'Receitas reproduzíveis que transformam uma pergunta em etapas de satélite. Skills oficiais são validados pela Constellation.',
   'common.all': 'Todos',
   'nav.triggers': 'Gatilhos',
+  'hero.line': "Faça qualquer pergunta sobre qualquer lugar da Terra: lemos imagens de satélite gratuitas e respondemos em linguagem simples.",
 };
 
 const hi: Dict = {
@@ -116,6 +121,7 @@ const hi: Dict = {
   'library.title': 'स्किल लाइब्रेरी', 'library.sub': 'दोहराए जा सकने वाले तरीके जो सवाल को उपग्रह चरणों में बदलते हैं।',
   'common.all': 'सभी',
   'nav.triggers': 'ट्रिगर',
+  'hero.line': "पृथ्वी के किसी भी स्थान के बारे में कोई भी सवाल पूछें — हम मुफ़्त उपग्रह तस्वीरें पढ़कर सरल भाषा में जवाब देते हैं।",
 };
 
 const sw: Dict = {
@@ -130,6 +136,7 @@ const sw: Dict = {
   'library.title': 'Maktaba ya ujuzi', 'library.sub': 'Mapishi yanayorudiwa yanayogeuza swali kuwa hatua za satelaiti.',
   'common.all': 'Zote',
   'nav.triggers': 'Vichochezi',
+  'hero.line': "Uliza swali lolote kuhusu mahali popote Duniani — tunasoma picha za satelaiti za bure na kujibu kwa lugha rahisi.",
 };
 
 const ar: Dict = {
@@ -144,6 +151,7 @@ const ar: Dict = {
   'library.title': 'مكتبة المهارات', 'library.sub': 'وصفات قابلة لإعادة الإنتاج تحول السؤال إلى خطوات بالأقمار الصناعية.',
   'common.all': 'الكل',
   'nav.triggers': 'المشغّلات',
+  'hero.line': "اسأل أي سؤال عن أي مكان على الأرض — نقرأ صور الأقمار الصناعية المجانية ونجيب بلغة بسيطة.",
 };
 
 const DICTS: Record<string, Dict> = { en, de, es, fr, pt, hi, sw, ar };
