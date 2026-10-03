@@ -19,6 +19,7 @@ import type { Pt } from './lib/geo';
 import { fitZoom, ringToPts } from './lib/geo';
 import { categoryStyle } from './data/presentation';
 import type { BackendAnswer } from './api/endpoints/runs';
+import type { Area as AreaDto, AreaResolveResponse as AreaResolveResponseDto } from './api/endpoints/areas';
 import type {
   CategoryDto,
   CategoryKey,
@@ -260,6 +261,85 @@ export const toWatch = (d: WatchDto): Watch => ({
   ring: d.ring,
   events: d.events.map((e) => ({ at: parseIso(e.at), text: e.text, level: e.level })),
 });
+
+/* ---------------- areas ---------------- */
+
+/**
+ * A candidate from `POST /api/areas/resolve`, flattened for the search lists.
+ *
+ * The contract answers with one resolved best `area` plus other `matches`, but the search UIs
+ * want a single ranked list — so the two are flattened here. Only the best match carries an
+ * outline; `AreaMatch` has just a name and a coordinate, so the rest get the default zoom.
+ */
+export interface AreaSearchHit {
+  name: string;
+  description: string;
+  lat: number;
+  lon: number;
+  zoom: number;
+  /** The resolved outline, when the server returned one for this candidate. */
+  area: AreaDto | null;
+}
+
+const SOURCE_LABEL: Record<AreaResolveResponseDto['source'], string> = {
+  point: 'Dropped pin',
+  geojson: 'Drawn outline',
+  coordinates: 'Coordinates',
+  link: 'From a map link',
+  search: 'Best match',
+  preset: 'Example place',
+};
+
+/** Zoom for a candidate with no outline to fit. */
+const MATCH_ZOOM = 14;
+
+export function toSearchHits(res: AreaResolveResponseDto): AreaSearchHit[] {
+  const ring = outerRing(res.area.geojson);
+  const centre = ring && ring.length ? meanOf(ring) : null;
+
+  const best: AreaSearchHit[] = centre
+    ? [
+        {
+          name: res.area.name ?? 'Selected area',
+          description: SOURCE_LABEL[res.source],
+          lat: centre.lat,
+          lon: centre.lon,
+          // Reuse the same projection the rest of the app draws with, rather than a second
+          // implementation of "how far out should the camera sit".
+          zoom: ring ? fitZoom(ringToPts(ring, centre), 600) : MATCH_ZOOM,
+          area: res.area,
+        },
+      ]
+    : [];
+
+  return [
+    ...best,
+    ...(res.matches ?? []).map((m) => ({
+      name: m.name,
+      description: 'Search result',
+      lat: m.lat,
+      lon: m.lon,
+      zoom: MATCH_ZOOM,
+      area: null,
+    })),
+  ];
+}
+
+const meanOf = (ring: [number, number][]) => {
+  const sum = ring.reduce((a, [lon, lat]) => ({ lon: a.lon + lon, lat: a.lat + lat }), { lon: 0, lat: 0 });
+  return { lon: sum.lon / ring.length, lat: sum.lat / ring.length };
+};
+
+/** The outer ring of a Polygon, MultiPolygon, Feature or FeatureCollection. */
+function outerRing(geojson: unknown): [number, number][] | null {
+  const g = geojson as { type?: string; coordinates?: unknown; geometry?: unknown; features?: unknown[] };
+  if (!g || typeof g !== 'object') return null;
+  if (g.type === 'Feature') return outerRing(g.geometry);
+  if (g.type === 'FeatureCollection') return outerRing((g.features ?? [])[0]);
+  if (g.type === 'Polygon') return (g.coordinates as [number, number][][])?.[0] ?? null;
+  if (g.type === 'MultiPolygon') return (g.coordinates as [number, number][][][])?.[0]?.[0] ?? null;
+  return null;
+}
 
 /* ---------------- answers ---------------- */
 

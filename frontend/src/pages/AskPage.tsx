@@ -9,7 +9,7 @@ import { ErrorState } from '../components/async';
 import { api } from '../api';
 import { useResource } from '../hooks/useResource';
 import type { MapLayer, Place } from '../model';
-import { layerIdsFrom, passTimelineFrom } from '../model';
+import { layerIdsFrom, passTimelineFrom, toSearchHits } from '../model';
 import { sourceLabel } from '../data/presentation';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, circlePts, fmtC, ptsToRing, thumb, type Pt } from '../lib/geo';
 import { LANGS } from '../data/i18n';
@@ -274,7 +274,10 @@ export function AskPage({ active }: { active: boolean }) {
 
   // Geocoder results come from the API; the user's own places are matched locally since they
   // are already loaded.
-  const geo = useResource(useCallback((signal) => api.places.search(sq, signal), [sq]), [sq]);
+  const geo = useResource(
+    useCallback((signal) => api.areas.resolve({ query: sq }, signal).then(toSearchHits), [sq]),
+    [sq],
+  );
 
   const searchResults = useMemo(
     () => [
