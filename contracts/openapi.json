@@ -32,7 +32,7 @@
           "runs"
         ],
         "summary": "Start a run (server-sent events)",
-        "description": "Stream a run: `run_started`, `guard`, `hypotheses_registered`, steps, blocks,\n`answer` (or `error`), and always `done` last. If the run needs the user it sends\n`clarification_needed` then `done{status: waiting_user}`; continue with `/reply`.\n\n`thread_id` must come from an earlier `run_started` for this user (404 otherwise).",
+        "description": "Stream a run: `run_started`, `guard`, `hypotheses_registered`, steps, blocks,\n`answer` (or `error`), and always `done` last. If the run needs the user it sends\n`clarification_needed` then `done{status: waiting_user}`; continue with `/reply`.\n\n`thread_id` must come from an earlier `run_started` for this user (404 otherwise).\nAgent runs are rate-limited per user and by the number running at once (429 with\n`Retry-After`). Without a configured LLM provider, or once the daily spend cap is\nreached, the preset run is served for the preset's place only; any other place gets an\n`error` (kind `agent_unavailable` or `spend_cap`) and `done{status: failed}`.",
         "operationId": "start_run_api_runs_post",
         "parameters": [
           {
@@ -126,10 +126,13 @@
             }
           },
           "400": {
-            "description": "Invalid area, thread id or X-User-Id."
+            "description": "Invalid area, thread id or X-User-Id, or unknown provider."
           },
           "404": {
             "description": "Thread not found for this user."
+          },
+          "429": {
+            "description": "Too many runs: wait `Retry-After` seconds."
           },
           "422": {
             "description": "Validation Error",
@@ -321,6 +324,12 @@
           },
           "409": {
             "description": "The run is not waiting for the user."
+          },
+          "429": {
+            "description": "Too many runs streaming: wait `Retry-After` seconds."
+          },
+          "503": {
+            "description": "The run's LLM provider is not available right now, or the daily budget for analyses is used up."
           },
           "422": {
             "description": "Validation Error",
@@ -4685,6 +4694,18 @@
             ],
             "title": "Code Ref",
             "description": "Reference to the script that ran."
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "LLM model id behind the answer; None for presets and templates."
           }
         },
         "type": "object",
@@ -5526,6 +5547,30 @@
               }
             ]
           },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "LLM provider that ran the agent, if any."
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "LLM model id that ran the agent, if any."
+          },
           "events": {
             "items": {
               "oneOf": [
@@ -5658,6 +5703,19 @@
             "title": "Lang",
             "description": "Language for the answer text (BCP 47, e.g. 'en', 'zh-Hant', 'yue'). Stored on the run; answers are English until translation lands.",
             "default": "en"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "claude"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "LLM provider for the agent. Omit for the server default; 400 if the requested provider is not configured on the server."
           }
         },
         "type": "object",

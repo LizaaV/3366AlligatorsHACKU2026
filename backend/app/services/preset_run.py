@@ -10,9 +10,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import logging
-import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import date
 from functools import lru_cache
@@ -33,40 +31,30 @@ from app.schemas.stream import (
     AnswerEvent,
     BlockReady,
     ClarificationAnswered,
-    ClarificationNeeded,
-    Done,
-    ErrorEvent,
     ExpectationRow,
     GuardEvent,
     HypothesesRegistered,
     RunStarted,
-    RunStatus,
-    StepFinished,
-    StepStarted,
     StreamEvent,
 )
 from app.services import runs as run_store
+from app.services.run_driver import EARTH_LOCK, EarthSteps, drive, release_earth
 from earth.blocks import Block, HypothesisRow
 from earth.presets import HOO_HOK_WAI
 from knowledge import EventCard, KnowledgeBase, load_knowledge
 
 __all__ = ["HYPOTHESES", "resume_preset_run", "stream_preset_run"]
 
-log = logging.getLogger(__name__)
-
 #: Knowledge cards tested by the preset, best guess first.
 HYPOTHESES: tuple[str, ...] = ("pond_filling", "water_loss", "seasonal")
 CAUSE = "consistent with the ponds being filled in"
 ANSWER_COLOR = "#3b82f6"
 
-# `earth` keeps the run id and listener in module globals: one run talks to it at a time.
-_EARTH_LOCK = asyncio.Lock()
-
-
-def _release_earth() -> None:
-    earth.set_listener(None)
-    earth.set_run(None)
-    _EARTH_LOCK.release()
+# Shared with the agent loop (app.services.run_driver); old private names kept as aliases.
+_EARTH_LOCK = EARTH_LOCK
+_release_earth = release_earth
+_Steps = EarthSteps
+_drive = drive
 
 
 @lru_cache(maxsize=1)
@@ -84,92 +72,6 @@ def _method() -> Method:
         cards=[CardRef(id=c.id, version=c.version, status=c.status) for c in _cards()],
         code_ref="preset:pond_filling",
     )
-
-
-# --- Steps --------------------------------------------------------------------------------------
-
-
-class _Steps:
-    """Runs one `earth` call per step and turns its `EarthCall` into step events."""
-
-    def __init__(
-        self, run_id: str, start: int = 0, provenance: list[earth.Provenance] | None = None
-    ) -> None:
-        self.run_id = run_id
-        self.index = start
-        self.result: Any = None
-        self.provenance: list[earth.Provenance] = list(provenance or [])
-
-    async def _call(
-        self, fn: Callable[..., Any], calls: list[earth.EarthCall], *args: Any, **kw: Any
-    ) -> Any:
-        """Run `fn` in a worker thread with `earth` bound to this run.
-
-        `earth` keeps the run id, listener and call count in module globals, and a thread
-        cannot be stopped. So the globals are reset and `_EARTH_LOCK` released by a
-        done-callback when the *thread* finishes, never when the awaiting task is cancelled
-        (client gone): an orphaned call can't leak into the next run's listener or layers.
-        """
-        await _EARTH_LOCK.acquire()
-        try:
-            earth.set_run(self.run_id)
-            earth.set_listener(calls.append)
-            fut = asyncio.ensure_future(asyncio.to_thread(fn, *args, **kw))
-        except BaseException:
-            _release_earth()
-            raise
-
-        def _done(f: asyncio.Future[Any]) -> None:
-            _release_earth()
-            if not f.cancelled():
-                f.exception()  # retrieved here, so an orphan's error is not logged as lost
-
-        fut.add_done_callback(_done)
-        return await asyncio.shield(fut)
-
-    async def run(
-        self, title: str, desc: str, fn: Callable[..., Any], *args: Any, **kwargs: Any
-    ) -> AsyncIterator[StreamEvent]:
-        """Yield step_started, call `fn`, yield step_finished; the result is in `self.result`.
-
-        On failure the step_finished carries the error, then the exception is re-raised.
-        """
-        self.index += 1
-        tool = getattr(fn, "__name__", "earth")
-        yield StepStarted(index=self.index, title=title, desc=desc, tool=tool)
-        calls: list[earth.EarthCall] = []
-        start = time.perf_counter()
-        error: BaseException | None = None
-        try:
-            self.result = await self._call(fn, calls, *args, **kwargs)
-        except Exception as exc:  # noqa: BLE001 — reported as a step, then re-raised
-            error = exc
-        ms = int((time.perf_counter() - start) * 1000)
-        call = next((c for c in reversed(calls) if c.fn == tool), calls[-1] if calls else None)
-        if error is not None:
-            kind = getattr(error, "kind", type(error).__name__)
-            summary = call.summary if call else f"Failed: {getattr(error, 'message', error)}"
-            yield StepFinished(
-                index=self.index,
-                title=title,
-                desc=desc,
-                tool=tool,
-                result=summary,
-                ms=call.ms if call else ms,
-                error=call.error if call and call.error else kind,
-            )
-            raise error
-        if call and call.provenance:
-            self.provenance.append(call.provenance)
-        yield StepFinished(
-            index=self.index,
-            title=title,
-            desc=desc,
-            tool=tool,
-            result=call.summary if call else "Done",
-            ms=call.ms if call else ms,
-            provenance=call.provenance if call else None,
-        )
 
 
 # --- Hypotheses ---------------------------------------------------------------------------------
@@ -295,7 +197,7 @@ def _hash(method: Method, scenes: list[str]) -> str:
 
 
 async def _events(
-    run_id: str, area: earth.Area, st: _Steps, *, intro: bool = True
+    run_id: str, area: earth.Area, st: EarthSteps, *, intro: bool = True
 ) -> AsyncIterator[StreamEvent]:
     """The preset plan: hypotheses first, then data, blocks and the answer (no `done`).
 
@@ -481,66 +383,6 @@ async def _events(
     yield AnswerEvent(answer=answer)
 
 
-async def _drive(
-    run_id: str, body: AsyncIterator[StreamEvent], *, logged: tuple[StreamEvent, ...] = ()
-) -> AsyncIterator[StreamEvent]:
-    """Stream `body` for `run_id`, storing each event, and end with exactly one `done`.
-
-    `logged` events are already in the store and are only sent. Store writes run in a
-    worker thread so a busy database never blocks the event loop. The closing `error` and
-    `done` are always sent, even when storing them fails. If the client leaves early, the
-    run is closed in the store as `done` once its answer was stored, else `failed`.
-    """
-    start = time.perf_counter()
-    answered = done_logged = False
-    last: StreamEvent | None = None
-
-    async def emit(ev: StreamEvent) -> StreamEvent:
-        await asyncio.to_thread(run_store.append_event, run_id, ev)
-        return ev
-
-    async def emit_final(ev: StreamEvent) -> StreamEvent:
-        nonlocal done_logged
-        try:
-            await emit(ev)
-            done_logged = done_logged or isinstance(ev, Done)
-        except Exception:  # noqa: BLE001 — the client still gets the event
-            log.exception("run %s: could not store %s", run_id, ev.event)
-        return ev
-
-    def done(status: RunStatus) -> Done:
-        return Done(run_id=run_id, status=status, ms=int((time.perf_counter() - start) * 1000))
-
-    try:
-        for ev in logged:
-            yield ev
-        try:
-            async for ev in body:
-                last = await emit(ev)
-                answered = answered or isinstance(ev, AnswerEvent)
-                yield ev
-        except earth.EarthError as exc:
-            msg = f"{exc.message} Try: {exc.hint}" if exc.hint else exc.message
-            yield await emit_final(ErrorEvent(message=msg, recoverable=True, kind=exc.kind))
-            yield await emit_final(done("failed"))
-            return
-        except Exception:  # noqa: BLE001 — never leak internals to the client
-            log.exception("run %s failed", run_id)
-            yield await emit_final(
-                ErrorEvent(message="The run failed unexpectedly.", recoverable=False)
-            )
-            yield await emit_final(done("failed"))
-            return
-        status: RunStatus = "waiting_user" if isinstance(last, ClarificationNeeded) else "done"
-        yield await emit_final(done(status))
-    finally:
-        if not done_logged:  # client went away, or storing `done` failed
-            try:
-                run_store.append_event(run_id, done("done" if answered else "failed"))
-            except Exception:  # noqa: BLE001 — best effort
-                log.warning("run %s: could not close the run", run_id)
-
-
 async def stream_preset_run(
     req: RunRequest, user_id: str, *, thread_id: str | None = None
 ) -> AsyncIterator[StreamEvent]:
@@ -567,10 +409,10 @@ async def stream_preset_run(
 
     async def body() -> AsyncIterator[StreamEvent]:
         yield RunStarted(run_id=run_id, thread_id=thread_id)
-        async for ev in _events(run_id, area, _Steps(run_id)):
+        async for ev in _events(run_id, area, EarthSteps(run_id)):
             yield ev
 
-    async for ev in _drive(run_id, body()):
+    async for ev in drive(run_id, body()):
         yield ev
 
 
@@ -582,12 +424,12 @@ async def resume_preset_run(
 
     The preset ignores the answers; the agent loop (A3) reads `record.params["answers"]`.
     """
-    st = _Steps(
+    st = EarthSteps(
         record.run_id,
         start=max((s.index for s in record.steps), default=0),
         provenance=record.provenance,
     )
     area = record.area or HOO_HOK_WAI
     body = _events(record.run_id, area, st, intro=False)
-    async for ev in _drive(record.run_id, body, logged=(answered,)):
+    async for ev in drive(record.run_id, body, logged=(answered,)):
         yield ev

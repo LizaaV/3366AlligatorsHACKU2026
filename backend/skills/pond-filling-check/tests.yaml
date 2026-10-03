@@ -1,0 +1,118 @@
+# Test cases for the pond-filling-check skill (HANDOFF B5.1, B6.1 status ladder).
+#
+# kind: preset     runs offline under EARTH_IMPL=stub (tests/test_skills.py). `area` is the
+#                  preset name or {lat, lon, radius_m}; `expect` is checked on the result.
+# kind: card_case  points at a case or control on a knowledge card (`card`, `group`, `index`),
+#                  so the place, date and source stay in one place (the card). They need real
+#                  satellite data (EARTH_IMPL=real) and run in the world backtest, not in CI.
+#                  `expected: detected` means verdicts.pond_filling == supported;
+#                  `not_detected` means it is not supported.
+#
+# expect.findings / expect.observed: dotted path -> value (equality) or {lt|le|gt|ge|not: value}.
+# `observed` paths are read from findings["observed"] after adapt_findings (FINDINGS CONVENTION).
+version: 1
+skill: pond-filling-check
+cases:
+  - id: hoo_hok_wai_preset
+    kind: preset
+    note: "The demo story (HANDOFF B12.2): ponds filled since 2025, local, persistent, dry."
+    earth_impl: stub
+    area: HOO_HOK_WAI
+    params: {}
+    expect:
+      ok: true
+      findings:
+        top_hypothesis: pond_filling
+        verdicts.pond_filling: supported
+        verdicts.seasonal: contradicted
+        verdicts.water_loss: contradicted
+        verdicts.construction: unclear
+        local_vs_regional.water.verdict: local
+        persistence.persists: true
+        changed_ha: {gt: 5}
+        change_date: {not: null}
+      observed:
+        water.delta: {lt: -0.2}
+        water.value: {lt: 0}
+        water.local: true
+        water.persistent: true
+        water.inside_band: false
+        moisture.value: {le: -0.05}  # the stub sits exactly on the card threshold
+        bare.value: {gt: 0}
+        greenness.value: {lt: 0.25}
+      blocks: [then_now, timeline, highlight, stat, hypotheses]
+      primary: then_now
+
+  - id: tiny_area_limits
+    kind: preset
+    note: "A 15 m circle is under the 10 m pixel floor: one limits block, no verdicts."
+    earth_impl: stub
+    area: {lat: 22.534, lon: 114.09, radius_m: 15}
+    params: {}
+    expect:
+      ok: true
+      findings:
+        limited: true
+        reason: area_too_small
+      blocks: [limits]
+
+  - id: hoo_hok_wai_east_2021
+    kind: card_case
+    card: pond_filling
+    group: cases
+    index: 0
+    expected: detected
+    earth_impl: real
+    radius_m: 200
+    params: {before: "2021-03-15", after: "2022-03-15", years: 5}
+
+  - id: tun_yu_road_2023
+    kind: card_case
+    card: pond_filling
+    group: cases
+    index: 1
+    expected: detected
+    earth_impl: real
+    radius_m: 150
+    params: {before: "2023-04-15", after: "2024-01-15", years: 4}
+    note: "Stretch case (mostly bund and edge change): a miss here is not a failure of v1."
+
+  - id: san_tin_technopole_2025
+    kind: card_case
+    card: pond_filling
+    group: cases
+    index: 2
+    expected: detected
+    earth_impl: real
+    radius_m: 250
+    params: {before: "2024-10-15", years: 4}
+
+  - id: mai_po_winter_drain_down
+    kind: card_case
+    card: pond_filling
+    group: controls
+    index: 0
+    expected: not_detected
+    earth_impl: real
+    radius_m: 200
+    params: {before: "2023-10-15", after: "2024-01-15", years: 4}
+
+  - id: wetland_park_reserve
+    kind: card_case
+    card: pond_filling
+    group: controls
+    index: 1
+    expected: not_detected
+    earth_impl: real
+    radius_m: 200
+    params: {before: "2021-06-15", after: "2022-06-15", years: 5}
+
+  - id: tai_sang_wai_rotation
+    kind: card_case
+    card: pond_filling
+    group: controls
+    index: 2
+    expected: not_detected
+    earth_impl: real
+    radius_m: 200
+    params: {before: "2023-06-15", after: "2024-06-15", years: 4}
