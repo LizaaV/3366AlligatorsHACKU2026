@@ -8,25 +8,21 @@
 .lib-segs { display: flex; gap: 8px; flex-wrap: wrap; }
 .lib-segs .seg { max-width: 100%; overflow-x: auto; }
 
-/* ---------- Category rail (horizontal, scroll-snap) ---------- */
-.lib-catwrap { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.lib-catrail { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.lib-cats { display: flex; gap: 10px; flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; overscroll-behavior-x: contain; padding: 4px 2px 8px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-.lib-cats::-webkit-scrollbar { display: none; }
-.lib-cat {
-  flex: none; scroll-snap-align: start; display: flex; align-items: center; gap: 10px; padding: 12px 16px;
-  border: 1px solid var(--hair-soft); border-radius: 12px; background: var(--s1); color: var(--muted); white-space: nowrap;
-  font: 600 14px/1.29 var(--font); transition: background .15s ease, border-color .15s ease, color .15s ease;
+/* ---------- Hotbar (Minecraft-style category blocks) ---------- */
+.lib-hotbar-row { display: flex; align-items: flex-end; gap: 16px 24px; flex-wrap: wrap; }
+.lib-hotbar { display: flex; align-items: flex-end; overflow-x: auto; overflow-y: hidden; padding: 4px 2px 6px 4px; max-width: 100%; scrollbar-width: thin; }
+.lib-hb {
+  position: relative; width: 76px; height: 76px; margin-left: -2px; flex: none; padding: 0;
+  border: 2px solid #3b3d45; background: #15181e; color: #b2b6bd; z-index: 1;
+  display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: all 0.15s ease;
 }
-.lib-cat:hover { background: var(--s2); color: #fff; border-color: var(--hair); }
-.lib-cat.on { background: var(--s2); color: #fff; border-color: #fff; }
-.lib-cat .ms { font-size: 22px; }
-.lib-cat .ct { padding: 1px 8px; border-radius: 9999px; background: #000; color: var(--subtle); font: 600 12px/1.5 var(--font); }
-.lib-cat-arrow { flex: none; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--hair-soft); background: var(--s1); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
-.lib-cat-arrow:hover:not(:disabled) { background: var(--s2); border-color: var(--hair); }
-.lib-cat-arrow:disabled { opacity: .3; cursor: default; }
-.lib-hb-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-@media (max-width: 760px) { .lib-cat-arrow { display: none; } }
+.lib-hb:hover { background: #1f232b; }
+.lib-hb.on { width: 84px; height: 84px; border: 3px solid #fff; background: #1f232b; z-index: 2; }
+.lib-hb .n { position: absolute; left: 6px; top: 4px; font: 600 11px/1 var(--font); color: #656a76; }
+.lib-hb .ms { font-size: 30px; }
+.lib-hb .bar { position: absolute; left: 6px; right: 6px; bottom: 6px; height: 3px; border-radius: 2px; background: transparent; }
+.lib-hb-info { display: flex; flex-direction: column; gap: 4px; min-width: 260px; flex: 1; padding-bottom: 4px; }
+.lib-hb-hint { font: 500 13px/1.38 var(--font); color: var(--subtle); }
 
 /* ---------- Sections + cards ---------- */
 .lib-section { display: flex; flex-direction: column; gap: 16px; }

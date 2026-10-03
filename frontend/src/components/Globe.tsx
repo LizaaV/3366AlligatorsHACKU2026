@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { api } from '../api';
 import { attachGlobeControls } from './globe/controls';
 import { angleDelta, latLonToVec3, spinForLon, vec3ToLatLon } from './globe/geo';
-import { SatelliteLayer, type SatHover } from './globe/satellites';
+import { addSatellites } from './globeSatellites';
+import type { SatFamily } from '../lib/satellites';
 
 export interface GlobePick { lat: number; lon: number }
 
@@ -24,7 +24,6 @@ export interface GlobeProps {
   showSatellites?: boolean;
 }
 
-const SAT_REFRESH_MS = 30_000;
 const fmt = (n: number, pos: string, neg: string) => `${Math.abs(n).toFixed(1)}°${n >= 0 ? pos : neg}`;
 
 /** Draggable, zoomable 3D Earth with live satellites and click-to-pick. Sizes to its parent. */
@@ -32,8 +31,8 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
   const el = useRef<HTMLDivElement>(null);
   const live = useRef({ visible, autoRotate, offsetRight, offsetPx, onPickLocation, showSatellites });
   live.current = { visible, autoRotate, offsetRight, offsetPx, onPickLocation, showSatellites };
-  const api3d = useRef<{ setFocus: (f: GlobePick | null) => void; refreshLayout: () => void; refreshSats: () => void } | null>(null);
-  const [hover, setHover] = useState<(SatHover & { x: number; y: number }) | null>(null);
+  const api3d = useRef<{ setFocus: (f: GlobePick | null) => void; refreshLayout: () => void } | null>(null);
+  const [hover, setHover] = useState<{ name: string; family: SatFamily; lat: number; lon: number; x: number; y: number } | null>(null);
 
   useEffect(() => {
     const host = el.current!;
@@ -96,18 +95,10 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
     scene.add(sun);
     scene.add(new THREE.AmbientLight(0x8899bb, 0.18));
 
-    // Satellites
-    const sats = new SatelliteLayer();
+    // Satellites: the live constellation (lib/satellites.ts), propagated in the browser from
+    // CelesTrak elements, added to the textured Earth so it turns with it.
+    const sats = addSatellites(earth);
     sats.setVisible(live.current.showSatellites);
-    spin.add(sats.group);
-    let alive = true;
-    // Only a visible globe that shows satellites polls; the request itself is shared across globes.
-    const fetchSats = () => {
-      if (!live.current.showSatellites || !live.current.visible) return;
-      api.satellites.listShared().then((l) => { if (alive) sats.setData(l); }).catch(() => { /* keep last known positions */ });
-    };
-    fetchSats();
-    const satTimer = window.setInterval(fetchSats, SAT_REFRESH_MS);
 
     // Pin for the picked / focused spot
     const pinGeo = new THREE.SphereGeometry(0.018, 16, 16);
@@ -139,7 +130,7 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
       placePin(f);
       target = { lon: spinForLon(f.lon), lat: THREE.MathUtils.clamp((f.lat * Math.PI) / 180, -1.2, 1.2) };
     };
-    api3d.current = { setFocus, refreshLayout: () => resize(), refreshSats: fetchSats };
+    api3d.current = { setFocus, refreshLayout: () => resize() };
 
     // Layout
     const resize = () => {
@@ -217,10 +208,8 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
     loop();
 
     return () => {
-      alive = false;
       api3d.current = null;
       cancelAnimationFrame(raf);
-      window.clearInterval(satTimer);
       ro.disconnect();
       ctrl.dispose();
       sats.dispose();
@@ -235,8 +224,6 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
   // Re-applied when the globe comes back into view, so returning from the map re-centres the place.
   useEffect(() => { if (visible) api3d.current?.setFocus(focus ?? null); }, [focus?.lat, focus?.lon, visible]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { api3d.current?.refreshLayout(); }, [offsetRight, offsetPx]);
-  // Becoming visible (or turning satellites on) catches up once; the shared cache keeps this cheap.
-  useEffect(() => { if (visible && showSatellites) api3d.current?.refreshSats(); }, [visible, showSatellites]);
 
   return (
     <div ref={el} style={{ position: 'absolute', inset: 0, opacity: visible ? 1 : 0, transition: 'opacity .6s ease', cursor: 'grab', pointerEvents: visible ? 'auto' : 'none', touchAction: 'none' }}>
@@ -247,7 +234,7 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx
           borderRadius: 6, padding: '6px 9px', fontSize: 12, lineHeight: 1.35, whiteSpace: 'nowrap',
         }}>
           <div style={{ fontWeight: 600 }}>{hover.name}</div>
-          <div style={{ opacity: 0.75 }}>{hover.mission}</div>
+          <div style={{ opacity: 0.75, textTransform: 'capitalize' }}>{hover.family} satellite</div>
           <div style={{ opacity: 0.75 }}>passing over {fmt(hover.lat, 'N', 'S')}, {fmt(hover.lon, 'E', 'W')}</div>
         </div>
       )}

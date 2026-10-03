@@ -18,7 +18,6 @@ import { dashboardsApi } from './endpoints/dashboards';
 import { sharesApi } from './endpoints/shares';
 import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
-import { satellitesApi } from './endpoints/satellites';
 import { watchesApi } from './endpoints/watches';
 import { threadsApi } from './endpoints/threads';
 
@@ -33,7 +32,6 @@ export const api = {
   knowledge: knowledgeApi,
   shares: sharesApi,
   threads: threadsApi,
-  satellites: satellitesApi,
 };
 
 export { ApiError, toApiError } from './http';
@@ -47,4 +45,3 @@ export type { ShareCreated, ShareInfo } from './endpoints/shares';
 export type { SkillQuery } from './endpoints/skills';
 export type { Dashboard, DashboardBlock, DashboardSummary } from './endpoints/dashboards';
 export type { ThreadSummary, ThreadDetail } from './endpoints/threads';
-export type { SatelliteDto, SatellitePoint } from './endpoints/satellites';
