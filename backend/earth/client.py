@@ -106,6 +106,7 @@ class PlaceHit(BaseModel):  # = earth.providers.nominatim.PlaceHit
     bbox: tuple[float, float, float, float]  # (west, south, east, north)
     kind: str
     country: str | None = None
+    region: str | None = None
     geojson: dict | None = None
 
     def area(self, radius_m: float = 400) -> Area:
