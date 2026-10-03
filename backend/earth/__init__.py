@@ -64,7 +64,9 @@ __all__ = [
     "Measure",
     "NoClearScenes",
     "PlaceContext",
+    "PlaceHit",
     "Provenance",
+    "RainSeries",
     "RenderedLayer",
     "Scene",
     "SceneList",
@@ -77,13 +79,16 @@ __all__ = [
     "load",
     "measure",
     "render",
+    "reverse_place",
     "scenes",
+    "search_places",
     "series",
     "set_listener",
     "set_run",
     "show",
     "surroundings",
     "validate_block",
+    "weather",
 ]
 
 
@@ -245,3 +250,43 @@ def _as_date(d: date | str) -> date:
         return date.fromisoformat(d)
     except (TypeError, ValueError) as exc:
         raise EarthError(f"Can't read {d!r} as a date.", 'ISO dates like "2026-03-01".') from exc
+
+
+# --- places and weather (M9a) -------------------------------------------------------------------
+# Not in `earth.real` (M1/M2 own it): in real mode these call the providers directly.
+
+from earth.providers import nominatim as _nominatim  # noqa: E402
+from earth.providers import openmeteo as _openmeteo  # noqa: E402
+from earth.providers.nominatim import PlaceHit  # noqa: E402
+from earth.providers.openmeteo import RainSeries  # noqa: E402
+
+
+@traced(
+    lambda hits: (
+        f"Found {len(hits)} places, best: {hits[0].display_name.split(',')[0]}"
+        if hits
+        else "Found 0 places"
+    )
+)
+def search_places(text: str, limit: int = 5) -> list[PlaceHit]:
+    """Places matching free text, best first; `hit.area()` turns one into an `Area`."""
+    if settings.impl() == "stub":
+        return _impl().search_places(text, limit)
+    return _nominatim.search(text, limit)
+
+
+@traced(lambda hit: f"Looked up the place: {hit.name}" if hit else "No named place here")
+def reverse_place(lat: float, lon: float) -> PlaceHit | None:
+    """The place at a coordinate, or None (e.g. open ocean)."""
+    if settings.impl() == "stub":
+        return _impl().reverse_place(lat, lon)
+    return _nominatim.reverse(lat, lon)
+
+
+@traced(lambda r: f"Rain: {r.total_mm:.0f} mm in {len(r.days)} days (weather model)")
+def weather(area: Area, last: str = "14d") -> RainSeries:
+    """Daily rain at the area's centre. A weather model, NOT a satellite measurement."""
+    _check_last(last)
+    if settings.impl() == "stub":
+        return _impl().weather(area, last)
+    return _openmeteo.rain(area, last)

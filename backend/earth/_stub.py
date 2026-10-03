@@ -16,6 +16,8 @@ import numpy as np
 
 from earth import settings
 from earth.errors import BudgetExceeded, NoClearScenes, WrongSceneKind
+from earth.providers.nominatim import PlaceHit
+from earth.providers.openmeteo import RainDay, RainSeries, window_days
 from earth.types import (
     Area,
     BandMonth,
@@ -350,3 +352,46 @@ def layer_pixels(layer_id: str) -> tuple[np.ndarray, tuple[float, float, float, 
     yy, xx = np.mgrid[-1:1:128j, -1:1:128j]
     img[(xx**2 + yy**2) > 1] = np.nan
     return img, area.bbox()
+
+
+# --- place + context providers (M9a): Hoo Hok Wai, no network -----------------------------------
+
+_HHW_LAT, _HHW_LON = 22.5340, 114.0906
+
+
+def _hoo_hok_wai(name: str = "Hoo Hok Wai") -> PlaceHit:
+    return PlaceHit(
+        name=name,
+        display_name=f"{name}, North District, New Territories, Hong Kong, China",
+        lat=_HHW_LAT,
+        lon=_HHW_LON,
+        bbox=(114.0705794, 22.514013, 114.1105794, 22.554013),
+        kind="place/hamlet",
+        country="Hong Kong",
+    )
+
+
+def search_places(text: str, limit: int = 5) -> list[PlaceHit]:
+    """Any text finds Hoo Hok Wai (Yuen Long / North District, Hong Kong)."""
+    return [_hoo_hok_wai()][: max(1, limit)]
+
+
+def reverse_place(lat: float, lon: float) -> PlaceHit | None:
+    return _hoo_hok_wai()
+
+
+def weather(area: Area, last: str = "14d") -> RainSeries:
+    """Deterministic wet-season rain ending 30 Sep 2026: about 212 mm per 30 days."""
+    n = window_days(last)
+    raw = [max(0.0, 7.1 * (1 + math.sin(i * 1.7)) * (i % 3 != 0)) for i in range(n)]
+    scale = 212.0 * min(n, 30) / 30 / (sum(raw[:30]) or 1.0)
+    days = [
+        RainDay(date=TODAY - timedelta(days=n - 1 - i), mm=round(mm * scale, 1))
+        for i, mm in enumerate(raw)
+    ]
+    return RainSeries(
+        days=days,
+        total_mm=round(sum(d.mm for d in days), 1),
+        lat=round(_HHW_LAT, 4),
+        lon=round(_HHW_LON, 4),
+    )
