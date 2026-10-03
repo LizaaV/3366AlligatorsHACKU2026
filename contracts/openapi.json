@@ -2519,6 +2519,403 @@
           }
         }
       }
+    },
+    "/api/skills": {
+      "get": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "List Skills",
+        "description": "Built-in skills first (implemented ones, then concepts), then user-made drafts.",
+        "operationId": "list_skills_api_skills_get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A category key.",
+              "title": "Category"
+            },
+            "description": "A category key."
+          },
+          {
+            "name": "tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "free",
+                    "paid"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tier"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Matches name, short text, publisher.",
+              "title": "Q"
+            },
+            "description": "Matches name, short text, publisher."
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SkillDto"
+                  },
+                  "title": "Response List Skills Api Skills Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "Create Skill",
+        "description": "Save a skill from the builder. 422 when a module or category is not in the catalog.",
+        "operationId": "create_skill_api_skills_post",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSkillRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/test": {
+      "post": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "Test Skill",
+        "description": "Dry-run a draft recipe against a saved place. **Not available yet: always 501** after\nvalidating the body (422 for unknown modules).\n\nDraft skills are module recipes and nothing turns a recipe into `earth` calls yet, so any\n\"scenes usable\" number here would be invented. When a recipe executor lands, this returns\n`SkillTestResult` with real `ProofScene`s and `Provenance`.",
+        "operationId": "test_skill_api_skills_test_post",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Planned shape. Not returned yet: the endpoint answers 501.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillTestResult"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Testing a draft is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotAvailableResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/{skill_id}": {
+      "get": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "Get Skill",
+        "operationId": "get_skill_api_skills__skill_id__get",
+        "parameters": [
+          {
+            "name": "skill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "title": "Skill Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such skill (or not visible to this user)"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/{skill_id}/manifest": {
+      "get": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "Get Manifest",
+        "description": "The reproducible recipe: ordered modules with params, plus `code_ref` / `code_sha256`\nfor skills that have a script (the same `code_ref` a run reports in `Answer.method`).",
+        "operationId": "get_manifest_api_skills__skill_id__manifest_get",
+        "parameters": [
+          {
+            "name": "skill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "title": "Skill Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillManifest"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such skill (or not visible to this user)"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/catalog": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Catalog",
+        "description": "Registry data. Colours are presentation and stay in the frontend.",
+        "operationId": "catalog_api_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogDto"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3153,6 +3550,98 @@
         "title": "CardRef",
         "description": "A knowledge card used by the method, pinned to a version."
       },
+      "CatalogDto": {
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryDto"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "satellites": {
+            "items": {
+              "$ref": "#/components/schemas/SatelliteDto"
+            },
+            "type": "array",
+            "title": "Satellites"
+          },
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/SkillModuleDto"
+            },
+            "type": "array",
+            "title": "Modules"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryChannelDto"
+            },
+            "type": "array",
+            "title": "Channels"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/LanguageDto"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "map_layers": {
+            "items": {
+              "$ref": "#/components/schemas/MapLayerDto"
+            },
+            "type": "array",
+            "title": "Map Layers",
+            "description": "Layer kinds the backend renders (folded in from the proposed `GET /api/map-layers`)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "categories",
+          "satellites",
+          "modules",
+          "channels",
+          "languages",
+          "map_layers"
+        ],
+        "title": "CatalogDto"
+      },
+      "CategoryDto": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "Stable category key, e.g. 'agriculture' (= `category_key`)."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon",
+            "description": "Material Symbols glyph name."
+          },
+          "uses": {
+            "type": "string",
+            "title": "Uses"
+          },
+          "sats": {
+            "type": "string",
+            "title": "Sats"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "icon",
+          "uses",
+          "sats"
+        ],
+        "title": "CategoryDto"
+      },
       "ClarificationAnswered": {
         "properties": {
           "event": {
@@ -3430,6 +3919,77 @@
         "title": "CreatePlaceRequest",
         "description": "Send `geometry` (a GeoJSON polygon; `center` is then ignored and recomputed),\nor `center` + `radius_m` for a dropped pin."
       },
+      "CreateSkillRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "category_key": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Category Key"
+          },
+          "short": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Short"
+          },
+          "long": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Long",
+            "default": ""
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "paid"
+            ],
+            "title": "Tier",
+            "default": "free"
+          },
+          "cost": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Cost",
+            "default": "Free"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "team",
+              "public"
+            ],
+            "title": "Visibility",
+            "default": "private"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/SkillStep"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "category_key",
+          "short",
+          "steps"
+        ],
+        "title": "CreateSkillRequest",
+        "description": "Skill builder. Every step's `module` must exist in `GET /api/catalog` modules and\n`category_key` in its categories; otherwise 422."
+      },
       "CreateWatchRequest": {
         "properties": {
           "name": {
@@ -3675,6 +4235,50 @@
           "name"
         ],
         "title": "DashboardUpdate"
+      },
+      "DeliveryChannelDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "email",
+              "whatsapp",
+              "sms",
+              "push",
+              "slack"
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "paid"
+            ],
+            "title": "Tier"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "tier",
+          "note"
+        ],
+        "title": "DeliveryChannelDto"
       },
       "DetailRow": {
         "properties": {
@@ -4454,6 +5058,45 @@
         ],
         "title": "InsightSaved"
       },
+      "LanguageDto": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "english": {
+            "type": "string",
+            "title": "English"
+          },
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "ui": {
+            "type": "boolean",
+            "title": "Ui",
+            "description": "Whether the interface is translated."
+          },
+          "rtl": {
+            "type": "boolean",
+            "title": "Rtl",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "english",
+          "region",
+          "ui"
+        ],
+        "title": "LanguageDto"
+      },
       "LatLon": {
         "properties": {
           "lat": {
@@ -4597,6 +5240,101 @@
         ],
         "title": "LimitsBlock"
       },
+      "ManifestAccuracy": {
+        "properties": {
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution"
+          },
+          "revisit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revisit"
+          },
+          "statement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement"
+          },
+          "known_limits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Known Limits"
+          }
+        },
+        "type": "object",
+        "title": "ManifestAccuracy"
+      },
+      "MapLayerDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "'rgb' or an `earth` measure, as used in the layer URL."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "Sensor and bands, e.g. 'Sentinel-2 B3 / B8'."
+          },
+          "index": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index",
+            "description": "Spectral index behind the measure, e.g. NDWI."
+          },
+          "is_agent_made": {
+            "type": "boolean",
+            "title": "Is Agent Made",
+            "description": "Produced by the agent, not drawn by the user.",
+            "default": true
+          },
+          "url_template": {
+            "type": "string",
+            "title": "Url Template"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "source",
+          "url_template"
+        ],
+        "title": "MapLayerDto",
+        "description": "A kind of map layer the backend renders for a run (`RenderedLayer.measure`).\n\nThe images themselves are served at `url_template` (`GET /api/layers/{run_id}/{measure}/\n{scene}.png`); the actual layers of a run come with its blocks."
+      },
       "MeMemory": {
         "properties": {
           "profile": {
@@ -4711,6 +5449,43 @@
         "type": "object",
         "title": "Method",
         "description": "What produced the answer: cards, skill and code reference."
+      },
+      "NotAvailable": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "not_implemented",
+            "title": "Kind",
+            "default": "not_implemented"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "hint"
+        ],
+        "title": "NotAvailable",
+        "description": "Error detail for a feature that is not built yet (same keys as earth errors)."
+      },
+      "NotAvailableResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/NotAvailable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "NotAvailableResponse"
       },
       "Note": {
         "properties": {
@@ -5228,6 +6003,34 @@
         ],
         "title": "Prefill"
       },
+      "Pricing": {
+        "properties": {
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "paid"
+            ],
+            "title": "Tier"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tier"
+        ],
+        "title": "Pricing"
+      },
       "ProofScene": {
         "properties": {
           "id": {
@@ -5319,6 +6122,29 @@
         ],
         "title": "Provenance",
         "description": "Where a number came from (HANDOFF B1.8). Attached to every result."
+      },
+      "Publisher": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "official": {
+            "type": "boolean",
+            "title": "Official",
+            "default": false
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "Publisher"
       },
       "Range": {
         "properties": {
@@ -5750,6 +6576,77 @@
         "title": "RunStarted",
         "description": "The run has been accepted and started."
       },
+      "SatelliteDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "res": {
+            "type": "string",
+            "title": "Res"
+          },
+          "revisit": {
+            "type": "string",
+            "title": "Revisit"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "paid"
+            ],
+            "title": "Tier"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "optical",
+              "radar",
+              "thermal",
+              "atmos",
+              "lights"
+            ],
+            "title": "Kind"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected",
+            "description": "True when the backend actually fetches scenes from this source today (Sentinel-2 via Earth Search, Sentinel-1 via Planetary Computer). The rest are listed for routing and pricing but are not wired up yet."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "res",
+          "revisit",
+          "tier",
+          "kind",
+          "note",
+          "connected"
+        ],
+        "title": "SatelliteDto"
+      },
       "SaveBlockRequest": {
         "properties": {
           "run_id": {
@@ -6058,6 +6955,445 @@
         "title": "SharedRun",
         "description": "What a share link shows: a copy of the run taken when it was shared.\n\nDeliberately left out: user id, thread id, the event log, params (they hold clarification\nanswers, which may come from place memory), the script, and any place memory."
       },
+      "SkillDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "category_key": {
+            "type": "string",
+            "title": "Category Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sat": {
+            "type": "string",
+            "title": "Sat",
+            "description": "Human-readable satellite list, for display."
+          },
+          "cost": {
+            "type": "string",
+            "title": "Cost"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "paid"
+            ],
+            "title": "Tier"
+          },
+          "short": {
+            "type": "string",
+            "title": "Short"
+          },
+          "long": {
+            "type": "string",
+            "title": "Long",
+            "default": ""
+          },
+          "publisher": {
+            "$ref": "#/components/schemas/Publisher"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLon"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where to take the card thumbnail."
+          },
+          "res": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Res"
+          },
+          "revisit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revisit"
+          },
+          "runs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs",
+            "description": "Measured run count; null until the backend counts runs per skill."
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating",
+            "description": "Measured user rating; null until ratings exist."
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Semver of the skill recipe."
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At",
+            "description": "ISO-8601 instant."
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "Ordered module ids (see the manifest for params)."
+          },
+          "accuracy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy",
+            "description": "Validation statement; null when the skill has not been validated."
+          },
+          "limits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limits"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "concept",
+              "draft"
+            ],
+            "title": "Status"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "team",
+              "public"
+            ],
+            "title": "Visibility",
+            "default": "public"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "category_key",
+          "name",
+          "sat",
+          "cost",
+          "tier",
+          "short",
+          "publisher",
+          "version",
+          "updated_at",
+          "steps",
+          "status"
+        ],
+        "title": "SkillDto",
+        "description": "One library entry."
+      },
+      "SkillInput": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "accepts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "type"
+        ],
+        "title": "SkillInput"
+      },
+      "SkillManifest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category_key": {
+            "type": "string",
+            "title": "Category Key"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "concept",
+              "draft"
+            ],
+            "title": "Status"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "team",
+              "public"
+            ],
+            "title": "Visibility"
+          },
+          "publisher": {
+            "$ref": "#/components/schemas/Publisher"
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/Pricing"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/SkillInput"
+            },
+            "type": "array",
+            "title": "Inputs"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/SkillStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/SkillOutput"
+            },
+            "type": "array",
+            "title": "Outputs"
+          },
+          "accuracy": {
+            "$ref": "#/components/schemas/ManifestAccuracy"
+          },
+          "code_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Ref",
+            "description": "Script that implements the skill."
+          },
+          "code_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Sha256",
+            "description": "SHA-256 of that script."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "name",
+          "category_key",
+          "status",
+          "visibility",
+          "publisher",
+          "pricing",
+          "steps",
+          "accuracy"
+        ],
+        "title": "SkillManifest",
+        "description": "The reproducible recipe behind a skill.\n\n`code_ref` is the same string a run puts in `Answer.method.code_ref` when this skill\nproduced it, and `code_sha256` pins the exact script. Both are null for skills with no\nimplementation (`status` 'concept' or 'draft')."
+      },
+      "SkillModuleDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "Input",
+              "Data",
+              "Analysis",
+              "Output"
+            ],
+            "title": "Group"
+          },
+          "desc": {
+            "type": "string",
+            "title": "Desc"
+          },
+          "params": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Params",
+            "description": "Default params."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "group",
+          "desc"
+        ],
+        "title": "SkillModuleDto",
+        "description": "A building block a skill is composed from (a step's `module`)."
+      },
+      "SkillOutput": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "languages": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Languages"
+          },
+          "with_confidence": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "With Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "type"
+        ],
+        "title": "SkillOutput"
+      },
       "SkillRef": {
         "properties": {
           "id": {
@@ -6076,6 +7412,146 @@
         ],
         "title": "SkillRef",
         "description": "A skill used by the method, pinned to a version."
+      },
+      "SkillStep": {
+        "properties": {
+          "module": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{0,39}$",
+            "title": "Module",
+            "description": "A `SkillModuleDto.id` from `GET /api/catalog`."
+          },
+          "params": {
+            "patternProperties": {
+              "^[a-z][a-z0-9_]{0,39}$": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    },
+                    "type": "array"
+                  }
+                ]
+              }
+            },
+            "type": "object",
+            "maxProperties": 20,
+            "title": "Params"
+          }
+        },
+        "type": "object",
+        "required": [
+          "module"
+        ],
+        "title": "SkillStep"
+      },
+      "SkillTestRequest": {
+        "properties": {
+          "place_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "title": "Place Id"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/SkillStep"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "place_id",
+          "steps"
+        ],
+        "title": "SkillTestRequest",
+        "description": "Dry-run a draft recipe against one saved place."
+      },
+      "SkillTestResult": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "issues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/ProofScene"
+            },
+            "type": "array",
+            "title": "Scenes",
+            "description": "Every scene looked at, used or not, and why."
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array",
+            "title": "Provenance"
+          },
+          "reproducible": {
+            "type": "boolean",
+            "title": "Reproducible",
+            "description": "Same inputs give the same hash."
+          },
+          "hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "summary",
+          "reproducible"
+        ],
+        "title": "SkillTestResult",
+        "description": "Planned response of `POST /api/skills/test` (the endpoint answers 501 for now)."
       },
       "SlopeStats": {
         "properties": {
