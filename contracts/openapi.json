@@ -589,6 +589,609 @@
           }
         }
       }
+    },
+    "/api/places": {
+      "get": {
+        "tags": [
+          "places"
+        ],
+        "summary": "List Places",
+        "operationId": "list_places_api_places_get",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaceDto"
+                  },
+                  "title": "Response List Places Api Places Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Create Place",
+        "operationId": "create_place_api_places_post",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlaceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/places/{place_id}": {
+      "get": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Get Place",
+        "operationId": "get_place_api_places__place_id__get",
+        "parameters": [
+          {
+            "name": "place_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Place Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Patch Place",
+        "operationId": "patch_place_api_places__place_id__patch",
+        "parameters": [
+          {
+            "name": "place_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Place Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchPlaceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Delete Place",
+        "operationId": "delete_place_api_places__place_id__delete",
+        "parameters": [
+          {
+            "name": "place_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Place Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/places/{place_id}/memory": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Get Place Memory",
+        "operationId": "get_place_memory_api_places__place_id__memory_get",
+        "parameters": [
+          {
+            "name": "place_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Place Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceMemory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Patch Place Memory",
+        "operationId": "patch_place_memory_api_places__place_id__memory_patch",
+        "parameters": [
+          {
+            "name": "place_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Place Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceMemory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/memory": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Get Me Memory",
+        "operationId": "get_me_memory_api_me_memory_get",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeMemory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Patch Me Memory",
+        "operationId": "patch_me_memory_api_me_memory_patch",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeMemory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run_id}/insight": {
+      "post": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Save Run Insight",
+        "description": "Saves one insight to a place's memory. The run must be the caller's own; if the run\nnames places, the insight's place must be one of them.",
+        "operationId": "save_run_insight_api_runs__run_id__insight_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsightCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightSaved"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1338,6 +1941,138 @@
         "title": "Cost",
         "description": "LLM token usage and cost for a run."
       },
+      "CreatePlaceRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "center": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLon"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "radiusM": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radiusm"
+          },
+          "categoryKey": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Categorykey",
+            "default": ""
+          },
+          "isCircle": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iscircle"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Tags"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "drawn",
+              "uploaded",
+              "search",
+              "coords",
+              "whatsapp",
+              "parcel",
+              "pin"
+            ],
+            "title": "Source",
+            "default": "drawn"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DetailRow"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CreatePlaceRequest",
+        "description": "Send `geometry` (a GeoJSON polygon) or `center` + `radiusM`."
+      },
+      "DetailRow": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "DetailRow"
+      },
       "Done": {
         "properties": {
           "event": {
@@ -1885,6 +2620,108 @@
         "title": "Image",
         "description": "A rendered map image pinned to WGS84 bounds (from `earth.render`)."
       },
+      "Insight": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "confidence": {
+            "type": "string",
+            "title": "Confidence",
+            "default": ""
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "saved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "text"
+        ],
+        "title": "Insight"
+      },
+      "InsightCreate": {
+        "properties": {
+          "place_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+            "title": "Place Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "confidence": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Confidence",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "place_id",
+          "text"
+        ],
+        "title": "InsightCreate"
+      },
+      "InsightSaved": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "place_id": {
+            "type": "string",
+            "title": "Place Id"
+          },
+          "saved": {
+            "type": "boolean",
+            "title": "Saved",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "place_id"
+        ],
+        "title": "InsightSaved"
+      },
+      "LatLon": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "LatLon"
+      },
       "LimitAction": {
         "properties": {
           "label": {
@@ -2010,6 +2847,73 @@
         ],
         "title": "LimitsBlock"
       },
+      "MeMemory": {
+        "properties": {
+          "profile": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Profile"
+          }
+        },
+        "type": "object",
+        "required": [
+          "profile"
+        ],
+        "title": "MeMemory"
+      },
+      "MePatch": {
+        "properties": {
+          "profile": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "maxProperties": 30,
+            "title": "Profile"
+          }
+        },
+        "type": "object",
+        "required": [
+          "profile"
+        ],
+        "title": "MePatch"
+      },
+      "MemoryPatch": {
+        "properties": {
+          "profile": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object",
+                "maxProperties": 30
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "MemoryPatch",
+        "description": "User edits on the Places page. The LLM never calls this."
+      },
       "Method": {
         "properties": {
           "cards": {
@@ -2046,6 +2950,25 @@
         "title": "Method",
         "description": "What produced the answer: cards, skill and code reference."
       },
+      "Note": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "text"
+        ],
+        "title": "Note"
+      },
       "Patch": {
         "properties": {
           "ha": {
@@ -2079,6 +3002,98 @@
           "geojson"
         ],
         "title": "Patch"
+      },
+      "PatchPlaceRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "center": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLon"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "radiusM": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radiusm"
+          },
+          "categoryKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categorykey"
+          },
+          "project": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "title": "PatchPlaceRequest",
+        "description": "Every field optional. Sending `geometry` or `center` + `radiusM` replaces the outline."
       },
       "PlaceContext": {
         "properties": {
@@ -2177,6 +3192,137 @@
         "title": "PlaceContext",
         "description": "What `describe(area)` returns: enough to plan, without reading any satellite pixels twice."
       },
+      "PlaceDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "categoryKey": {
+            "type": "string",
+            "title": "Categorykey",
+            "default": ""
+          },
+          "center": {
+            "$ref": "#/components/schemas/LatLon"
+          },
+          "geometry": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Geometry"
+          },
+          "areaHa": {
+            "type": "number",
+            "title": "Areaha"
+          },
+          "isCircle": {
+            "type": "boolean",
+            "title": "Iscircle",
+            "default": false
+          },
+          "project": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "drawn",
+              "uploaded",
+              "search",
+              "coords",
+              "whatsapp",
+              "parcel",
+              "pin"
+            ],
+            "title": "Source",
+            "default": "drawn"
+          },
+          "createdAt": {
+            "type": "string",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "title": "Updatedat"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailRow"
+            },
+            "type": "array",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "center",
+          "geometry",
+          "areaHa",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "PlaceDto"
+      },
+      "PlaceMemory": {
+        "properties": {
+          "place_id": {
+            "type": "string",
+            "title": "Place Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "profile": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Prefill"
+            },
+            "type": "object",
+            "title": "Profile"
+          },
+          "insights": {
+            "items": {
+              "$ref": "#/components/schemas/Insight"
+            },
+            "type": "array",
+            "title": "Insights"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/Note"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "place_id"
+        ],
+        "title": "PlaceMemory"
+      },
       "PointInput": {
         "properties": {
           "lat": {
@@ -2209,6 +3355,25 @@
         ],
         "title": "PointInput",
         "description": "A point plus a radius; the area is the circle around it."
+      },
+      "Prefill": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "saved": {
+            "type": "string",
+            "format": "date",
+            "title": "Saved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "saved"
+        ],
+        "title": "Prefill"
       },
       "ProofScene": {
         "properties": {
