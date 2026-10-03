@@ -412,3 +412,12 @@ def test_openapi_has_stream_and_answer(client: TestClient) -> None:
     answer = schemas["Answer"]["properties"]
     for field in ("title", "kind", "eyebrow", "color", "l1", "l2", "skill_id", "suggested_skills"):
         assert field in answer
+
+
+def test_lang_is_stored_on_the_run(client: TestClient) -> None:
+    run_id = dict(_start(client, lang="zh-Hant"))["run_started"]["run_id"]
+    assert client.get(f"/api/runs/{run_id}").json()["lang"] == "zh-Hant"
+    default_id = dict(_start(client))["run_started"]["run_id"]
+    assert client.get(f"/api/runs/{default_id}").json()["lang"] == "en"
+    bad = client.post("/api/runs", json={"question": "x", "lang": "<script>"})
+    assert bad.status_code == 422

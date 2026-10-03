@@ -35,6 +35,8 @@ ID_PATTERN = r"^[a-z0-9][a-z0-9_-]{0,63}$"
 USER_ID_PATTERN = r"^[a-z0-9][a-z0-9_-]{0,31}$"
 Question = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
 SafeId = Annotated[str, StringConstraints(pattern=ID_PATTERN)]
+LANG_PATTERN = r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$"
+Lang = Annotated[str, StringConstraints(pattern=LANG_PATTERN)]
 
 
 def new_run_id() -> str:
@@ -63,6 +65,11 @@ class RunRequest(BaseModel):
         "user has no runs in it. Omit to start a new thread.",
     )
     skill_id: str | None = Field(None, description="Force a specific skill.")
+    lang: Lang = Field(
+        "en",
+        description="Language for the answer text (BCP 47, e.g. 'en', 'zh-Hant', 'yue'). "
+        "Stored on the run; answers are English until translation lands.",
+    )
 
 
 class ReplyRequest(BaseModel):
@@ -101,6 +108,7 @@ class RunRecord(BaseModel):
     user_id: str
     place_ids: list[str] = Field(default_factory=list)
     question: str
+    lang: Lang = Field("en", description="Requested answer language (from `RunRequest.lang`).")
     area: earth.Area | None = Field(
         None, description="The area the run is about (stored once; None = demo preset)."
     )

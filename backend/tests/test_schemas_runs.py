@@ -146,3 +146,18 @@ def test_ids_and_record() -> None:
     )
     back = RunRecord.model_validate_json(rec.model_dump_json())
     assert back == rec and back.created_at.tzinfo is not None
+
+
+def test_run_request_lang() -> None:
+    """`lang` defaults to English, accepts BCP 47 tags and rejects junk."""
+    import pytest
+    from pydantic import ValidationError
+
+    from app.schemas.runs import RunRequest
+
+    assert RunRequest(question="q").lang == "en"
+    for tag in ("en", "zh-Hant", "yue", "zh-Hant-HK", "pt-BR"):
+        assert RunRequest(question="q", lang=tag).lang == tag
+    for bad in ("", "e", "english language", "en_US", "zh-Hant-HK-x-y", "<script>"):
+        with pytest.raises(ValidationError):
+            RunRequest(question="q", lang=bad)

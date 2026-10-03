@@ -557,6 +557,7 @@ async def stream_preset_run(
         user_id=user_id,
         place_ids=[req.place_id] if req.place_id else [],
         question=req.question,
+        lang=req.lang,
         area=area,
         status="running",
         method=_method(),

@@ -58,7 +58,8 @@ npx openapi-typescript ../contracts/openapi.json -o src/api/schema.d.ts
   "area": { "point": { "lat": 22.534, "lon": 114.0906, "radius_m": 350 }, "name": "Hoo Hok Wai ponds" },
   "place_id": null,
   "thread_id": null,
-  "skill_id": null
+  "skill_id": null,
+  "lang": "en"
 }
 ```
 
@@ -69,6 +70,7 @@ npx openapi-typescript ../contracts/openapi.json -o src/api/schema.d.ts
 | `place_id` | A saved place, so the agent can prefill from its memory |
 | `thread_id` | To ask a **follow-up** in the same conversation. Must be a thread id this user got from an earlier `run_started`; anything else → 404 |
 | `skill_id` | Optional: force a specific skill |
+| `lang` | Optional, default `"en"`. The language you want the answer in, as a BCP 47 tag (`en`, `zh-Hant`, `yue`, `pt-BR`…). Stored on the run (`RunRecord.lang`). **For now answers are always English**; translated answers come later, and nothing changes for the frontend when they do |
 
 Errors **before** the stream starts are plain JSON:
 

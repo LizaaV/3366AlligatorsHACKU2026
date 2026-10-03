@@ -2399,6 +2399,13 @@
             "type": "string",
             "title": "Question"
           },
+          "lang": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$",
+            "title": "Lang",
+            "description": "Requested answer language (from `RunRequest.lang`).",
+            "default": "en"
+          },
           "area": {
             "anyOf": [
               {
@@ -2647,6 +2654,13 @@
             ],
             "title": "Skill Id",
             "description": "Force a specific skill."
+          },
+          "lang": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$",
+            "title": "Lang",
+            "description": "Language for the answer text (BCP 47, e.g. 'en', 'zh-Hant', 'yue'). Stored on the run; answers are English until translation lands.",
+            "default": "en"
           }
         },
         "type": "object",
