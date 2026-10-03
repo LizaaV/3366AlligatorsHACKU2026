@@ -11,7 +11,7 @@ import { useResource } from '../hooks/useResource';
 import type { MapLayer, Place } from '../model';
 import { mapImagesFrom, passTimelineFrom, toSearchHits } from '../model';
 import { sourceLabel } from '../data/presentation';
-import { DEFAULT_CENTER, DEFAULT_ZOOM, circlePts, fmtC, ptsToRing, thumb, type Pt } from '../lib/geo';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, circlePts, fmtC, parseLocation, ptsToRing, thumb, type Pt } from '../lib/geo';
 import { LANGS } from '../data/i18n';
 import { useAskRun, type AskTurn } from '../ask/useAskRun';
 import { AnswerCard } from './AnswerCard';
@@ -396,14 +396,19 @@ export function AskPage({ active }: { active: boolean }) {
   // are already loaded. Too-short queries are not sent (the backend rejects them with a 422).
   const geo = useResource(
     useCallback(
-      (signal: AbortSignal) => (sq.length >= 2 ? api.areas.resolve({ query: sq }, signal).then(toSearchHits) : Promise.resolve([])),
+      (signal: AbortSignal) => (sq.length >= 2 && !parseLocation(sq) ? api.areas.resolve({ query: sq }, signal).then(toSearchHits) : Promise.resolve([])),
       [sq],
     ),
     [sq],
   );
 
+  // A pasted map link or "lat, lon" goes straight to that spot.
+  const pasted = parseLocation(searchQ);
   const searchResults = useMemo(
     () => [
+      ...(pasted
+        ? [{ key: 'pasted', n: fmtC(pasted.lat, pasted.lon), d: 'Location from the link or coordinates', icon: 'my_location', go: () => { lookAt(pasted.lat, pasted.lon); setPop(null); setSearchQ(''); } }]
+        : []),
       ...places
         .filter((p) => !sq || `${p.name} ${p.project}`.toLowerCase().includes(sq))
         .map((p) => ({
@@ -425,7 +430,8 @@ export function AskPage({ active }: { active: boolean }) {
         },
       })),
     ],
-    [places, sq, geo.data, setAskPlace, flyTo, lookAt],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [places, sq, geo.data, setAskPlace, flyTo, lookAt, pasted?.lat, pasted?.lon],
   );
 
   const tools: { k: string; icon?: string; title?: string; caret?: boolean }[] = [
@@ -685,7 +691,7 @@ export function AskPage({ active }: { active: boolean }) {
           <div style={{ position: 'relative' }}>
             <div className="row" style={{ gap: 8, width: compact ? 150 : 250, height: 40, padding: '0 12px', borderRadius: 8, background: '#000', border: '1px solid var(--hair-soft)' }}>
               <Ms n="search" size={20} className="muted" />
-              <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPop('search'); }} onFocus={() => setPop('search')} onKeyDown={(e) => e.key === 'Enter' && searchResults[0]?.go()} placeholder="Search a place or field" aria-label="Search a place" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 14px/1.5 var(--font)' }} />
+              <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPop('search'); }} onFocus={() => setPop('search')} onKeyDown={(e) => e.key === 'Enter' && searchResults[0]?.go()} placeholder="Search a town, or paste a map link" aria-label="Search a place" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 14px/1.5 var(--font)' }} />
             </div>
             {pop === 'search' && (
               <div className="menu" style={{ left: -8, top: 52, width: 320, maxHeight: 420, overflowY: 'auto' }}>

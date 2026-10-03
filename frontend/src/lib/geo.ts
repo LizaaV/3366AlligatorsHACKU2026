@@ -189,3 +189,25 @@ export function outerRing(geojson: unknown): [number, number][] | null {
   if (g.type === 'MultiPolygon') return (g.coordinates as [number, number][][][])?.[0]?.[0] ?? null;
   return null;
 }
+
+/**
+ * Coordinates from a pasted location: a Google Maps / OpenStreetMap / WhatsApp link, a
+ * `geo:` URI, or plain "lat, lon". Null when there are none.
+ */
+export function parseLocation(s: string): { lat: number; lon: number } | null {
+  const pats = [
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /[?&](?:q|ll|query|center|mlat)=(-?\d+\.\d+)(?:,|%2C|&mlon=)\s*(-?\d+\.\d+)/,
+    /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/,
+    /^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/,
+    /geo:(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /#map=\d+\/(-?\d+\.\d+)\/(-?\d+\.\d+)/,
+  ];
+  for (const p of pats) {
+    const m = s.match(p);
+    if (!m) continue;
+    const lat = +m[1], lon = +m[2];
+    if (Math.abs(lat) <= 85 && Math.abs(lon) <= 180) return { lat, lon };
+  }
+  return null;
+}
