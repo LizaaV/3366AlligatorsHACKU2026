@@ -169,6 +169,10 @@ def describe(area: Area) -> PlaceContext:
 def scenes(
     area: Area, last: str = "60d", kind: SceneKind = "optical", max_cloud: int = 30
 ) -> SceneList:
+    if kind == "thermal":  # M9c
+        end = date.today()
+        found_t = ps.heat_scenes(area, end - timedelta(days=_parse_last(last)), end, max_cloud)
+        return SceneList(scenes=found_t, kind="thermal", max_cloud=max_cloud)
     if kind == "radar":
         end = date.today()
         found = radar_scenes(area, end - timedelta(days=_parse_last(last)), end)
@@ -222,6 +226,8 @@ def _find_group(area: Area, scene: Scene) -> es.Group:
 
 
 def load(area: Area, scene: Scene) -> LayerRef:
+    if scene.kind == "thermal":  # M9c
+        return ps.heat_load(area, scene)
     if _is_radar(scene):
         return _load_radar(area, scene)
     g = _find_group(area, scene)
@@ -273,7 +279,14 @@ def _get(layer_id: str) -> _Layer:
 
 
 def index(layer: LayerRef, measure: Measure) -> LayerRef:
+    if ps.is_heat_layer(layer.id):  # M9c
+        return ps.heat_index(layer, measure)
     src = _get(layer.id)
+    if measure == "heat":
+        raise WrongSceneKind(
+            f"heat needs a thermal scene, got {'radar' if src.radar is not None else 'optical'}.",
+            'Use scenes(area, kind="thermal").',
+        )
     if src.radar is not None:
         return _index_radar(src, measure)
     if measure not in INDICES:  # roughness
@@ -320,6 +333,8 @@ def index(layer: LayerRef, measure: Measure) -> LayerRef:
 
 
 def measure(layer: LayerRef) -> Stats:
+    if ps.is_heat_layer(layer.id):  # M9c
+        return ps.heat_stats(layer)
     src = _get(layer.id)
     if src.measure is None or src.values is None:
         first = RADAR_MEASURE if src.radar is not None else "greenness"
@@ -352,6 +367,8 @@ _measure_stats = measure  # `series` / `compare` take a parameter called `measur
 
 def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -> Series:
     """One clearest scene per period (B11.3: one search, SCL scans then band reads in parallel)."""
+    if measure == "heat":  # M9c
+        return ps.heat_series(area, years, every, _periods(date.today(), years, every), normal_band)
     if measure == RADAR_MEASURE:
         return _series_radar(area, years, every)
     today = date.today()
@@ -406,6 +423,8 @@ def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -
 
 def compare(area: Area, measure: Measure, before: date, after: date) -> Comparison:
     """Clearest scene near each date, both read at 10 m on one grid, plus changed patches."""
+    if measure == "heat":  # M9c
+        return ps.heat_compare(area, before, after)
     if measure == RADAR_MEASURE:
         return _compare_radar(area, before, after)
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="compare") as pool:
@@ -443,6 +462,8 @@ def layer_tiles(layer_id: str) -> dict[str, int]:
 
 def layer_pixels(layer_id: str) -> tuple[np.ndarray, tuple[float, float, float, float]]:
     """2-D float array (NaN = masked) of the layer's measure, and its WGS84 bounds."""
+    if ps.is_heat_layer(layer_id):  # M9c
+        return ps.heat_pixels(layer_id)
     src = _get(layer_id)
     if src.values is None:
         first = RADAR_MEASURE if src.radar is not None else "greenness"

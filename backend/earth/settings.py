@@ -84,3 +84,24 @@ S1_SERIES_DEADLINE_S = 120  # series stops waiting for slow reads; those periods
 S1_SERIES_TRIES = 2  # passes tried per period before the period is left empty
 S1_MIN_COVERAGE = 0.5  # a pass must have valid pixels over at least this share of the area
 S1_SEARCH_CHUNK_DAYS = 366  # long windows are searched in chunks (max 500 STAC items per search)
+
+# Landsat surface heat + FIRMS fire (M9c): Planetary Computer `landsat-c2-l2`, NASA FIRMS CSV API
+LANDSAT_COLLECTION = "landsat-c2-l2"
+LANDSAT_ST_ASSET = "lwir11"  # ST_B10 surface temperature, kelvin = DN * 0.00341802 + 149.0
+LANDSAT_QA_ASSET = "qa_pixel"
+LANDSAT_QA_BAD_BITS = 0b11111  # fill, dilated cloud, cirrus, cloud, cloud shadow
+LANDSAT_RESOLUTION_M = 30  # lwir11 is TIRS 100 m resampled to 30 m by USGS
+LANDSAT_NATIVE_M = 100
+LANDSAT_SEARCH_TTL_S = 6 * 3600
+LANDSAT_READ_TIMEOUT_S = 60
+LANDSAT_SCAN_MAX = 16  # scenes() reads QA over the area for at most this many newest scenes
+LANDSAT_THREADS = 8
+LANDSAT_MAX_CLOUD = 0.3  # series / compare: a scene may be at most this masked over the area
+HEAT_CHANGE_C = 3.0  # compare: pixels warmer/cooler by more than this count as changed
+HEAT_VALID_C = (-40.0, 90.0)  # outside this range a surface temperature is a retrieval error
+FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
+FIRMS_SOURCES = ("VIIRS_SNPP_NRT", "VIIRS_NOAA20_NRT")
+FIRMS_MAX_DAYS = 10  # one API call covers at most 10 days; longer windows are chunked
+FIRMS_MAX_WINDOW_DAYS = 90
+FIRMS_MAX_DETECTIONS = 50
+FIRMS_TIMEOUT_S = 20

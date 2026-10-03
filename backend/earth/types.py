@@ -20,8 +20,8 @@ from shapely.ops import transform, unary_union
 
 from earth.errors import InvalidArea
 
-Measure = Literal["greenness", "moisture", "water", "bare", "burn", "roughness"]
-SceneKind = Literal["optical", "radar"]
+Measure = Literal["greenness", "moisture", "water", "bare", "burn", "roughness", "heat"]
+SceneKind = Literal["optical", "radar", "thermal"]
 
 _GEOD = Geod(ellps="WGS84")
 MAX_RADIUS_M = 50_000
@@ -321,3 +321,28 @@ class EarthCall(BaseModel):
     ms: int
     provenance: Provenance | None = None
     error: str | None = None
+
+
+# --- Fire (M9c) ---------------------------------------------------------------------------------
+
+
+class FireDetection(BaseModel):
+    """One NASA FIRMS VIIRS active-fire pixel (375 m)."""
+
+    date: date
+    lat: float
+    lon: float
+    frp: float | None = None  # fire radiative power, MW
+    confidence: str | None = None  # "low" | "nominal" | "high"
+    km_from_area: float  # distance from the area's outline (0 = inside)
+
+
+class FireList(BaseModel):
+    """What `fires(area)` returns: detections near the area, small and capped."""
+
+    detections: list[FireDetection]  # nearest first, capped
+    total: int  # detections found, before the cap
+    inside: int  # detections inside the outline
+    last: str
+    radius_km: float
+    provenance: Provenance

@@ -35,6 +35,8 @@ from earth.types import (
     Area,
     Comparison,
     EarthCall,
+    FireDetection,
+    FireList,
     LayerRef,
     Measure,
     PlaceContext,
@@ -55,6 +57,8 @@ __all__ = [
     "Comparison",
     "EarthCall",
     "EarthError",
+    "FireDetection",
+    "FireList",
     "InvalidArea",
     "LayerRef",
     "Measure",
@@ -71,6 +75,7 @@ __all__ = [
     "WrongSceneKind",
     "compare",
     "describe",
+    "fires",
     "index",
     "load",
     "measure",
@@ -242,4 +247,8 @@ def weather(area: Area, last: str = "14d") -> RainSeries:
     return _call("weather", RainSeries, area=area, last=last)
 
 
-_ = (Block, validate_block, show)  # re-exported
+def fires(area: Area, last: str = "30d", radius_km: float = 10) -> FireList:
+    return _call("fires", FireList, area=area, last=last, radius_km=radius_km)
+
+
+_ = (Block, validate_block, show, FireDetection)  # re-exported

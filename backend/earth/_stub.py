@@ -22,6 +22,8 @@ from earth.types import (
     Area,
     BandMonth,
     Comparison,
+    FireDetection,
+    FireList,
     LayerRef,
     Measure,
     Patch,
@@ -50,6 +52,7 @@ _LEVELS: dict[str, tuple[float, float, float]] = {
     "bare": (-0.35, 0.10, -0.30),
     "burn": (0.35, -0.05, 0.40),
     "roughness": (-8.5, -10.7, -7.3),
+    "heat": (35.0, 39.4, 34.4),  # °C: inside ~5 °C warmer than the ring once filled
 }
 # Exact values measured by Friday's prototype
 _EXACT: dict[tuple[str, date], float] = {
@@ -57,6 +60,7 @@ _EXACT: dict[tuple[str, date], float] = {
     ("greenness", date(2026, 9, 30)): -0.013,
     ("bare", date(2026, 9, 30)): 0.12,
     ("roughness", date(2026, 9, 28)): -10.71,
+    ("heat", date(2026, 4, 16)): 40.0,  # B12.2: 40.0 °C inside vs 34.4 °C around
 }
 _METHOD = {
     "greenness": "NDVI",
@@ -65,6 +69,7 @@ _METHOD = {
     "bare": "NDBI",
     "burn": "NBR",
     "roughness": "Mean VV backscatter (dB), same orbit direction",
+    "heat": "Surface temperature °C (Landsat ST_B10), QA_PIXEL mask",
 }
 
 _layers: dict[str, tuple[Area, Scene, Measure | None]] = {}
@@ -88,6 +93,8 @@ def _value(measure: Measure, d: date, ring: bool) -> float:
     seasonal = 0.04 * math.sin(2 * math.pi * (d.timetuple().tm_yday - 100) / 365)
     if measure == "roughness":
         seasonal *= 5
+    elif measure == "heat":
+        seasonal *= 40
     if ring:
         return round(around + seasonal, 3)
     if (measure, d) in _EXACT:
@@ -127,6 +134,31 @@ def _radar_scene(d: date) -> Scene:
         usable=True,
         resolution_m=10,
     )
+
+
+def _thermal_scene(d: date, max_cloud: int = 30) -> Scene:
+    num = "9" if d.toordinal() % 2 else "8"
+    cloud = 0.03 if ("heat", d) in _EXACT else _cloud(d)
+    return Scene(
+        id=f"L{num}_121_{d:%Y%m%d}_st",
+        date=d,
+        satellite=f"Landsat {num}",
+        provider="planetary_landsat_c2_l2",
+        kind="thermal",
+        cloud_over_area=cloud,
+        usable=cloud * 100 <= max_cloud,
+        resolution_m=100,
+    )
+
+
+_KIND_OF = {"roughness": "radar", "heat": "thermal"}  # every other measure needs optical
+
+
+def _scene_for(measure: Measure, d: date, max_cloud: int = 30) -> Scene:
+    kind = _KIND_OF.get(measure, "optical")
+    if kind == "radar":
+        return _radar_scene(d)
+    return (_thermal_scene if kind == "thermal" else _optical_scene)(d, max_cloud)
 
 
 def _prov(scene: Scene, measure: Measure | None, clean_px: int) -> Provenance:
@@ -179,11 +211,16 @@ def scenes(
     area: Area, last: str = "60d", kind: SceneKind = "optical", max_cloud: int = 30
 ) -> SceneList:
     start = TODAY - timedelta(days=_parse_last(last))
-    step = 5 if kind == "optical" else 12
+    step = {"optical": 5, "thermal": 8}.get(kind, 12)
     out: list[Scene] = []
     d = TODAY if kind == "optical" else date(2026, 9, 28)
     while d >= start:
-        out.append(_optical_scene(d, max_cloud) if kind == "optical" else _radar_scene(d))
+        if kind == "optical":
+            out.append(_optical_scene(d, max_cloud))
+        elif kind == "thermal":
+            out.append(_thermal_scene(d, max_cloud))
+        else:
+            out.append(_radar_scene(d))
         d -= timedelta(days=step)
     if kind == "optical":  # the prototype's 25 Sep pass
         out.insert(1, _optical_scene(date(2026, 9, 25), max_cloud))
@@ -205,11 +242,11 @@ def load(area: Area, scene: Scene) -> LayerRef:
 
 def index(layer: LayerRef, measure: Measure) -> LayerRef:
     area, scene, _ = _layers[layer.id]
-    if (measure == "roughness") != (scene.kind == "radar"):
+    need = _KIND_OF.get(measure, "optical")
+    if scene.kind != need:
         raise WrongSceneKind(
-            f"{measure} needs {'a radar' if measure == 'roughness' else 'an optical'} scene, "
-            f"got {scene.kind}.",
-            f'Use scenes(area, kind="{"radar" if measure == "roughness" else "optical"}").',
+            f"{measure} needs {'an' if need == 'optical' else 'a'} {need} scene, got {scene.kind}.",
+            f'Use scenes(area, kind="{need}").',
         )
     lid = f"L{next(_layer_ids)}"
     _layers[lid] = (area, scene, measure)
@@ -232,7 +269,7 @@ def measure(layer: LayerRef) -> Stats:
             "This layer has raw bands, not a measure.", 'Call index(layer, "greenness") first.'
         )
     mean = _value(m, scene.date, area.is_ring())
-    spread = 1.5 if m == "roughness" else 0.12
+    spread = 1.5 if m in ("roughness", "heat") else 0.12
     clean = int(area.pixels(layer.resolution_m) * (1 - scene.cloud_over_area))
     return Stats(
         mean=mean,
@@ -266,7 +303,7 @@ def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -
         months_back = i * step_months
         y, m = divmod(TODAY.year * 12 + TODAY.month - 1 - months_back, 12)
         d = TODAY if months_back == 0 else date(y, m + 1, 14)
-        scene = (_radar_scene if measure == "roughness" else _optical_scene)(d)
+        scene = _scene_for(measure, d)
         points.append(
             SeriesPoint(
                 date=d,
@@ -280,7 +317,7 @@ def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -
     for month in range(1, 13):
         vals = [p.value for p in baseline if p.date.month == month]
         if vals:
-            pad = 0.03 if measure != "roughness" else 0.5
+            pad = {"roughness": 0.5, "heat": 1.0}.get(measure, 0.03)
             band.append(
                 BandMonth(
                     month=month,
@@ -291,8 +328,11 @@ def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -
             )
     last = points[-1]
     prov = Provenance(
-        provider="planetary_s1_rtc" if measure == "roughness" else "earth_search_s2",
-        satellite="Sentinel-1" if measure == "roughness" else "Sentinel-2",
+        provider={
+            "roughness": "planetary_s1_rtc",
+            "heat": "planetary_landsat_c2_l2",
+        }.get(measure, "earth_search_s2"),
+        satellite={"roughness": "Sentinel-1", "heat": "Landsat 8/9"}.get(measure, "Sentinel-2"),
         scene=f"{len(points)} scenes",
         date=last.date,
         cloud_over_area=0.0,
@@ -304,7 +344,7 @@ def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -
 
 def compare(area: Area, measure: Measure, before: date, after: date) -> Comparison:
     def stats_at(d: date) -> Stats:
-        scene = _radar_scene(d) if measure == "roughness" else _optical_scene(d, max_cloud=100)
+        scene = _scene_for(measure, d, max_cloud=100)
         return _stats(index(load(area, scene), measure))
 
     b, a = stats_at(before), stats_at(after)
@@ -347,7 +387,7 @@ def layer_pixels(layer_id: str) -> tuple[np.ndarray, tuple[float, float, float, 
             "Raw band layers can't be rendered yet.", 'Call index(layer, "greenness") first.'
         )
     rng = np.random.default_rng(zlib.crc32(scene.id.encode()))
-    spread = 1.0 if m == "roughness" else 0.06
+    spread = {"roughness": 1.0, "heat": 1.5}.get(m, 0.06)
     img = _value(m, scene.date, area.is_ring()) + rng.normal(0, spread, (128, 128))
     yy, xx = np.mgrid[-1:1:128j, -1:1:128j]
     img[(xx**2 + yy**2) > 1] = np.nan
@@ -411,3 +451,43 @@ def layer_rgb(
     img = (base[None, None, :] + tex[..., None]).astype(np.float32).clip(0.005, None)
     yy, xx = np.mgrid[-1:1:128j, -1:1:128j]
     return img, (xx**2 + yy**2) <= 1, area.bbox()
+
+
+# --- fire (M9c) ---------------------------------------------------------------------------------
+
+
+def fires(area: Area, last: str = "30d", radius_km: float = 10) -> FireList:
+    """Three deterministic detections near the area (one inside), no network, no key needed."""
+    lat, lon = area.centroid()
+    days = _parse_last(last)
+    # (days ago, north offset km, frp MW, confidence, km from the outline)
+    spec = [(2, 0.0, 11.4, "nominal", 0.0), (6, 3.0, 5.2, "high", 2.9), (13, 9.0, 3.1, "low", 8.6)]
+    found = [
+        FireDetection(
+            date=TODAY - timedelta(days=back),
+            lat=round(lat + north / 111.0, 4),
+            lon=round(lon, 4),
+            frp=frp,
+            confidence=conf,
+            km_from_area=dist,
+        )
+        for back, north, frp, conf, dist in spec
+        if dist <= radius_km and back < days
+    ]
+    prov = Provenance(
+        provider="nasa_firms_viirs_nrt",
+        satellite="Suomi NPP + NOAA-20",
+        scene=f"{len(found)} detections",
+        date=TODAY,
+        cloud_over_area=0.0,
+        resolution_m=375,
+        method=f"NASA FIRMS VIIRS near-real-time active fire, {last} (stub)",
+    )
+    return FireList(
+        detections=found,
+        total=len(found),
+        inside=sum(1 for f in found if f.km_from_area == 0),
+        last=last,
+        radius_km=radius_km,
+        provenance=prov,
+    )
