@@ -128,7 +128,7 @@ export function PlacePicker({
       >
         {place ? <span className="dot" style={{ background: category(place.categoryKey).color }} /> : <Ms n={spot ? 'location_on' : 'public'} size={16} className="muted" />}
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-        {place && <span className="tiny hide-mobile">{place.areaHa} ha</span>}
+        {place && <span className="tiny hide-mobile" style={{ whiteSpace: 'nowrap' }}>{place.areaHa} ha</span>}
         <Ms n="arrow_drop_down" size={18} className="muted" />
       </button>
 

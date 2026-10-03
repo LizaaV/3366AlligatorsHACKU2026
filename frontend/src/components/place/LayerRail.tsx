@@ -1,5 +1,5 @@
 /**
- * LayerRail: a slim vertical rail of round layer buttons pinned to the left edge of the map.
+ * LayerRail: a slim vertical rail of round layer buttons pinned to one edge of the map.
  *
  * One button per layer, with a hover label, an active state, and a small legend that opens
  * beside the rail for the active layer. Names are plain language (see `layerNames.ts`),
@@ -15,11 +15,14 @@ export function LayerRail({
   layers,
   onToggle,
   top = 76,
+  side = 'left',
 }: {
   layers: MapLayer[];
   onToggle: (id: string) => void;
   /** Distance from the top of the map container, so it clears the page header. */
   top?: number;
+  /** Which edge of the map the rail sits on; tooltips and the legend open towards the map. */
+  side?: 'left' | 'right';
 }) {
   const [hover, setHover] = useState<string | null>(null);
   // The legend follows the most recently switched-on layer.
@@ -34,11 +37,12 @@ export function LayerRail({
     <div
       style={{
         position: 'absolute',
-        left: 12,
+        [side]: 12,
         top,
         zIndex: 20,
         display: 'flex',
         alignItems: 'flex-start',
+        flexDirection: side === 'right' ? 'row-reverse' : 'row',
         gap: 8,
         maxHeight: `calc(100% - ${top + 12}px)`,
         pointerEvents: 'none',
@@ -100,7 +104,7 @@ export function LayerRail({
                   role="tooltip"
                   style={{
                     position: 'absolute',
-                    left: 46,
+                    [side === 'right' ? 'right' : 'left']: 46,
                     top: '50%',
                     transform: 'translateY(-50%)',
                     whiteSpace: 'nowrap',

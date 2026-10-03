@@ -58,14 +58,16 @@ export function AskPage({ active }: { active: boolean }) {
   spotRef.current = spot;
 
   // History opens as an overlay from the composer, so the content never shifts sideways.
-  const sbW = 0;
+  // The chat docks in a left column (as in the original layout); globe, map and hero use the rest.
+  const chatW = mobile ? W - 16 : W < 1280 ? 380 : 440;
+  const sideW = mobile ? 0 : chatW + 20;
 
   // Layer definitions come from the catalog endpoint; keep the local on/ready flags.
   useEffect(() => {
     setLayers((cur) => (cur.length ? cur : catalogLayers));
   }, [catalogLayers]);
 
-  const cx = sbW + (W - sbW) / 2;
+  const cx = sideW + (W - sideW) / 2;
   const cy = H / 2;
 
   const flyTo = useCallback((p: { lat: number; lon: number; zoom: number }) => {
@@ -292,19 +294,20 @@ export function AskPage({ active }: { active: boolean }) {
       <Suspense fallback={null}>
         <Globe
           visible={active && !isMap}
-          offsetRight={false}
+          offsetRight={!mobile}
           focus={focusPt ? { lat: focusPt.lat, lon: focusPt.lon } : null}
           onPickLocation={(p) => setGlobePick({ lat: p.lat, lon: p.lon })}
         />
       </Suspense>
       {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} layers={mapLayers} dateIdx={dateIdx} pass={pass} timeline={timeline} />}
 
-      {/* LAYER RAIL (place view). Wrapper sits at the content's left edge so the sidebar never covers it. */}
+      {/* LAYER RAIL (place view): right edge, under the zoom and globe buttons. */}
       {isMap && (
-        <div style={{ position: 'absolute', left: sbW, top: 0, width: 0, height: '100%', zIndex: 25 }}>
+        <div style={{ position: 'absolute', right: 8, top: 0, width: 0, height: '100%', zIndex: 25 }}>
           <LayerRail
             layers={layers}
-            top={64}
+            side="right"
+            top={170}
             onToggle={(id) => {
               const l = layers.find((x) => x.id === id);
               if (l && !l.ready) return notify('Ask the agent about this place to generate this layer', undefined, undefined, 'info');
@@ -323,7 +326,7 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* GLOBE CLICK */}
       {globePick && !isMap && (
-        <div className="menu fade-up" role="menu" style={{ left: sbW + (W - sbW) / 2 - 130, top: 24, width: 260, zIndex: 35 }}>
+        <div className="menu fade-up" role="menu" style={{ left: cx - 130, top: 24, width: 260, zIndex: 35 }}>
           <div className="row" style={{ justifyContent: 'space-between', padding: '4px 10px 6px' }}>
             <span className="tiny">{globePick.lat.toFixed(3)}, {globePick.lon.toFixed(3)}</span>
             <button className="icon-btn sm" onClick={() => setGlobePick(null)} aria-label="Close"><Ms n="close" /></button>
@@ -336,17 +339,17 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* HERO */}
       {showHero && H >= 520 && (
-        <div style={{ position: 'absolute', left: sbW, right: 0, top: mobile ? 56 : '9%', padding: '0 24px', textAlign: 'center', pointerEvents: 'none', animation: 'fadeUp .6s ease both' }}>
+        <div style={{ position: 'absolute', left: sideW, right: 0, top: mobile ? 56 : '9%', padding: '0 24px', textAlign: 'center', pointerEvents: 'none', animation: 'fadeUp .6s ease both' }}>
           <div className="display" style={{ textShadow: '0 2px 24px rgba(0,0,0,.7)' }}>{t('hero.title')}</div>
           <div className="body-lg" style={{ marginTop: 14, maxWidth: 560, marginInline: 'auto', textShadow: '0 1px 12px rgba(0,0,0,.8)' }}>{t('hero.line')}</div>
         </div>
       )}
 
-      {/* CHAT: conversation above the composer, centred, like claude.ai */}
-      <div style={{ position: 'absolute', left: sbW, right: 0, top: 0, bottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', padding: mobile ? '0 8px 8px' : '0 24px 24px', pointerEvents: 'none', zIndex: 20 }}>
-        <div style={{ width: '100%', maxWidth: 760, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '100%', paddingTop: mobile ? 56 : 12 }}>
+      {/* CHAT: left column, conversation above the composer */}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: mobile ? '100%' : chatW + 20, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'flex-start', padding: mobile ? '0 8px 8px' : '0 0 20px 20px', pointerEvents: 'none', zIndex: 20 }}>
+        <div style={{ width: chatW, maxWidth: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '100%', paddingTop: mobile ? 56 : 16 }}>
           {(turns.length > 0 || loadingThread) && (
-            <div ref={thread} className="panel" style={{ pointerEvents: 'auto', flex: '0 1 auto', minHeight: 0, overflowY: 'auto', padding: mobile ? 14 : 20, display: 'flex', flexDirection: 'column', gap: 20, background: 'rgba(10,10,10,.92)', backdropFilter: 'blur(10px)' }}>
+            <div ref={thread} className="panel" style={{ pointerEvents: 'auto', flex: '0 1 auto', minHeight: 0, overflowY: 'auto', padding: mobile ? 14 : 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
               {loadingThread && <div className="caption"><span className="spinner" /> Opening chat…</div>}
               {turns.map((turn) => (
                 <TurnView
@@ -398,7 +401,7 @@ export function AskPage({ active }: { active: boolean }) {
               busy={run.isBusy}
               placeholder={place ? `Ask about ${place.name}…` : spot ? `Ask about ${spot.name}…` : t('chat.placeholder')}
               leading={
-                <div className="row" style={{ gap: 6, position: 'relative', minWidth: 0 }}>
+                <div className="row" style={{ gap: 6, rowGap: 6, flexWrap: 'wrap', position: 'relative', minWidth: 0 }}>
                   <button
                     data-chats-cta
                     className="pill"
@@ -406,7 +409,7 @@ export function AskPage({ active }: { active: boolean }) {
                     aria-expanded={sidebar}
                     aria-haspopup="dialog"
                     title="Chats and projects"
-                    style={{ border: '1px solid var(--glass-border)', background: sidebar ? 'var(--glass-fill-hover)' : 'var(--glass-fill)', color: '#fff', maxWidth: 200 }}
+                    style={{ border: '1px solid var(--glass-border)', background: sidebar ? 'var(--glass-fill-hover)' : 'var(--glass-fill)', color: '#fff', maxWidth: 150, minWidth: 0 }}
                   >
                     <Ms n="forum" size={14} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{current ? current.title : 'Chats'}</span>
