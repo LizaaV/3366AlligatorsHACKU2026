@@ -184,14 +184,6 @@ def test_thresholds_cover_every_optical_measure():
     assert set(settings.CHANGE_THRESHOLDS) == set(real.INDICES)
 
 
-def test_radar_measures_raise_the_hinted_error():
-    with pytest.raises(earth.EarthError) as e:
-        real.series(HOO_HOK_WAI, "roughness")
-    assert "radar" in (e.value.hint or "").lower() or "optical" in (e.value.hint or "")
-    with pytest.raises(earth.EarthError):
-        real.compare(HOO_HOK_WAI, "roughness", date(2025, 1, 1), date(2026, 1, 1))
-
-
 # --- network: the preset and world places -----------------------------------------------------
 
 

@@ -6,9 +6,12 @@ describe, scenes, load, index, measure, series, compare, layer_pixels.
 M1 (this file): Sentinel-2 L2A optical `scenes`, `load`, `index`, `measure`, `layer_pixels`.
 M2 (this file): `describe` (M9a context + recent scene counts), `series` (clearest scene per
 period, B11.3 coarse-first), `compare` (clearest scene near each date at 10 m + changed patches).
+M9b (this file): Sentinel-1 RTC radar (`kind="radar"`, measure `roughness` = mean VV dB) through
+the same functions, pixels from `providers.planetary`; never mixes orbit directions.
 Pixels stay in two in-process registries:
   _groups: scene id → providers.earth_search.Group (the STAC items of one pass, tile edges merged)
   _layers: layer id → _Layer (area, scene, items, grid, valid mask, and index values once computed)
+Radar layers use the same record: items [] and tiles {}, plus `radar` / `transform` / `raw_db`.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from __future__ import annotations
 import json
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -28,6 +31,7 @@ import numpy as np
 from earth import settings
 from earth.errors import BudgetExceeded, EarthError, NoClearScenes, WrongSceneKind
 from earth.providers import earth_search as es
+from earth.providers import planetary as ps
 from earth.types import (
     Area,
     BandMonth,
@@ -55,7 +59,7 @@ INDICES: dict[str, tuple[str, str, str]] = {
     "burn": ("NBR", "nir", "swir22"),
 }
 _MASK_TXT = "SCL mask [" + ",".join(str(c) for c in settings.S2_INVALID_SCL) + "]"
-_RADAR_HINT = 'Use kind="optical" for now; radar (Sentinel-1) arrives with M9b.'
+RADAR_MEASURE = "roughness"  # the only radar measure: mean VV backscatter in dB (HANDOFF B1.4)
 
 
 @dataclass
@@ -71,6 +75,11 @@ class _Layer:
     tiles: dict[str, int]  # item id → clean pixels it supplied inside the area (tile edges)
     measure: Measure | None = None
     values: np.ndarray | None = None  # float32 index, NaN = masked
+    # Radar (M9b) only: the overpass, the UTM affine of the grid (gbox is built from it) and the
+    # VV dB pixels read by load(). For optical layers all three stay None.
+    radar: ps.RadarScene | None = None
+    transform: Any = None
+    raw_db: np.ndarray | None = None
 
 
 _groups: dict[str, es.Group] = {}
@@ -86,10 +95,6 @@ def _new_layer_id() -> str:
 
 def _parse_last(last: str) -> int:
     return int(last[:-1]) * {"d": 1, "w": 7, "m": 30, "y": 365}[last[-1]]
-
-
-def _radar_error() -> EarthError:
-    return EarthError("Radar scenes are not available yet.", _RADAR_HINT)
 
 
 def _scene_from(g: es.Group, cloud: float, clean_px: int, max_cloud: int, res: float) -> Scene:
@@ -121,9 +126,10 @@ def describe(area: Area) -> PlaceContext:
     """Place context (M9a providers) and recent optical scene counts, fetched in parallel."""
     from earth.providers.context import place_context
 
-    pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="describe")
+    pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="describe")
     ctx_f = pool.submit(place_context, area)
     counts_f = pool.submit(_recent_counts, area)
+    radar_f = pool.submit(_recent_radar, area)
     t0 = time.monotonic()
     parts = ctx_f.result()  # never raises; slow providers already degraded to warnings
     warnings = list(parts.warnings)
@@ -135,8 +141,16 @@ def describe(area: Area) -> PlaceContext:
         warnings.append("Sentinel-2 scene count unavailable: took too long, try again shortly")
     except EarthError as exc:
         warnings.append(f"Sentinel-2 scene count unavailable: {exc.message}")
+    radar: int | None = None
+    try:
+        left = settings.CONTEXT_TIMEOUT_S - (time.monotonic() - t0)
+        radar = radar_f.result(timeout=max(left, 1.0))
+    except FuturesTimeout:
+        warnings.append("Sentinel-1 radar count unavailable: took too long, try again shortly")
+    except EarthError as exc:
+        warnings.append(f"Sentinel-1 radar count unavailable: {exc.message}")
     pool.shutdown(wait=False)
-    warnings += _describe_warnings(area, parts.land_cover, counts)
+    warnings += _describe_warnings(area, parts.land_cover, counts, radar)
     optical, clear = counts or (0, 0)
     return PlaceContext(
         name=parts.name,
@@ -147,7 +161,7 @@ def describe(area: Area) -> PlaceContext:
         elevation_m=parts.elevation_m,
         slope_deg=parts.slope_deg,
         rain_mm_30d=parts.rain_mm_30d,
-        recent_scenes=SceneCounts(optical=optical, clear=clear, radar=0),
+        recent_scenes=SceneCounts(optical=optical, clear=clear, radar=radar or 0),
         warnings=warnings,
     )
 
@@ -156,7 +170,9 @@ def scenes(
     area: Area, last: str = "60d", kind: SceneKind = "optical", max_cloud: int = 30
 ) -> SceneList:
     if kind == "radar":
-        raise _radar_error()
+        end = date.today()
+        found = radar_scenes(area, end - timedelta(days=_parse_last(last)), end)
+        return SceneList(scenes=[s.to_scene() for s in found], kind="radar", max_cloud=max_cloud)
     end = date.today()
     out = scenes_between(area, end - timedelta(days=_parse_last(last)), end, max_cloud)
     return SceneList(scenes=out, kind="optical", max_cloud=max_cloud)
@@ -206,8 +222,8 @@ def _find_group(area: Area, scene: Scene) -> es.Group:
 
 
 def load(area: Area, scene: Scene) -> LayerRef:
-    if scene.kind == "radar":
-        raise _radar_error()
+    if _is_radar(scene):
+        return _load_radar(area, scene)
     g = _find_group(area, scene)
     res = es.choose_resolution(area, 10)
     gbox = es.geobox(area, res)
@@ -258,6 +274,8 @@ def _get(layer_id: str) -> _Layer:
 
 def index(layer: LayerRef, measure: Measure) -> LayerRef:
     src = _get(layer.id)
+    if src.radar is not None:
+        return _index_radar(src, measure)
     if measure not in INDICES:  # roughness
         raise WrongSceneKind(
             f"{measure} needs a radar scene, got optical.", 'Use scenes(area, kind="radar").'
@@ -304,9 +322,12 @@ def index(layer: LayerRef, measure: Measure) -> LayerRef:
 def measure(layer: LayerRef) -> Stats:
     src = _get(layer.id)
     if src.measure is None or src.values is None:
+        first = RADAR_MEASURE if src.radar is not None else "greenness"
         raise NoClearScenes(
-            "This layer has raw bands, not a measure.", 'Call index(layer, "greenness") first.'
+            "This layer has raw bands, not a measure.", f'Call index(layer, "{first}") first.'
         )
+    if src.radar is not None:
+        return _radar_stats(src, src.values)
     vals = src.values[np.isfinite(src.values)]
     if vals.size == 0:
         raise NoClearScenes(
@@ -331,8 +352,8 @@ _measure_stats = measure  # `series` / `compare` take a parameter called `measur
 
 def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -> Series:
     """One clearest scene per period (B11.3: one search, SCL scans then band reads in parallel)."""
-    if measure not in INDICES:
-        raise _radar_error()
+    if measure == RADAR_MEASURE:
+        return _series_radar(area, years, every)
     today = date.today()
     periods = _periods(today, years, every)
     name, a_band, b_band = INDICES[measure]
@@ -385,8 +406,8 @@ def series(area: Area, measure: Measure, years: int = 5, every: str = "month") -
 
 def compare(area: Area, measure: Measure, before: date, after: date) -> Comparison:
     """Clearest scene near each date, both read at 10 m on one grid, plus changed patches."""
-    if measure not in INDICES:
-        raise _radar_error()
+    if measure == RADAR_MEASURE:
+        return _compare_radar(area, before, after)
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="compare") as pool:
         s_before, s_after = pool.map(lambda d: _scene_near(area, d), (before, after))
         if s_before.id == s_after.id:
@@ -424,9 +445,12 @@ def layer_pixels(layer_id: str) -> tuple[np.ndarray, tuple[float, float, float, 
     """2-D float array (NaN = masked) of the layer's measure, and its WGS84 bounds."""
     src = _get(layer_id)
     if src.values is None:
+        first = RADAR_MEASURE if src.radar is not None else "greenness"
         raise NoClearScenes(
-            "Raw band layers can't be rendered yet.", 'Call index(layer, "greenness") first.'
+            "Raw band layers can't be rendered yet.", f'Call index(layer, "{first}") first.'
         )
+    if src.radar is not None:
+        return src.values, ps.grid_bounds(src.area, src.values.shape, src.transform)
     return src.values, es.wgs84_bounds(src.gbox)
 
 
@@ -441,7 +465,10 @@ def _recent_counts(area: Area) -> tuple[int, int]:
 
 
 def _describe_warnings(
-    area: Area, land_cover: dict[str, float], counts: tuple[int, int] | None
+    area: Area,
+    land_cover: dict[str, float],
+    counts: tuple[int, int] | None,
+    radar: int | None = None,
 ) -> list[str]:
     out = []
     if area.pixels(10) < settings.MIN_PIXELS_10M:
@@ -466,12 +493,17 @@ def _describe_warnings(
     if counts is None:
         return out
     optical, clear = counts
+    passes = f"{radar} Sentinel-1 radar passes in that window, " if radar else ""
     if optical == 0:
-        out.append(f"no Sentinel-2 scenes over the area in the last {days} days")
+        out.append(
+            f"no Sentinel-2 scenes over the area in the last {days} days; {passes}"
+            'radar sees through cloud: scenes(area, kind="radar") with measure "roughness"'
+        )
     elif clear == 0:
         out.append(
             f"0 of {optical} Sentinel-2 scenes in the last {days} days are clear over the area "
-            "(cloud): use a longer window; radar (Sentinel-1) is not wired yet"
+            f"(cloud): use a longer window, or radar ({passes}sees through cloud): "
+            'scenes(area, kind="radar") with measure "roughness"'
         )
     return out
 
@@ -710,3 +742,307 @@ def change_patches(
             )
         )
     return patches, round(sum(ha for ha, _ in found), 2)
+
+
+# --- M9b: Sentinel-1 radar (roughness = mean VV backscatter, dB) ---------------------------------
+
+
+def _is_radar(scene: Scene) -> bool:
+    return scene.kind == "radar" or scene.provider == ps.S1_PROVIDER
+
+
+def radar_scenes(area: Area, start: date, end: date) -> list[ps.RadarScene]:
+    """Sentinel-1 passes over the area in [start, end], newest first.
+
+    Windows longer than S1_SEARCH_CHUNK_DAYS are searched in parallel chunks: one STAC search
+    returns at most 500 items, and a multi-year window over 2+ tracks has more slices than that.
+    """
+    chunks: list[tuple[date, date]] = []
+    s = start
+    while s <= end:
+        e = min(s + timedelta(days=settings.S1_SEARCH_CHUNK_DAYS - 1), end)
+        chunks.append((s, e))
+        s = e + timedelta(days=1)
+    if len(chunks) <= 1:
+        return ps.search_s1(area, start, end)
+    with ThreadPoolExecutor(max_workers=min(len(chunks), 8), thread_name_prefix="s1search") as p:
+        parts = list(p.map(lambda c: ps.search_s1(area, *c), chunks))
+    seen: dict[str, ps.RadarScene] = {}
+    for part in parts:
+        for sc in part:
+            seen.setdefault(sc.id, sc)
+    return sorted(seen.values(), key=lambda sc: (sc.date, sc.id), reverse=True)
+
+
+def _recent_radar(area: Area) -> int:
+    end = date.today()
+    return len(ps.search_s1(area, end - timedelta(days=settings.DESCRIBE_LAST_DAYS), end))
+
+
+def _radar_layer(
+    area: Area, rs: ps.RadarScene, db: np.ndarray, tr: Any, measure: Measure | None = None
+) -> tuple[str, _Layer]:
+    """Register a radar layer: same record as optical, items [] / tiles {} / cloud 0."""
+    from odc.geo.geobox import GeoBox
+
+    layer = _Layer(
+        area=area,
+        scene=rs.to_scene(),
+        items=[],
+        gbox=GeoBox(db.shape, tr, f"EPSG:{area.utm_epsg()}"),
+        resolution_m=float(abs(tr.a)),
+        inside=ps._polygon_mask(area, db.shape, tr),
+        valid=np.isfinite(db),
+        cloud=0.0,
+        tiles={},
+        measure=measure,
+        values=db.astype(np.float32) if measure else None,
+        radar=rs,
+        transform=tr,
+        raw_db=db,
+    )
+    lid = _new_layer_id()
+    with _lock:
+        _layers[lid] = layer
+    return lid, layer
+
+
+def _radar_stats(layer: _Layer, db: np.ndarray) -> Stats:
+    """roughness_stats over this layer's pixels, with the layer's real grid resolution."""
+    st = ps.roughness_stats(layer.area, layer.radar, "vv", db=np.asarray(db, dtype="float64"))
+    prov = st.provenance.model_copy(update={"resolution_m": layer.resolution_m})
+    return st.model_copy(update={"provenance": prov})
+
+
+def _load_radar(area: Area, scene: Scene) -> LayerRef:
+    rs = ps.resolve_scene(area, scene)
+    db, tr = ps.read_s1(area, rs, "vv")
+    lid, layer = _radar_layer(area, rs, db, tr)
+    prov = _radar_stats(layer, db).provenance
+    return LayerRef(
+        id=lid,
+        scene=rs.id,
+        date=rs.date,
+        measure=None,
+        resolution_m=layer.resolution_m,
+        provenance=prov.model_copy(update={"method": f"Raw VV, {prov.method}"}),
+    )
+
+
+def _index_radar(src: _Layer, measure: Measure) -> LayerRef:
+    if measure != RADAR_MEASURE:
+        raise WrongSceneKind(
+            f"{measure} needs an optical scene, got radar.",
+            'Use scenes(area, kind="optical") for greenness / moisture / water / bare / burn; '
+            'a radar layer only gives index(layer, "roughness").',
+        )
+    assert src.radar is not None and src.raw_db is not None
+    lid, new = _radar_layer(src.area, src.radar, src.raw_db, src.transform, RADAR_MEASURE)
+    return LayerRef(
+        id=lid,
+        scene=new.scene.id,
+        date=new.scene.date,
+        measure=RADAR_MEASURE,
+        resolution_m=new.resolution_m,
+        provenance=_radar_stats(new, src.raw_db).provenance,
+    )
+
+
+def _radar_mean(area: Area, rs: ps.RadarScene, res: float) -> tuple[float, int] | None:
+    """(mean VV dB, valid px) of one pass, or None if it fails or covers too little of the area."""
+    try:
+        db, tr = ps.read_s1(area, rs, "vv", resolution_m=res)
+    except Exception:  # noqa: BLE001 — one failed pass only leaves its period empty
+        return None
+    ok = np.isfinite(db)
+    n, inside = int(ok.sum()), int(ps._polygon_mask(area, db.shape, tr).sum())
+    if n < settings.MIN_CLEAN_PX or (inside and n / inside < settings.S1_MIN_COVERAGE):
+        return None
+    return float(db[ok].mean()), n
+
+
+def _main_track(scenes: list[ps.RadarScene], periods: list[tuple[date, date]]) -> int | None:
+    """The relative orbit that covers the most periods (ties: more passes, lower number)."""
+    cover: dict[int | None, set[int]] = {}
+    passes: dict[int | None, int] = {}
+    for sc in scenes:
+        passes[sc.relative_orbit] = passes.get(sc.relative_orbit, 0) + 1
+        for i, (a, b) in enumerate(periods):
+            if a <= sc.date <= b:
+                cover.setdefault(sc.relative_orbit, set()).add(i)
+                break
+    if not cover:
+        return None
+    return max(cover, key=lambda r: (len(cover[r]), passes[r], -(r or 0)))
+
+
+def _series_radar(area: Area, years: int, every: str) -> Series:
+    """One pass per period: one orbit direction for the whole series, one track preferred."""
+    today = date.today()
+    periods = _periods(today, years, every)
+    found = radar_scenes(area, periods[0][0], periods[-1][1])
+    if not found:
+        raise NoClearScenes(
+            f"No Sentinel-1 radar passes over this area in the last {years} year(s).",
+            'Radar coverage has gaps in some regions; use an optical measure like "greenness".',
+        )
+    direction = ps.same_orbit(found)
+    state = direction[0].orbit_state
+    track = _main_track(direction, periods)
+    # Candidates per period: main track first, then nearest to mid-period.
+    cands: list[list[ps.RadarScene]] = []
+    for a, b in periods:
+        mid = a + (b - a) / 2
+        here = [sc for sc in direction if a <= sc.date <= b]
+        here.sort(key=lambda sc: (sc.relative_orbit != track, abs((sc.date - mid).days), sc.id))
+        cands.append(here)
+    res = float(settings.S1_SERIES_RESOLUTION_M)
+    chosen: dict[int, tuple[ps.RadarScene, float, int]] = {}
+    deadline = time.monotonic() + settings.S1_SERIES_DEADLINE_S
+    for k in range(settings.S1_SERIES_TRIES):
+        jobs = [(i, c[k]) for i, c in enumerate(cands) if i not in chosen and len(c) > k]
+        left = deadline - time.monotonic()
+        if not jobs or left <= 0:
+            break
+        pool = ThreadPoolExecutor(max_workers=settings.S1_SERIES_THREADS)
+        futs = {pool.submit(_radar_mean, area, sc, res): (i, sc) for i, sc in jobs}
+        try:
+            for f in as_completed(futs, timeout=left):
+                if (r := f.result()) is not None:
+                    i, sc = futs[f]
+                    chosen[i] = (sc, *r)
+        except FuturesTimeout:
+            pass  # slow reads past the deadline: those periods stay empty (provenance counts)
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+    if not chosen:
+        raise NoClearScenes(
+            f"0 of {len(periods)} periods have a usable Sentinel-1 pass over this area.",
+            "Passes may only clip the area's edge; try a larger area or an optical measure.",
+        )
+    picks = [chosen[i] for i in sorted(chosen)]
+    points = [
+        SeriesPoint(date=sc.date, value=round(v, 2), scene=sc.id, clean_px=n) for sc, v, n in picks
+    ]
+    on_track = sum(sc.relative_orbit == track for sc, _, _ in picks)
+    track_txt = (
+        f"relative orbit {track}"
+        if on_track == len(picks)
+        else f"relative orbit {track} for {on_track} of {len(picks)} points, other {state} "
+        "tracks for the rest"
+    )
+    cutoff = today - timedelta(days=365)
+    prov = Provenance(
+        provider=ps.S1_PROVIDER,
+        satellite="Sentinel-1",
+        scene=f"{len(points)} scenes",
+        date=points[-1].date,
+        cloud_over_area=0.0,
+        resolution_m=res,
+        method=(
+            f"VV dB, {state} orbit only ({track_txt}): mean VV backscatter (dB), RTC gamma0, "
+            f"3x3 speckle filter, one pass per {every} nearest mid-{every}, {res:g} m; "
+            f"{len(points)} of {len(periods)} {every}s had a pass; normal band from scenes "
+            f"before {cutoff}"
+        ),
+    )
+    return Series(
+        measure=RADAR_MEASURE, points=points, band=normal_band(points, cutoff), provenance=prov
+    )
+
+
+def radar_pair(
+    near_before: list[ps.RadarScene], near_after: list[ps.RadarScene], before: date, after: date
+) -> tuple[ps.RadarScene, ps.RadarScene] | None:
+    """The closest (before, after) passes of the SAME orbit direction, same track preferred.
+
+    Never pairs ascending with descending (several dB apart from viewing geometry alone).
+    """
+
+    def best(pool_b: list[ps.RadarScene], pool_a: list[ps.RadarScene]):
+        out = None
+        for sb in pool_b:
+            for sa in pool_a:
+                if sa.date <= sb.date:
+                    continue
+                key = (abs((sb.date - before).days) + abs((sa.date - after).days), sb.id, sa.id)
+                if out is None or key < out[0]:
+                    out = (key, sb, sa)
+        return out
+
+    same_track, same_dir = [], []
+    for state in sorted({sc.orbit_state for sc in near_before}):
+        b_dir = [sc for sc in near_before if sc.orbit_state == state]
+        a_dir = [sc for sc in near_after if sc.orbit_state == state]
+        if (hit := best(b_dir, a_dir)) is not None:
+            same_dir.append(hit)
+        for rel in {sc.relative_orbit for sc in b_dir}:
+            hit = best(
+                [sc for sc in b_dir if sc.relative_orbit == rel],
+                [sc for sc in a_dir if sc.relative_orbit == rel],
+            )
+            if hit is not None:
+                same_track.append(hit)
+    pick = min(same_track or same_dir, default=None, key=lambda h: h[0])
+    return None if pick is None else (pick[1], pick[2])
+
+
+def _compare_radar(area: Area, before: date, after: date) -> Comparison:
+    w = timedelta(days=settings.S1_COMPARE_WINDOW_DAYS)
+    today = date.today()
+    if after - w > today:
+        raise EarthError(f"{after} is in the future.", "Use dates up to today.")
+    windows = [(d - w, min(d + w, today)) for d in (before, after)]
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="compare-s1") as pool:
+        near_b, near_a = pool.map(lambda win: ps.search_s1(area, *win), windows)
+    pair = radar_pair(near_b, near_a, before, after)
+    if pair is None:
+        dirs_b = ", ".join(sorted({sc.orbit_state for sc in near_b})) or "none"
+        dirs_a = ", ".join(sorted({sc.orbit_state for sc in near_a})) or "none"
+        raise EarthError(
+            f"No Sentinel-1 passes of the same orbit direction within ±{w.days} days of both "
+            f"{before} ({len(near_b)} passes: {dirs_b}) and {after} ({len(near_a)} passes: "
+            f"{dirs_a}).",
+            'Pick other dates from scenes(area, kind="radar", last="1y") with the same orbit '
+            "direction, or compare an optical measure.",
+        )
+    sb, sa = pair
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="compare-s1") as pool:
+        l_before, l_after = pool.map(
+            lambda sc: index(load(area, sc.to_scene()), RADAR_MEASURE), (sb, sa)
+        )
+    lb, la = _get(l_before.id), _get(l_after.id)
+    assert lb.values is not None and la.values is not None
+    if lb.values.shape != la.values.shape:
+        raise EarthError(
+            "The two radar passes came back on different grids.",
+            "Retry; if it persists, pick other dates.",
+        )
+    st_before, st_after = _radar_stats(lb, lb.values), _radar_stats(la, la.values)
+    delta = round(st_after.mean - st_before.mean, 2)
+    patches, changed_ha = change_patches(
+        la.values - lb.values, delta, settings.S1_CHANGE_THRESHOLD_DB, la.gbox
+    )
+    track = (
+        f"same relative orbit {sa.relative_orbit}"
+        if sa.relative_orbit == sb.relative_orbit
+        else f"relative orbits {sb.relative_orbit} → {sa.relative_orbit}"
+    )
+    prov = st_after.provenance.model_copy(
+        update={
+            "method": (
+                f"{st_after.provenance.method}; before = {sb.id}, same {sa.orbit_state} orbit, "
+                f"{track}; changed patches where VV moved ≥ "
+                f"{settings.S1_CHANGE_THRESHOLD_DB:g} dB"
+            )
+        }
+    )
+    return Comparison(
+        measure=RADAR_MEASURE,
+        before=st_before,
+        after=st_after,
+        delta=delta,
+        changed_ha=min(changed_ha, round(area.area_ha, 2)),
+        patches=patches,
+        provenance=prov,
+    )

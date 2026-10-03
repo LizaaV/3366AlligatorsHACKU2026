@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 
 import numpy as np
@@ -177,6 +177,146 @@ def test_read_timeout_becomes_hinted_error(monkeypatch):
     assert "try again" in (e.value.hint or "").lower()
 
 
+# --- offline: radar wired into earth.real (scenes / load / index / measure / series / compare) ----
+
+
+def test_radar_pair_never_mixes_directions_and_prefers_one_track():
+    from earth import real
+
+    near_b = [
+        _scene(date(2026, 3, 1), "descending", 18),  # closest to `before`, wrong direction later
+        _scene(date(2026, 3, 3)),  # ascending R011
+        _scene(date(2026, 3, 2), "ascending", 113),
+    ]
+    near_a = [_scene(date(2026, 9, 28)), _scene(date(2026, 9, 27), "ascending", 113)]
+    sb, sa = real.radar_pair(near_b, near_a, date(2026, 3, 1), date(2026, 9, 28))
+    assert sb.orbit_state == sa.orbit_state == "ascending"
+    assert sb.relative_orbit == sa.relative_orbit
+    # only the opposite direction after: no pair at all
+    only_des = [_scene(date(2026, 9, 28), "descending", 18)]
+    assert (
+        real.radar_pair([_scene(date(2026, 3, 3))], only_des, date(2026, 3, 1), date(2026, 9, 28))
+        is None
+    )
+    # same direction, different tracks: allowed when no same-track pair exists
+    sb, sa = real.radar_pair(
+        [_scene(date(2026, 3, 3))], [_scene(date(2026, 9, 27), "ascending", 113)],
+        date(2026, 3, 1), date(2026, 9, 28),
+    )  # fmt: skip
+    assert (sb.relative_orbit, sa.relative_orbit) == (11, 113)
+
+
+_SMALL = Area.from_point(22.5340, 114.0906, radius_m=100)
+
+
+def _fake_radar(monkeypatch, scenes: list, db_for):
+    """search_s1 → `scenes` (inside the window); read_s1 → db_for(scene) on a fixed 40×40 grid."""
+    from pyproj import Transformer
+
+    cx, cy = Transformer.from_crs(
+        "EPSG:4326", f"EPSG:{_SMALL.utm_epsg()}", always_xy=True
+    ).transform(114.0906, 22.5340)
+    tr = Affine(10, 0, cx - 200, 0, -10, cy + 200)
+    mask = P._polygon_mask(_SMALL, (40, 40), tr)
+    for s in scenes:
+        P._REGISTRY[s.id] = s
+
+    def search(area, start, end):
+        return sorted(
+            (s for s in scenes if start <= s.date <= end), key=lambda s: s.date, reverse=True
+        )
+
+    def read(area, scene, pol="vv", resolution_m=10, smooth=True):
+        sc = P.resolve_scene(area, scene)
+        return np.where(mask, db_for(sc), np.nan), tr
+
+    monkeypatch.setattr(P, "search_s1", search)
+    monkeypatch.setattr(P, "read_s1", read)
+    return mask
+
+
+def test_real_radar_scene_load_index_measure_render(monkeypatch):
+    from earth import real
+
+    today = date.today()
+    sc = _scene(today)
+    _fake_radar(monkeypatch, [sc], lambda s: -11.5)
+    sl = real.scenes(_SMALL, last="60d", kind="radar")
+    assert sl.kind == "radar" and [s.id for s in sl.scenes] == [sc.id]
+    assert sl.latest_clear().provider == P.S1_PROVIDER and sl.latest_clear().cloud_over_area == 0
+    raw = real.load(_SMALL, sl.latest_clear())
+    assert raw.measure is None and raw.provenance.provider == P.S1_PROVIDER
+    with pytest.raises(earth.WrongSceneKind) as e:
+        real.index(raw, "greenness")
+    assert "needs an optical scene" in e.value.message and 'kind="optical"' in e.value.hint
+    with pytest.raises(earth.NoClearScenes) as e:
+        real.measure(raw)
+    assert "roughness" in e.value.hint
+    r = real.index(raw, "roughness")
+    st = real.measure(r)
+    assert st.mean == pytest.approx(-11.5) and st.cloud == 0.0 and st.clean_px > 200
+    assert "VV" in st.provenance.method and "ascending orbit" in st.provenance.method
+    values, (w, s_, e_, n) = real.layer_pixels(r.id)
+    assert values.shape == (40, 40) and w < 114.0906 < e_ and s_ < 22.534 < n
+    # the M1 record fields are still there for other readers of real._layers
+    rec = real._layers[r.id]
+    assert rec.items == [] and rec.tiles == {} and rec.gbox.shape == (40, 40)
+
+
+def test_real_radar_compare_same_orbit_and_3db_patches(monkeypatch):
+    from earth import real
+
+    b, a = date(2026, 3, 1), date(2026, 9, 28)
+    s_before, s_after = _scene(date(2026, 3, 3)), _scene(date(2026, 9, 26))
+    decoy = _scene(date(2026, 9, 28), "descending", 18)  # closer to `after`, other direction
+    after_db = np.full((40, 40), -8.0)
+    after_db[5:35, 5:20] = -14.0  # 6 dB darker (flooded) over the west half
+
+    _fake_radar(
+        monkeypatch, [s_before, s_after, decoy], lambda s: -8.0 if s is s_before else after_db
+    )
+    c = real.compare(_SMALL, "roughness", b, a)
+    assert c.before.provenance.scene == s_before.id and c.after.provenance.scene == s_after.id
+    assert c.delta < -1 and c.patches and 0 < c.changed_ha <= _SMALL.area_ha
+    assert "same ascending orbit" in c.provenance.method and "3 dB" in c.provenance.method
+
+
+def test_real_radar_compare_without_same_direction_is_hinted_error(monkeypatch):
+    from earth import real
+
+    _fake_radar(
+        monkeypatch,
+        [_scene(date(2026, 3, 3)), _scene(date(2026, 9, 27), "descending", 18)],
+        lambda s: -9.0,
+    )
+    with pytest.raises(EarthError) as e:
+        real.compare(_SMALL, "roughness", date(2026, 3, 1), date(2026, 9, 28))
+    assert not isinstance(e.value, earth.NoClearScenes)
+    assert "same orbit direction" in e.value.message and 'kind="radar"' in e.value.hint
+
+
+def test_real_radar_series_uses_one_orbit_direction(monkeypatch):
+    from earth import real
+
+    today = date.today()
+    asc = [_scene(today - timedelta(days=12 * k)) for k in range(31)]  # ~1 year, R011
+    des = [_scene(today - timedelta(days=12 * k + 5), "descending", 18) for k in range(5)]
+    _fake_radar(monkeypatch, asc + des, lambda s: -10.0 if s.orbit_state == "ascending" else -2.0)
+    s = real.series(_SMALL, "roughness", years=1)
+    assert s.measure == "roughness" and len(s.points) >= 11
+    assert all(p.value == pytest.approx(-10.0) for p in s.points)  # never the descending passes
+    assert all("_asc_" in p.scene for p in s.points)
+    assert s.provenance.method.startswith("VV dB, ascending orbit")
+    assert s.provenance.provider == P.S1_PROVIDER
+
+
+def test_describe_warning_points_cloudy_places_to_radar():
+    from earth import real
+
+    out = real._describe_warnings(HOO_HOK_WAI, {}, (5, 0), 9)
+    assert any('kind="radar"' in w and "9 Sentinel-1" in w for w in out)
+
+
 # --- network ------------------------------------------------------------------------------------
 @network
 def test_hoo_hok_wai_radar_same_orbit():
@@ -217,3 +357,20 @@ def test_merauke_radar_scenes_exist_where_optical_is_cloudy():
     vb, va = P.roughness_stats(area, b_scene, "vh"), P.roughness_stats(area, a_scene, "vh")
     assert -20 < vb.mean < -8 and -20 < va.mean < -8
     assert vb.provenance.provider == "planetary_s1_rtc" and va.cloud == 0.0
+
+
+@network
+def test_public_api_radar_on_hoo_hok_wai(monkeypatch):
+    """scenes(kind="radar") → load → index → measure → render, and a same-orbit compare."""
+    monkeypatch.setenv("EARTH_IMPL", "real")
+    earth.set_run("t_radar_public")
+    area = HOO_HOK_WAI
+    sc = earth.scenes(area, last="60d", kind="radar").latest_clear()
+    r = earth.index(earth.load(area, sc), "roughness")
+    st = earth.measure(r)
+    assert -14 < st.mean < -9 and st.cloud == 0.0  # measured 2026-10-03: -11.64 dB on 28 Sep
+    png = earth.render(r)
+    assert png.measure == "roughness" and png.bounds[0] < 114.09 < png.bounds[2]
+    # Measured: -11.59 (17 Feb, R011) → -11.64 (28 Sep, R011): ponds stay dark water.
+    c = earth.compare(area, "roughness", date(2026, 2, 15), date(2026, 9, 28))
+    assert abs(c.delta) < 3 and "same ascending orbit" in c.provenance.method

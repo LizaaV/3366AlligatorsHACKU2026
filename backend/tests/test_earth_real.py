@@ -125,12 +125,6 @@ def test_no_boa_offset_on_earth_search():
     assert es.boa_offset(item) == 0
 
 
-def test_radar_is_not_available_yet_with_a_hint():
-    with pytest.raises(earth.EarthError) as e:
-        real.scenes(HOO_HOK_WAI, last="60d", kind="radar")
-    assert "M9b" in e.value.hint
-
-
 # --- network (real Sentinel-2) --------------------------------------------------------------------
 
 

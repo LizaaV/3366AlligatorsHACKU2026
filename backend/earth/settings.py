@@ -73,3 +73,14 @@ CHANGE_THRESHOLDS = {"greenness": 0.15, "water": 0.15, "burn": 0.15, "moisture":
 MIN_PATCH_HA = 0.1  # changed patches smaller than this are dropped as noise
 MAX_PATCHES = 20  # largest first; changed_ha still counts every patch >= MIN_PATCH_HA
 SEARCH_SETTLED_DAYS = 90  # STAC results for windows that ended this long ago are cached on disk
+
+# Radar in earth.real (M9b wiring): scenes / load / index / series / compare with kind="radar"
+S1_CHANGE_THRESHOLD_DB = 3.0  # HANDOFF B1.4: a > 3 dB VV change is material (changed patches)
+S1_COMPARE_WINDOW_DAYS = 30  # nearest same-orbit pass within ± this many days of each date
+S1_SERIES_RESOLUTION_M = 10  # = load / compare, so series points match measure() (dB means
+# shift ~0.5 dB brighter at 20 m: averaging in linear power before log)
+S1_SERIES_THREADS = 16  # parallel radar pixel reads in series (~10 s each cold, 48 in ~30 s)
+S1_SERIES_DEADLINE_S = 120  # series stops waiting for slow reads; those periods stay empty
+S1_SERIES_TRIES = 2  # passes tried per period before the period is left empty
+S1_MIN_COVERAGE = 0.5  # a pass must have valid pixels over at least this share of the area
+S1_SEARCH_CHUNK_DAYS = 366  # long windows are searched in chunks (max 500 STAC items per search)
