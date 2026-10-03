@@ -6,7 +6,7 @@
     "name": "Dry patch finder",
     "category": "agriculture",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -391,7 +391,7 @@
     "name": "Small-field stress (3 m)",
     "category": "agriculture",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -511,7 +511,7 @@
     "name": "Reservoir level tracker",
     "category": "water",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -871,7 +871,7 @@
     "name": "Deforestation alerts",
     "category": "forests",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -1231,7 +1231,7 @@
     "name": "Active fire map",
     "category": "disasters",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -1591,7 +1591,7 @@
     "name": "Land-use change",
     "category": "urban",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -2311,7 +2311,7 @@
     "name": "Air pollution (NO\u2082)",
     "category": "air",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },
@@ -2791,7 +2791,7 @@
     "name": "Crop insurance check",
     "category": "finance",
     "publisher": {
-      "name": "Groundtruth Labs",
+      "name": "Constellation",
       "official": true,
       "verified": true
     },

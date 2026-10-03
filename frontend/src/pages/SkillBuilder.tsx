@@ -192,7 +192,7 @@ export function SkillBuilder() {
                 <button key={k} role="radio" aria-checked={vis === k} className={vis === k ? 'on' : ''} onClick={() => setVis(k)}>{l}</button>
               ))}
             </div>
-            {vis === 'public' && <span className="tiny">Public skills show under Community with your name. Groundtruth does not validate them unless you apply for verification.</span>}
+            {vis === 'public' && <span className="tiny">Public skills show under Community with your name. Constellation does not validate them unless you apply for verification.</span>}
           </div>
           <div className="field">Pricing
             <div className="seg" role="radiogroup" aria-label="Pricing" style={{ alignSelf: 'flex-start' }}>

@@ -17,7 +17,7 @@ function WhatsAppSetup() {
       <div className="col" style={{ gap: 12 }}>
         <div className="row" style={{ gap: 8 }}><span className="dot" style={{ background: 'var(--green)' }} /><span style={{ font: '600 14px/1.4 var(--font)' }}>Connected to {wa.number}</span></div>
         <div className="sunk" style={{ padding: 12 }}>
-          <div className="caption muted">Save <span className="ink">{WA_NUMBER}</span> as “Groundtruth” and message it:</div>
+          <div className="caption muted">Save <span className="ink">{WA_NUMBER}</span> as “Constellation” and message it:</div>
           <div className="col" style={{ gap: 6, marginTop: 8 }}>
             {['“How is North Pivot?”', '🎤 Voice note in any language', '📍 Send a location pin to add a place', '“Stop alerts for Lake Mead”'].map((x) => (
               <span key={x} style={{ alignSelf: 'flex-start', padding: '6px 10px', borderRadius: '10px 10px 10px 2px', background: '#0b3d2c', font: '500 13px/1.4 var(--font)' }}>{x}</span>

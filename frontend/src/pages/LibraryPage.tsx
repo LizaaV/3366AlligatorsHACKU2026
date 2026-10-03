@@ -106,9 +106,9 @@ function LibraryHome() {
         <>
           {showOfficial && (
             <Section
-              title="Official · by Groundtruth"
+              title="Official · by Constellation"
               badge={<span className="lib-badge official"><Ms n="verified" />Verified</span>}
-              line="Built and validated by Groundtruth. Accuracy tested on ground-truth plots."
+              line="Built and validated by Constellation. Accuracy tested on ground-truth plots."
               items={official}
               installed={installed}
               onOpen={(id) => go('library', id)}

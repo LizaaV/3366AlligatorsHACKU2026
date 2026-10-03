@@ -1,4 +1,6 @@
-# Groundtruth · Earth Agent (front-end)
+# Constellation · front-end
+
+*Connecting satellites to you.*
 
 React 18 + TypeScript + Vite implementation of `docs/design/Earth Agent.dc.html`, extended with the feature feedback from the other prototypes. All data and agent answers are scripted mocks (`src/data/`); real backend calls go in `src/api/` as endpoints land.
 

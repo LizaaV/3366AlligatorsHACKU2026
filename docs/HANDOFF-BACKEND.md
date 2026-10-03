@@ -1,4 +1,4 @@
-# HANDOFF: Earth Agent backend architecture
+# HANDOFF: Constellation backend architecture
 
 > **This is a handoff document.** It records every backend design decision made on Sat 3 Oct 2026 (HacKU 2026, Day 2), so a teammate or their coding agent can pick the work up without the original conversation.
 >
@@ -23,7 +23,7 @@ Sources of context that fed this design are listed in **B15**. Where this docume
 
 ## A1. What we are building, in one paragraph
 
-**Earth Agent** lets anyone pick any place on Earth and ask a plain-language question: "did a landslide happen on this slope after last week's rain?", "was this pond filled in?", "is this construction progressing?", "did the flood reach here?". It is **general purpose, not farm-specific**.
+**Constellation** lets anyone pick any place on Earth and ask a plain-language question: "did a landslide happen on this slope after last week's rain?", "was this pond filled in?", "is this construction progressing?", "did the flood reach here?". It is **general purpose, not farm-specific**.
 
 An AI agent reasons in a **fixed, visible, step-by-step process** grounded in a **curated knowledge base**. It **writes and runs small programs** in a sandbox against **our own satellite library, `earth`**, which reads free satellite data. It then answers with:
 
