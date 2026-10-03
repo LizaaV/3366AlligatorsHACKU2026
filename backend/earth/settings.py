@@ -49,3 +49,9 @@ MIN_CLEAN_PX = 10  # a scene needs at least this many clean pixels over the area
 READ_THREADS = 8
 S2_HTTP_TIMEOUT_S = 20  # per HTTP request (HANDOFF B1.6)
 SEARCH_TTL_S = 600  # in-memory STAC search cache
+
+# Radar fallback (M9b): Sentinel-1 RTC on Planetary Computer
+S1_COLLECTION = "sentinel-1-rtc"
+S1_SEARCH_TTL_S = 6 * 3600  # new passes arrive daily; re-search a cached window after this long
+S1_READ_TIMEOUT_S = 60  # per pixel read (cold COG reads over a ~25 km² area)
+S1_MAX_READ_PIXELS = 2_000_000
