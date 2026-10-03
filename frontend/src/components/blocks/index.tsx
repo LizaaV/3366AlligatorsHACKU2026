@@ -22,10 +22,13 @@ import type { AnswerBlock } from '../../model';
 export function AnswerBlocks({
   blocks,
   onPickScene,
+  onShowOnMap,
 }: {
   blocks: AnswerBlock[];
   /** Move the shared time cursor; wired by whoever owns the map. */
   onPickScene?: (scene: string) => void;
+  /** Put a block's rendered layer on the map (by measure / layer key); only where a map exists. */
+  onShowOnMap?: (layerKey: string) => void;
 }) {
   if (!blocks.length) return null;
   // `primary` first, otherwise server order — which is the order they were produced in.
@@ -33,16 +36,16 @@ export function AnswerBlocks({
   return (
     <div className="col" style={{ gap: 10 }}>
       {ordered.map((block) => (
-        <Block key={block.id} block={block} onPickScene={onPickScene} />
+        <Block key={block.id} block={block} onPickScene={onPickScene} onShowOnMap={onShowOnMap} />
       ))}
     </div>
   );
 }
 
-function Block({ block, onPickScene }: { block: AnswerBlock; onPickScene?: (scene: string) => void }) {
+function Block({ block, onPickScene, onShowOnMap }: { block: AnswerBlock; onPickScene?: (scene: string) => void; onShowOnMap?: (layerKey: string) => void }) {
   switch (block.type) {
     case 'then_now':
-      return <ThenNowBlock block={block} />;
+      return <ThenNowBlock block={block} onShowOnMap={onShowOnMap} />;
     case 'timeline':
       return <TimelineBlock block={block} onPickScene={onPickScene} />;
     case 'scene_strip':

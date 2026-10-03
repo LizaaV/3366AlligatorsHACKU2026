@@ -242,6 +242,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    * No place is pre-selected: a plain visit lands on the globe hero, and general questions
    * work without a place. A place is chosen explicitly (selector, Places page) or by the URL.
    */
+  // Any deep link (another page, a place, a skill) leaves the opening screen.
+  useEffect(() => {
+    if (route.page !== 'ask' || Object.keys(route.query).length) setSplash(false);
+  }, [route]);
+
   useEffect(() => {
     if (route.page === 'ask' && route.query.place !== undefined) {
       setAskPlaceId(route.query.place === 'none' ? null : route.query.place);

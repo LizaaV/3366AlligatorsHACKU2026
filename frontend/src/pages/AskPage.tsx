@@ -14,6 +14,7 @@ import { sourceLabel } from '../data/presentation';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, circlePts, parseLocation, ptsToRing, thumb, type Pt } from '../lib/geo';
 import { useAskRun, type AskTurn } from '../ask/useAskRun';
 import { AnswerCard } from './AnswerCard';
+import { stagesFrom } from '../ask/stages';
 import { AnswerBlocks } from '../components/blocks';
 import { Splash } from '../components/Splash';
 import { BANDS, type Band } from '../lib/scenes';
@@ -39,7 +40,7 @@ function useViewport() {
 
 export function AskPage({ active }: { active: boolean }) {
   const store = useStore();
-  const { places, skills, askPlaceId, setAskPlace, route, go, open, notify, t, lang, watches, addPlace, category, mapLayers: catalogLayers, splash, setSplash } = store;
+  const { places, skills, askPlaceId, setAskPlace, route, go, open, notify, t, lang, watches, addPlace, mapLayers: catalogLayers, splash, setSplash } = store;
   const { W, H: winH } = useViewport();
   const mobile = W <= 760;
   // The opening screen takes the whole window: no nav bar, no tab bar.
@@ -248,7 +249,7 @@ export function AskPage({ active }: { active: boolean }) {
   useEffect(() => {
     const el = thread.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-  }, [turns, last?.steps.length]);
+  }, [turns.length, last?.steps.length, last?.blocks.length, last?.phase]);
 
   /** The `area` for a question about the pin, when no saved place is selected. */
   const spotOptions = () =>
@@ -296,7 +297,7 @@ export function AskPage({ active }: { active: boolean }) {
       const pid = placeId !== undefined ? placeId : askPlaceId;
       if (!pid) {
         setSheet(false);
-        setPop('place');
+        setPop('contours');
         notify('Pick a place to run this skill on', undefined, undefined, 'pentagon');
         return;
       }
@@ -613,35 +614,6 @@ export function AskPage({ active }: { active: boolean }) {
       {/* LEFT COLUMN: chat on top, place detail at the bottom */}
       <div style={{ position: 'absolute', left: mobile ? 16 : 20, top: mobile ? 12 : 20, bottom: mobile ? 12 : 24, width: chatW, display: 'flex', flexDirection: 'column', gap: 12, zIndex: 20, pointerEvents: 'none' }}>
         <div className="panel" style={{ flex: '0 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'visible', pointerEvents: 'auto' }}>
-          {/* place selector — selected place sits at the top of the chat */}
-          <div className="row" style={{ padding: '8px 8px 0 14px', gap: 8, position: 'relative' }}>
-            <span className="eyebrow">{t('chat.place')}</span>
-            <button onClick={() => setPop((p) => (p === 'place' ? null : 'place'))} className="row" style={{ gap: 6, padding: '4px 8px 4px 10px', borderRadius: 9999, background: place ? 'var(--s2)' : 'transparent', border: `1px ${place ? 'solid' : 'dashed'} var(--hair)`, font: '600 13px/1.38 var(--font)', minWidth: 0, maxWidth: '100%' }} aria-haspopup="menu" aria-expanded={pop === 'place'}>
-              {place ? <span className="dot" style={{ background: category(place.categoryKey).color }} /> : <Ms n="public" size={14} className="muted" />}
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place ? place.name : spot ? `Pin · ${spotName}` : t('chat.noPlace')}</span>
-              {place && <span className="tiny">{place.areaHa} ha</span>}
-              <Ms n="arrow_drop_down" size={18} className="muted" />
-            </button>
-            {pop === 'place' && (
-              <div className="menu" role="menu" style={{ left: 8, top: 40, width: Math.min(320, chatW - 16) }}>
-                <div className="menu-label eyebrow">Ask about</div>
-                <button className={`menu-item ${!place ? 'on' : ''}`} onClick={() => { setAskPlace(null); setPop(null); }}>
-                  <Ms n="public" /><span className="col grow"><span>No place</span><span className="tiny">General question — not tied to a place</span></span>
-                  {!place && <Ms n="check" size={18} />}
-                </button>
-                <div className="divider" style={{ margin: '6px 4px' }} />
-                {places.map((p) => (
-                  <button key={p.id} className={`menu-item ${p.id === askPlaceId ? 'on' : ''}`} onClick={() => { setAskPlace(p.id); setPop(null); }}>
-                    <span className="dot" style={{ background: category(p.categoryKey).color, width: 8, height: 8 }} />
-                    <span className="col grow"><span>{p.name}</span><span className="tiny">{p.project} · {p.areaHa} ha</span></span>
-                    {p.id === askPlaceId && <Ms n="check" size={18} />}
-                  </button>
-                ))}
-                <div className="divider" style={{ margin: '6px 4px' }} />
-                <button className="menu-item" onClick={() => { setPop(null); open({ kind: 'addPlace' }); }}><Ms n="add_location_alt" />{t('cta.addPlace')}</button>
-              </div>
-            )}
-          </div>
           <div className="row" style={{ gap: 12, padding: '8px 8px 8px 14px', flex: 'none' }}>
             <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #fff', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} /></div>
             <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder={place ? `Ask about ${place.name}…` : spot ? `Ask about ${spotName}…` : t('chat.placeholder')} aria-label="Ask a question" style={{ flex: 1, minWidth: 0, height: 36, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 15px/1.5 var(--font)' }} />
@@ -669,6 +641,7 @@ export function AskPage({ active }: { active: boolean }) {
                   onRunSkill={(id) => runSkill(id)}
                   onAskFollowup={(q) => ask(q)}
                   onPickScene={pickScene}
+                  onShowOnMap={(key) => { setOverlayId(key); setOverlayWhen('after'); setMode('map'); }}
                 />
               ))}
               {last?.phase === 'done' && (
@@ -715,7 +688,7 @@ export function AskPage({ active }: { active: boolean }) {
 
         {/* PLACE DETAIL — pinned at the bottom of the ask page */}
         {place && isMap && !drawing && (
-          <div className="panel fade-up" style={{ flex: 'none', pointerEvents: 'auto', overflow: 'hidden' }}>
+          <div className="panel fade-up" style={{ flex: 'none', pointerEvents: 'auto', overflow: 'hidden', position: 'relative' }}>
             <button onClick={() => setPlaceOpen((o) => !o)} className="row" style={{ width: '100%', gap: 12, padding: 10, background: 'transparent', border: 0, textAlign: 'left' }} aria-expanded={placeOpen}>
               <div style={{ width: 44, height: 44, borderRadius: 8, flex: 'none', background: `#000 url(${thumb(place.lat, place.lon, Math.min(place.zoom, 16))}) center/cover`, border: '1px solid var(--hair-soft)' }} />
               <div className="col grow">
@@ -724,6 +697,7 @@ export function AskPage({ active }: { active: boolean }) {
               </div>
               <Ms n={placeOpen ? 'expand_more' : 'expand_less'} size={20} className="muted" />
             </button>
+            <IconBtn icon="close" className="sm" style={{ position: 'absolute', top: 8, right: 40 }} onClick={() => setAskPlace(null)} aria-label="Stop asking about this place" title="General question instead" />
             {placeOpen && (
               <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div className="stats" style={{ gridTemplateColumns: '1fr 1fr' }}>
@@ -902,6 +876,7 @@ function TurnView({
   onRunSkill,
   onAskFollowup,
   onPickScene,
+  onShowOnMap,
 }: {
   turn: AskTurn;
   isLast: boolean;
@@ -915,20 +890,25 @@ function TurnView({
   onAskFollowup: (q: string) => void;
   /** Move the map's pass cursor to the scene a timeline point names. */
   onPickScene: (scene: string) => void;
+  /** Put a block's before/after layer on the map. */
+  onShowOnMap: (layerKey: string) => void;
 }) {
   const place = places.find((x) => x.id === turn.placeId);
   const steps = turn.steps;
-  // The step the server is on: the first one that has started but not finished.
-  const current = steps.find((s) => !s.done) ?? steps[steps.length - 1];
+  const running = turn.phase === 'running';
+  // A few plain stages instead of every tool call; the raw list is under "Technical details".
+  const stages = stagesFrom(steps, running);
+  const now = [...stages].reverse().find((st) => !st.done);
+  const [raw, setRaw] = useState(false);
 
   const label =
     turn.phase === 'clarify'
       ? 'Waiting for your answers'
       : turn.phase === 'error'
         ? 'Could not complete this'
-        : turn.phase === 'running'
-          ? `${current?.tool ?? 'Working'}…`
-          : `Analyzed in ${steps.length} steps · ${((turn.durationMs ?? 0) / 1000).toFixed(1)}s`;
+        : running
+          ? `${now?.label ?? 'Getting started'}…`
+          : `Answered in ${Math.max(1, Math.round((turn.durationMs ?? 0) / 1000))} s`;
 
   return (
     <div className="col" style={{ gap: 14 }}>
@@ -963,37 +943,35 @@ function TurnView({
 
         {turn.open && (
           <div className="col" style={{ marginTop: 10 }}>
-            {steps.map((st) => {
-              const active = turn.phase === 'running' && !st.done;
+            {stages.map((st) => {
+              const active = running && !st.done;
               return (
-                <div key={st.index} className="row" style={{ gap: 10, alignItems: 'stretch', animation: 'fadeUp .35s ease both' }}>
-                  <div className="col" style={{ alignItems: 'center', width: 18, flex: 'none' }}>
-                    {active && <span className="spinner" style={{ marginTop: 4 }} />}
-                    {st.done && (
-                      <Ms
-                        n={st.error ? 'error_outline' : 'check_circle'}
-                        size={18}
-                        className="muted"
-                        style={{ marginTop: 2, color: st.error ? 'var(--amber, currentColor)' : undefined }}
-                      />
-                    )}
-                    <div style={{ flex: 1, width: 1, background: 'var(--hair)', margin: '4px 0', minHeight: 10 }} />
+                <div key={st.key} className="row" style={{ gap: 10, alignItems: 'flex-start', padding: '4px 0', animation: 'fadeUp .3s ease both' }}>
+                  <div style={{ width: 18, flex: 'none', display: 'flex', justifyContent: 'center', paddingTop: 1 }}>
+                    {active ? <span className="spinner" /> : <Ms n={st.error ? 'error_outline' : st.icon} size={17} className="muted" />}
                   </div>
-                  <div className="grow" style={{ paddingBottom: 12 }}>
-                    {active ? (
-                      <div className="shimmer-text" style={{ font: '600 14px/1.5 var(--font)' }}>{st.tool}</div>
-                    ) : (
-                      <div style={{ font: '600 14px/1.5 var(--font)' }}>{st.tool}</div>
-                    )}
-                    <div className="caption" style={{ marginTop: 2 }}>
-                      <span className="muted">{st.title}:</span> {st.desc}
-                    </div>
-                    {st.done && st.result && <div className="tag" style={{ marginTop: 6 }}>{st.result}</div>}
-                    {st.error && <div className="caption" style={{ marginTop: 6, color: 'var(--subtle)' }}>{st.error}</div>}
+                  <div className="col grow" style={{ minWidth: 0 }}>
+                    <span className={active ? 'shimmer-text' : undefined} style={{ font: '500 13px/1.45 var(--font)', color: active ? undefined : 'var(--ink, #fff)' }}>{st.label}</span>
+                    {st.detail && <span className="tiny muted">{st.detail}</span>}
                   </div>
                 </div>
               );
             })}
+            {!!steps.length && (
+              <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start', marginTop: 4, padding: '2px 0', color: 'var(--subtle)' }} onClick={() => setRaw((r) => !r)} aria-expanded={raw}>
+                <Ms n={raw ? 'expand_less' : 'code'} size={16} />Technical details · {steps.length} steps
+              </button>
+            )}
+            {raw && (
+              <div className="col" style={{ gap: 2, marginTop: 4, padding: 10, borderRadius: 8, background: 'var(--s1)', border: '1px solid var(--hair-soft)', maxHeight: 220, overflowY: 'auto' }}>
+                {steps.map((st) => (
+                  <div key={st.index} className="tiny" style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 8 }}>
+                    <code style={{ color: 'var(--muted)' }}>{st.tool}</code>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={st.result ?? st.error ?? st.title}>{st.error ?? st.result ?? (st.done ? st.title : `${st.title}…`)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* The agent asks for details itself now, rather than the frontend guessing which
                 questions to ask. Answers are prefilled from the place's memory where it has any. */}
@@ -1060,7 +1038,7 @@ function TurnView({
       {/* Rendered from the turn, not the answer, so each block appears the moment its
           `block_ready` event arrives rather than all at once when the run finishes. The answer
           carries the same objects, so a reloaded run shows exactly the same visuals. */}
-      <AnswerBlocks blocks={turn.blocks} onPickScene={onPickScene} />
+      <AnswerBlocks blocks={turn.blocks} onPickScene={onPickScene} onShowOnMap={onShowOnMap} />
 
       {turn.phase === 'error' && (
         <ErrorState
