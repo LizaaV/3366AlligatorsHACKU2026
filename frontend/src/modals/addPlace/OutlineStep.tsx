@@ -34,7 +34,7 @@ export function OutlineStep({ loc, draft, outline, onRelocate }: {
   onRelocate: (at: { lat: number; lon: number }) => void;
 }) {
   const {
-    shape, setShape, radius, setRadius, rw, setRw, rh, setRh, ha, detecting, detectError, retryDetect,
+    shape, setShape, radius, setRadius, rw, setRw, rh, setRh, ha, detectInfo, detecting, detectError, retryDetect,
     isEdited, resetEdits, commitDrawn, drawn,
   } = outline;
   const [tool, setTool] = useState<Tool>('edit');
@@ -97,6 +97,12 @@ export function OutlineStep({ loc, draft, outline, onRelocate }: {
           <span>Looking for a field boundary here…</span>
         </div>
       )}
+      {shape === 'detected' && detectInfo?.method === 'fallback_square' && !detecting && !detectError && (
+        <div className="row caption" style={{ gap: 8, alignItems: 'flex-start' }} role="status">
+          <Ms n="warning" size={16} style={{ color: 'var(--yellow)' }} />
+          <span><b>Rough square — no clear boundary found.</b> {detectInfo.note} Drag the points or pick another outline.</span>
+        </div>
+      )}
       {shape === 'detected' && detectError && !detecting && (
         <ErrorState error={detectError} onRetry={retryDetect} title="No boundary could be detected" compact />
       )}
@@ -149,7 +155,7 @@ export function OutlineStep({ loc, draft, outline, onRelocate }: {
       <div className="well row" style={{ padding: '10px 14px', gap: 10, alignItems: 'flex-start' }}>
         <Ms n="info" size={18} className="muted" style={{ marginTop: 1 }} />
         <div className="body-sm">
-          {shape === 'detected' && !isEdited
+          {shape === 'detected' && !isEdited && detectInfo?.method !== 'fallback_square'
             ? 'Auto-detected boundaries can be off by 10–20 m at field edges. Drag the points to correct them before running analyses.'
             : 'Satellite pixels are 10 m wide, so the outermost 10 m of any outline mixes with what is next to it.'}
           {ha < 1 && <span style={{ color: 'var(--yellow)' }}> Under 1 ha, free 10 m imagery gives fewer than 100 pixels — results will be less certain.</span>}

@@ -3,11 +3,11 @@ import { useStore } from '../state/store';
 // three.js is ~600 kB and only the landing globe needs it, so it is split out of the main
 // bundle and loaded when the globe first renders.
 const Globe = lazy(() => import('../components/Globe').then((m) => ({ default: m.Globe })));
-import { MapView, type MapLayers } from '../components/MapView';
+import { MapView } from '../components/MapView';
 import { Btn, IconBtn, Ms } from '../components/ui';
 import { api } from '../api';
 import type { MapLayer } from '../model';
-import { layerIdsFrom, passTimelineFrom } from '../model';
+import { passTimelineFrom } from '../model';
 import { DEFAULT_CENTER, DEFAULT_ZOOM } from '../lib/geo';
 import { useAskRun } from '../ask/useAskRun';
 import { Composer } from '../components/chat/Composer';
@@ -47,6 +47,8 @@ export function AskPage({ active }: { active: boolean }) {
   const [center, setCenter] = useState({ lat: place?.lat ?? DEFAULT_CENTER.lat, lon: place?.lon ?? DEFAULT_CENTER.lon });
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [layers, setLayers] = useState<MapLayer[]>([]);
+  /** The place outline is drawn locally, independent of the layer catalog. On by default. */
+  const [outlineOn, setOutlineOn] = useState(true);
   const [dateIdx, setDateIdx] = useState(0);
   const [q, setQ] = useState('');
   const [sidebar, setSidebar] = useState(false);
@@ -210,7 +212,6 @@ export function AskPage({ active }: { active: boolean }) {
    * Map choreography, keyed on a coarse stage rather than a step index — runs vary in how
    * many steps they take, so an index would mean nothing across two runs.
    */
-  const [pass, setPass] = useState<string | null>(null);
   useEffect(() => {
     if (stage === 'idle') return;
     if (stage === 'starting') {
@@ -224,24 +225,20 @@ export function AskPage({ active }: { active: boolean }) {
       if (p) flyTo(p);
     }
     if (stage === 'locating') return;
-    if (stage === 'routing') {
-      const skill = last?.skillId ? skills.find((x) => x.id === last.skillId) : undefined;
-      setPass(skill?.sat.split(' · ')[0] ?? 'Sentinel-2');
-      return;
-    }
-    if (stage === 'analysing') {
-      setPass(null);
-      setLayersOn(['ndvi']);
-      return;
-    }
     if (stage === 'done') {
-      setPass(null);
-      const ids = last ? layerIdsFrom(last.blocks) : [];
-      if (ids.length) setLayersOn(ids);
+      // Switch on the layers this run actually rendered, mapped onto the catalog ids.
+      const ids = new Set<string>();
+      for (const b of last?.blocks ?? []) {
+        if (b.type !== 'then_now' && b.type !== 'highlight') continue;
+        const refs = b.type === 'then_now' ? [b.after, b.before] : b.base ? [b.base] : [];
+        for (const r of refs) {
+          const id = catalogLayerFor(r.layer_id, b.measure, (x) => catalogIds.has(x));
+          if (id) ids.add(id);
+        }
+      }
+      if (ids.size) setLayersOn([...ids]);
       setDateIdx(Math.max(0, (timeline?.dates.length ?? 1) - 1));
-      return;
     }
-    if (stage === 'error') setPass(null);
     // `last` is intentionally not a dependency: the stage transition is the trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
@@ -362,8 +359,13 @@ export function AskPage({ active }: { active: boolean }) {
   /* ---------------- derived ---------------- */
 
   const on = (id: string) => { const l = layers.find((x) => x.id === id); return !!(l && l.on && l.ready); };
+  // The rail shows the local outline toggle first, then the catalog layers (minus the catalog's
+  // own `contour`, which the outline replaces).
+  const railLayers: MapLayer[] = [
+    ...(place ? [{ id: 'outline', name: 'Outline', source: 'You', color: '#ffffff', isAgentMade: false, on: outlineOn, ready: true } as MapLayer] : []),
+    ...layers.filter((l) => l.id !== 'contour'),
+  ];
   // Backend layer ids are measure names; the map overlays still use the index names.
-  const mapLayers: MapLayers = { contour: on('contour'), ndmi: on('ndmi') || on('moisture'), ndvi: on('ndvi') || on('greenness'), lst: on('lst') || on('heat'), dry: on('dry') || on('bare'), clouds: on('clouds') };
   const isMap = mode === 'map';
   const showHero = !turns.length && !loadingThread;
   const focusPt = place ?? spot;
@@ -396,16 +398,17 @@ export function AskPage({ active }: { active: boolean }) {
           onPickLocation={(p) => setGlobePick({ lat: p.lat, lon: p.lon })}
         />
       </Suspense>
-      {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} layers={mapLayers} dateIdx={dateIdx} pass={pass} timeline={timeline} raster={raster} />}
+      {isMap && <MapView W={W} H={H} cx={cx} cy={cy} center={center} zoom={zoom} place={place} outline={outlineOn} raster={raster} />}
 
       {/* LAYER RAIL (place view): right edge, under the zoom and globe buttons. */}
       {isMap && (
         <div style={{ position: 'absolute', right: 8 + rightPad, top: 0, width: 0, height: '100%', zIndex: 25 }}>
           <LayerRail
-            layers={layers}
+            layers={railLayers}
             side="right"
             top={170}
             onToggle={(id) => {
+              if (id === 'outline') return setOutlineOn((v) => !v);
               const l = layers.find((x) => x.id === id);
               if (l && !l.ready) return notify('Ask the agent about this place to generate this layer', undefined, undefined, 'info');
               setLayers((ls) => ls.map((x) => (x.id === id ? { ...x, on: !x.on } : x)));

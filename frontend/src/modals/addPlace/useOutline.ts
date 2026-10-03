@@ -34,6 +34,8 @@ export function useOutline({ loc, step, method }: { loc: Loc | null; step: numbe
    */
   const [zoom, setZoom] = useState<number | null>(null);
   const [detected, setDetected] = useState<Pt[] | null>(null);
+  /** How the detected outline was made; `fallback_square` means no clear boundary was found. */
+  const [detectInfo, setDetectInfo] = useState<{ method: string; note: string } | null>(null);
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState<ApiError | null>(null);
 
@@ -59,9 +61,14 @@ export function useOutline({ loc, step, method }: { loc: Loc | null; step: numbe
     const ac = new AbortController();
     setDetecting(true);
     setDetectError(null);
+    setDetectInfo(null);
     api.places
       .detectBoundary(loc.lat, loc.lon, ac.signal)
-      .then((res) => live && setDetected(ringToPts(res.geometry.coordinates[0] ?? [], { lat: loc.lat, lon: loc.lon })))
+      .then((res) => {
+        if (!live) return;
+        setDetectInfo({ method: res.method, note: res.note });
+        setDetected(ringToPts(res.geometry.coordinates[0] ?? [], { lat: loc.lat, lon: loc.lon }));
+      })
       .catch((err) => live && setDetectError(toApiError(err)))
       .finally(() => live && setDetecting(false));
     return () => {
@@ -154,7 +161,7 @@ export function useOutline({ loc, step, method }: { loc: Loc | null; step: numbe
   /** How the chosen outline should be described on the saved place. */
   const baseLabel =
     shape === 'detected'
-      ? 'AI-detected boundary'
+      ? detectInfo?.method === 'fallback_square' ? 'Rough square, no clear boundary found' : 'AI-detected boundary'
       : shape === 'circle'
         ? `Circle, ${radius} m radius`
         : shape === 'rect'
@@ -170,7 +177,7 @@ export function useOutline({ loc, step, method }: { loc: Loc | null; step: numbe
     rw, setRw,
     rh, setRh,
     previewZoom, setZoom,
-    detected, detecting, detectError, retryDetect,
+    detected, detectInfo, detecting, detectError, retryDetect,
     pts, isCircle, ha, fitted, outlineLabel, center,
     isEdited: !!edited, drawn: !!drawn,
     editPts, commitDrawn, resetEdits,
