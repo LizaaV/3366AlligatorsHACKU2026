@@ -1,0 +1,11 @@
+# Owners are auto-requested as reviewers on PRs touching their paths.
+# Last matching pattern wins. Keep this in sync with the team table in COLLABORATION.md.
+
+# Default: anything not matched below is shared — the whole team owns it
+*                       @LizaaV @annaclairebb @meetrk @Alex-bot16
+
+/frontend/              @LizaaV @annaclairebb
+/backend/               @meetrk @Alex-bot16
+
+# The API contract is cross-team: both sides must see every change
+/contracts/             @LizaaV @annaclairebb @meetrk @Alex-bot16

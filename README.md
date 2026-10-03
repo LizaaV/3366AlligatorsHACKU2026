@@ -1,25 +1,22 @@
-# CODING AGENTS: READ THIS FIRST
+# Earth Agent — 3366 Alligators · HacKU 2026
 
-This is a **handoff bundle** from Claude Design (claude.ai/design).
+Ask questions about any place on Earth and get answers from satellite data.
 
-A user mocked up designs in HTML/CSS/JS using an AI design tool, then exported this bundle so a coding agent can implement the designs for real.
+| Folder | What | Owners |
+| --- | --- | --- |
+| [`frontend/`](frontend/) | React + TypeScript + Vite web app | @LizaaV, @annaclairebb |
+| [`backend/`](backend/) | Python FastAPI service | @meetrk, @Alex-bot16 |
+| [`contracts/`](contracts/) | `openapi.json` — the API contract, generated from the backend | everyone |
+| [`docs/`](docs/) | Design handoff (mockups, screenshots, tokens) and design chats | everyone |
 
-## What you should do — IMPORTANT
+## Quick start
 
-**Read the chat transcripts first.** There are 1 chat transcript(s) in `chats/`. The transcripts show the full back-and-forth between the user and the design assistant — they tell you **what the user actually wants** and **where they landed** after iterating. Don't skip them. The final HTML files are the output, but the chat is where the intent lives.
+```bash
+# terminal 1 — backend on :8000
+cd backend && uv sync && cp .env.example .env && uv run uvicorn app.main:app --reload
 
-**Read `project/Earth Agent.dc.html` in full.** The user had this file open when they triggered the handoff, so it's almost certainly the primary design they want built. Read it top to bottom — don't skim. Then **follow its imports**: open every file it pulls in (shared components, CSS, scripts) so you understand how the pieces fit together before you start implementing.
+# terminal 2 — frontend on :5173 (proxies /api to the backend)
+cd frontend && npm install && npm run dev
+```
 
-**If anything is ambiguous, ask the user to confirm before you start implementing.** It's much cheaper to clarify scope up front than to build the wrong thing.
-
-## About the design files
-
-The design medium is **HTML/CSS/JS** — these are prototypes, not production code. Your job is to **recreate them pixel-perfectly** in whatever technology makes sense for the target codebase (React, Vue, native, whatever fits). Match the visual output; don't copy the prototype's internal structure unless it happens to fit.
-
-**Don't render these files in a browser or take screenshots unless the user asks you to.** Everything you need — dimensions, colors, layout rules — is spelled out in the source. Read the HTML and CSS directly; a screenshot won't tell you anything they don't.
-
-## Bundle contents
-
-- `README.md` — this file
-- `chats/` — conversation transcripts (read these!)
-- `project/` — the `Earth Agent interactive prototype` project files (HTML prototypes, assets, components)
+**Before contributing, read [COLLABORATION.md](COLLABORATION.md)** — branch naming, commit format, PR rules and how we avoid merge conflicts.

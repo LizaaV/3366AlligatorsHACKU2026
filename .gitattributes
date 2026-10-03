@@ -1,0 +1,10 @@
+# Normalise line endings so Mac/Windows/Linux teammates don't produce whole-file diffs
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+
+# Generated files: collapsed in GitHub diffs. Never hand-merge these — regenerate them
+# (see COLLABORATION.md → "Conflict-prone files").
+frontend/package-lock.json linguist-generated=true -diff
+backend/uv.lock            linguist-generated=true -diff
+contracts/openapi.json     linguist-generated=true
