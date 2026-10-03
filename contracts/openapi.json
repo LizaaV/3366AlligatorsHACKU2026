@@ -25,10 +25,1508 @@
           }
         }
       }
+    },
+    "/api/runs": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Start a run (server-sent events)",
+        "description": "Stream a run: `run_started`, `guard`, `hypotheses_registered`, steps, blocks,\n`answer` (or `error`), and always `done` last. If the run needs the user it sends\n`clarification_needed` then `done{status: waiting_user}`; continue with `/reply`.\n\n`thread_id` must come from an earlier `run_started` for this user (404 otherwise).",
+        "operationId": "start_run_api_runs_post",
+        "parameters": [
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-sent events, one StreamEvent per message; `done` is last.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RunStarted"
+                    },
+                    {
+                      "$ref": "#/components/schemas/GuardEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HypothesesRegistered"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ClarificationNeeded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ClarificationAnswered"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StepStarted"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StepFinished"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BlockReady"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AnswerEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Done"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "event",
+                    "mapping": {
+                      "run_started": "#/components/schemas/RunStarted",
+                      "guard": "#/components/schemas/GuardEvent",
+                      "hypotheses_registered": "#/components/schemas/HypothesesRegistered",
+                      "clarification_needed": "#/components/schemas/ClarificationNeeded",
+                      "clarification_answered": "#/components/schemas/ClarificationAnswered",
+                      "step_started": "#/components/schemas/StepStarted",
+                      "step_finished": "#/components/schemas/StepFinished",
+                      "block_ready": "#/components/schemas/BlockReady",
+                      "answer": "#/components/schemas/AnswerEvent",
+                      "error": "#/components/schemas/ErrorEvent",
+                      "done": "#/components/schemas/Done"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid area, thread id or X-User-Id."
+          },
+          "404": {
+            "description": "Thread not found for this user."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Read a stored run",
+        "description": "The full stored run (answer, blocks, steps and the event log for replay).",
+        "operationId": "get_run_api_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run_id}/reply": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Answer a run's clarification questions and stream the rest (server-sent events)",
+        "description": "Accept the answers (only keys that were asked), save them to the place profile when\n`remember`, then stream the same run: `clarification_answered` first (also stored in\nthe event log), then steps, blocks, `answer`, and `done` last.",
+        "operationId": "reply_api_runs__run_id__reply_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-sent events, one StreamEvent per message; `done` is last.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/RunStarted"
+                    },
+                    {
+                      "$ref": "#/components/schemas/GuardEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HypothesesRegistered"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ClarificationNeeded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ClarificationAnswered"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StepStarted"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StepFinished"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BlockReady"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AnswerEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Done"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "event",
+                    "mapping": {
+                      "run_started": "#/components/schemas/RunStarted",
+                      "guard": "#/components/schemas/GuardEvent",
+                      "hypotheses_registered": "#/components/schemas/HypothesesRegistered",
+                      "clarification_needed": "#/components/schemas/ClarificationNeeded",
+                      "clarification_answered": "#/components/schemas/ClarificationAnswered",
+                      "step_started": "#/components/schemas/StepStarted",
+                      "step_finished": "#/components/schemas/StepFinished",
+                      "block_ready": "#/components/schemas/BlockReady",
+                      "answer": "#/components/schemas/AnswerEvent",
+                      "error": "#/components/schemas/ErrorEvent",
+                      "done": "#/components/schemas/Done"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid run id, answers or X-User-Id."
+          },
+          "404": {
+            "description": "Run not found for this user."
+          },
+          "409": {
+            "description": "The run is not waiting for the user."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/layers/{run_id}/{measure}/{scene}.png": {
+      "get": {
+        "tags": [
+          "layers"
+        ],
+        "summary": "A rendered layer image",
+        "description": "The PNG at the `url` of a `RenderedLayer` / block image.",
+        "operationId": "get_layer_api_layers__run_id___measure___scene__png_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "measure",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Measure"
+            }
+          },
+          {
+            "name": "scene",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scene"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The layer as a PNG.",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "400": {
+            "description": "Invalid run id, measure or scene id."
+          },
+          "404": {
+            "description": "No such layer."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/areas/resolve": {
+      "post": {
+        "tags": [
+          "areas"
+        ],
+        "summary": "Resolve Area",
+        "description": "A search text, point, outline or map link \u2192 an area, plus how it was found.",
+        "operationId": "resolve_area_api_areas_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AreaResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaResolveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unusable area: detail is {kind, message, hint}."
+          },
+          "501": {
+            "description": "Place search not available yet."
+          }
+        }
+      }
+    },
+    "/api/areas/context": {
+      "post": {
+        "tags": [
+          "areas"
+        ],
+        "summary": "Area Context",
+        "description": "Size, land cover, terrain, rain and recent scene counts for an area.",
+        "operationId": "area_context_api_areas_context_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AreaInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceContext"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unusable area: detail is {kind, message, hint}."
+          }
+        }
+      }
+    },
+    "/api/knowledge/index": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Knowledge Index",
+        "description": "Every event card then every setting card, each sorted by id.",
+        "operationId": "knowledge_index_api_knowledge_index_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CardIndexEntry"
+                  },
+                  "type": "array",
+                  "title": "Response Knowledge Index Api Knowledge Index Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge/cards/{card_id}": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Knowledge Card",
+        "description": "One card with its header and Markdown body. 400 for a malformed id, 404 if unknown.",
+        "operationId": "knowledge_card_api_knowledge_cards__card_id__get",
+        "parameters": [
+          {
+            "name": "card_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "title": "Card Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge/find": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Knowledge Find",
+        "description": "Cards whose id, name or alias appears in ``q``, in order of first appearance.",
+        "operationId": "knowledge_find_api_knowledge_find_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CardIndexEntry"
+                  },
+                  "title": "Response Knowledge Find Api Knowledge Find Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "Answer": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "place",
+              "general"
+            ],
+            "title": "Kind",
+            "description": "'place' = about an area (shows 'Keep watching'); 'general' = no area, shows `suggested_skills` instead.",
+            "default": "place"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Headline, e.g. 'About 4.6 ha of the ponds are now dry'."
+          },
+          "eyebrow": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eyebrow",
+            "description": "Small label above the title, e.g. place name."
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color",
+            "description": "Colour square next to the eyebrow."
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "One-sentence answer in plain words."
+          },
+          "l1": {
+            "type": "string",
+            "title": "L1",
+            "description": "Label above `cause`.",
+            "default": "Likely cause"
+          },
+          "cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cause",
+            "description": "Likely cause in plain words; None for measure-only answers."
+          },
+          "l2": {
+            "type": "string",
+            "title": "L2",
+            "description": "Label above `todo`.",
+            "default": "What to do"
+          },
+          "todo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Todo",
+            "description": "What to do next."
+          },
+          "stats": {
+            "items": {
+              "$ref": "#/components/schemas/StatItem"
+            },
+            "type": "array",
+            "title": "Stats"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/Confidence"
+          },
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Caveats"
+          },
+          "route": {
+            "items": {
+              "$ref": "#/components/schemas/RouteOption"
+            },
+            "type": "array",
+            "title": "Route"
+          },
+          "proof": {
+            "items": {
+              "$ref": "#/components/schemas/ProofScene"
+            },
+            "type": "array",
+            "title": "Proof"
+          },
+          "blocks": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ThenNowBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/TimelineBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/SceneStripBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/HighlightBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/HypothesesBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/StatBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/LimitsBlock"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "highlight": "#/components/schemas/HighlightBlock",
+                  "hypotheses": "#/components/schemas/HypothesesBlock",
+                  "limits": "#/components/schemas/LimitsBlock",
+                  "scene_strip": "#/components/schemas/SceneStripBlock",
+                  "stat": "#/components/schemas/StatBlock",
+                  "then_now": "#/components/schemas/ThenNowBlock",
+                  "timeline": "#/components/schemas/TimelineBlock"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Blocks"
+          },
+          "followups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Followups"
+          },
+          "method": {
+            "$ref": "#/components/schemas/Method"
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Id",
+            "description": "Skill that produced it (frontend `skillId`)."
+          },
+          "suggested_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suggested Skills",
+            "description": "Skill ids for general answers (frontend `suggested`)."
+          },
+          "measure_only": {
+            "type": "boolean",
+            "title": "Measure Only",
+            "description": "True when no knowledge card matched.",
+            "default": false
+          },
+          "preset": {
+            "type": "boolean",
+            "title": "Preset",
+            "description": "True when served from cached/stub preset data.",
+            "default": false
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash",
+            "description": "Reproducibility hash of method + scenes."
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "sentence",
+          "confidence",
+          "hash"
+        ],
+        "title": "Answer",
+        "description": "The final answer for a run.\n\nFrontend mapping (src/data/agent.ts `Answer`): same names, except `skill_id` \u2192 `skillId`\nand `suggested_skills` \u2192 `suggested`. Fields the frontend does not show yet (`sentence`,\n`blocks`, `followups`, `method`, ...) are extra."
+      },
+      "AnswerEvent": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "answer",
+            "title": "Event",
+            "default": "answer"
+          },
+          "answer": {
+            "$ref": "#/components/schemas/Answer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer"
+        ],
+        "title": "AnswerEvent",
+        "description": "The final answer."
+      },
+      "Area": {
+        "properties": {
+          "geojson": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Geojson"
+          },
+          "area_ha": {
+            "type": "number",
+            "title": "Area Ha"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "geojson",
+          "area_ha"
+        ],
+        "title": "Area",
+        "description": "A place outline in WGS84 (lon/lat GeoJSON geometry), with its true area in hectares."
+      },
+      "AreaInput": {
+        "properties": {
+          "geojson": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geojson",
+            "description": "GeoJSON Polygon, MultiPolygon, Feature or FeatureCollection (lon/lat)."
+          },
+          "point": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PointInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Display name for the area."
+          }
+        },
+        "type": "object",
+        "title": "AreaInput",
+        "description": "The area a question is about: exactly one of a GeoJSON outline or a point."
+      },
+      "AreaMatch": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "lat",
+          "lon"
+        ],
+        "title": "AreaMatch",
+        "description": "One candidate place from a search."
+      },
+      "AreaResolveRequest": {
+        "properties": {
+          "query": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query",
+            "description": "Place name, address or 'lat, lon' text."
+          },
+          "point": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PointInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "geojson": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geojson"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link",
+            "description": "A map link (e.g. Google/OSM) containing coordinates."
+          }
+        },
+        "type": "object",
+        "title": "AreaResolveRequest",
+        "description": "Turn a search text, point, outline or map link into an area: exactly one field set."
+      },
+      "AreaResolveResponse": {
+        "properties": {
+          "area": {
+            "$ref": "#/components/schemas/Area"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "point",
+              "geojson",
+              "coordinates",
+              "link",
+              "search",
+              "preset"
+            ],
+            "title": "Source",
+            "description": "How the area was resolved."
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/AreaMatch"
+            },
+            "type": "array",
+            "title": "Matches",
+            "description": "Other search candidates (search only)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "area",
+          "source"
+        ],
+        "title": "AreaResolveResponse",
+        "description": "The resolved area, how it was found, and other candidates for a search."
+      },
+      "BlockReady": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "block_ready",
+            "title": "Event",
+            "default": "block_ready"
+          },
+          "block": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ThenNowBlock"
+              },
+              {
+                "$ref": "#/components/schemas/TimelineBlock"
+              },
+              {
+                "$ref": "#/components/schemas/SceneStripBlock"
+              },
+              {
+                "$ref": "#/components/schemas/HighlightBlock"
+              },
+              {
+                "$ref": "#/components/schemas/HypothesesBlock"
+              },
+              {
+                "$ref": "#/components/schemas/StatBlock"
+              },
+              {
+                "$ref": "#/components/schemas/LimitsBlock"
+              }
+            ],
+            "title": "Block",
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "highlight": "#/components/schemas/HighlightBlock",
+                "hypotheses": "#/components/schemas/HypothesesBlock",
+                "limits": "#/components/schemas/LimitsBlock",
+                "scene_strip": "#/components/schemas/SceneStripBlock",
+                "stat": "#/components/schemas/StatBlock",
+                "then_now": "#/components/schemas/ThenNowBlock",
+                "timeline": "#/components/schemas/TimelineBlock"
+              }
+            }
+          }
+        },
+        "type": "object",
+        "required": [
+          "block"
+        ],
+        "title": "BlockReady",
+        "description": "A visual block is ready to render."
+      },
+      "CardDetail": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/CardIndexEntry"
+          },
+          "header": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Header",
+            "description": "The validated card header, as JSON."
+          },
+          "body_markdown": {
+            "type": "string",
+            "title": "Body Markdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry",
+          "header",
+          "body_markdown"
+        ],
+        "title": "CardDetail",
+        "description": "A full card: index entry, validated YAML header and Markdown body."
+      },
+      "CardIndexEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Card id, e.g. 'pond_filling'."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "event",
+              "setting"
+            ],
+            "title": "Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "tested",
+              "reviewed"
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "name",
+          "summary",
+          "status",
+          "version"
+        ],
+        "title": "CardIndexEntry",
+        "description": "One line of the knowledge index: an event or setting card."
+      },
+      "CardRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "tested",
+              "reviewed"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "status"
+        ],
+        "title": "CardRef",
+        "description": "A knowledge card used by the method, pinned to a version."
+      },
+      "ClarificationAnswered": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "clarification_answered",
+            "title": "Event",
+            "default": "clarification_answered"
+          },
+          "answers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Answers",
+            "description": "Question key \u2192 answer, as accepted."
+          },
+          "remember": {
+            "type": "boolean",
+            "title": "Remember",
+            "description": "Whether the answers were saved to the place profile."
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers",
+          "remember"
+        ],
+        "title": "ClarificationAnswered",
+        "description": "The user answered the clarification card (first event of the reply stream)."
+      },
+      "ClarificationNeeded": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "clarification_needed",
+            "title": "Event",
+            "default": "clarification_needed"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/ClarificationQuestion"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "remember": {
+            "type": "boolean",
+            "title": "Remember",
+            "description": "Default for 'remember my answers'.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "questions"
+        ],
+        "title": "ClarificationNeeded",
+        "description": "The run is waiting for the user to answer questions."
+      },
+      "ClarificationQuestion": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "Prefilled answer, if known."
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValueSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "ClarificationQuestion",
+        "description": "One question for the user, optionally prefilled."
+      },
+      "Confidence": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "High",
+              "Medium",
+              "Low"
+            ],
+            "title": "Level"
+          },
+          "pct": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Pct"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "pct",
+          "note"
+        ],
+        "title": "Confidence",
+        "description": "How sure the answer is, with a one-line reason."
+      },
+      "Cost": {
+        "properties": {
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "default": 0
+          },
+          "usd": {
+            "type": "number",
+            "title": "Usd",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "Cost",
+        "description": "LLM token usage and cost for a run."
+      },
+      "Done": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "done",
+            "title": "Event",
+            "default": "done"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "waiting_user",
+              "done",
+              "failed",
+              "refused"
+            ],
+            "title": "Status"
+          },
+          "tokens": {
+            "type": "integer",
+            "title": "Tokens",
+            "default": 0
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd",
+            "default": 0.0
+          },
+          "ms": {
+            "type": "integer",
+            "title": "Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "status",
+          "ms"
+        ],
+        "title": "Done",
+        "description": "The stream ended (always its last event).\n\n`waiting_user`: the run is paused on a `clarification_needed` card; continue it with\n`POST /api/runs/{run_id}/reply`, which streams the rest of the run."
+      },
+      "ErrorEvent": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "error",
+            "title": "Event",
+            "default": "error"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "recoverable": {
+            "type": "boolean",
+            "title": "Recoverable"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "recoverable"
+        ],
+        "title": "ErrorEvent",
+        "description": "Something went wrong; `recoverable` says whether the run continues."
+      },
+      "ExpectationRow": {
+        "properties": {
+          "hypothesis": {
+            "type": "string",
+            "title": "Hypothesis",
+            "description": "Knowledge card id."
+          },
+          "expected": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Expected",
+            "description": "Measure \u2192 expected direction/value."
+          },
+          "observed": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Observed"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "supported",
+              "contradicted",
+              "unclear",
+              "untested"
+            ],
+            "title": "Verdict",
+            "default": "untested"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hypothesis",
+          "expected"
+        ],
+        "title": "ExpectationRow",
+        "description": "What a hypothesis predicts per measure, and what was observed."
+      },
+      "GuardEvent": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "guard",
+            "title": "Event",
+            "default": "guard"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "answerable",
+              "partial",
+              "out_of_scope",
+              "not_allowed",
+              "emergency",
+              "off_topic"
+            ],
+            "title": "Scope"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id",
+            "description": "Policy rule that fired, if any."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope"
+        ],
+        "title": "GuardEvent",
+        "description": "The guard's verdict on whether the question can be answered."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -41,6 +1539,2063 @@
           "status"
         ],
         "title": "HealthResponse"
+      },
+      "HighlightBlock": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary",
+            "default": false
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "links": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "cursor",
+                "follow",
+                "set"
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "time",
+                "selection",
+                "measure"
+              ]
+            },
+            "type": "object",
+            "title": "Links",
+            "default": {}
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array",
+            "title": "Provenance",
+            "default": []
+          },
+          "type": {
+            "type": "string",
+            "const": "highlight",
+            "title": "Type",
+            "default": "highlight"
+          },
+          "measure": {
+            "type": "string",
+            "enum": [
+              "greenness",
+              "moisture",
+              "water",
+              "bare",
+              "burn",
+              "roughness"
+            ],
+            "title": "Measure"
+          },
+          "patches": {
+            "items": {
+              "$ref": "#/components/schemas/Patch"
+            },
+            "type": "array",
+            "title": "Patches"
+          },
+          "total_ha": {
+            "type": "number",
+            "title": "Total Ha"
+          },
+          "base": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Image"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "measure",
+          "patches",
+          "total_ha"
+        ],
+        "title": "HighlightBlock"
+      },
+      "HypothesesBlock": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary",
+            "default": false
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "links": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "cursor",
+                "follow",
+                "set"
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "time",
+                "selection",
+                "measure"
+              ]
+            },
+            "type": "object",
+            "title": "Links",
+            "default": {}
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array",
+            "title": "Provenance",
+            "default": []
+          },
+          "type": {
+            "type": "string",
+            "const": "hypotheses",
+            "title": "Type",
+            "default": "hypotheses"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/HypothesisRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "post_hoc": {
+            "type": "boolean",
+            "title": "Post Hoc",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "rows"
+        ],
+        "title": "HypothesesBlock"
+      },
+      "HypothesesRegistered": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "hypotheses_registered",
+            "title": "Event",
+            "default": "hypotheses_registered"
+          },
+          "hypotheses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hypotheses",
+            "description": "Knowledge card ids."
+          },
+          "expectation_table": {
+            "items": {
+              "$ref": "#/components/schemas/ExpectationRow"
+            },
+            "type": "array",
+            "title": "Expectation Table"
+          },
+          "post_hoc": {
+            "type": "boolean",
+            "title": "Post Hoc",
+            "description": "True if registered after the first data read.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "hypotheses"
+        ],
+        "title": "HypothesesRegistered",
+        "description": "Hypotheses registered before reading data (or after, when post_hoc)."
+      },
+      "HypothesisRow": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "expected": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Expected"
+          },
+          "observed": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Observed"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "supported",
+              "contradicted",
+              "unclear",
+              "untested"
+            ],
+            "title": "Verdict"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card_id",
+          "label",
+          "expected",
+          "observed",
+          "verdict"
+        ],
+        "title": "HypothesisRow"
+      },
+      "Image": {
+        "properties": {
+          "layer_id": {
+            "type": "string",
+            "title": "Layer Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "bounds": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bounds"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "scene": {
+            "type": "string",
+            "title": "Scene"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "layer_id",
+          "url",
+          "bounds",
+          "date",
+          "scene",
+          "label"
+        ],
+        "title": "Image",
+        "description": "A rendered map image pinned to WGS84 bounds (from `earth.render`)."
+      },
+      "LimitAction": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "radar",
+              "wait",
+              "enlarge",
+              "expert",
+              "other"
+            ],
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "kind"
+        ],
+        "title": "LimitAction"
+      },
+      "LimitsBlock": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary",
+            "default": false
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "links": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "cursor",
+                "follow",
+                "set"
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "time",
+                "selection",
+                "measure"
+              ]
+            },
+            "type": "object",
+            "title": "Links",
+            "default": {}
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array",
+            "title": "Provenance",
+            "default": []
+          },
+          "type": {
+            "type": "string",
+            "const": "limits",
+            "title": "Type",
+            "default": "limits"
+          },
+          "cant_tell": {
+            "type": "string",
+            "title": "Cant Tell"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/LimitAction"
+            },
+            "type": "array",
+            "title": "Actions",
+            "default": []
+          },
+          "contacts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contacts",
+            "default": []
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "cant_tell"
+        ],
+        "title": "LimitsBlock"
+      },
+      "Method": {
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/CardRef"
+            },
+            "type": "array",
+            "title": "Cards"
+          },
+          "skill": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SkillRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "code_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Ref",
+            "description": "Reference to the script that ran."
+          }
+        },
+        "type": "object",
+        "title": "Method",
+        "description": "What produced the answer: cards, skill and code reference."
+      },
+      "Patch": {
+        "properties": {
+          "ha": {
+            "type": "number",
+            "title": "Ha"
+          },
+          "centroid": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Centroid"
+          },
+          "geojson": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Geojson"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ha",
+          "centroid",
+          "geojson"
+        ],
+        "title": "Patch"
+      },
+      "PlaceContext": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "area_ha": {
+            "type": "number",
+            "title": "Area Ha"
+          },
+          "pixels_10m": {
+            "type": "integer",
+            "title": "Pixels 10M"
+          },
+          "land_cover": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Land Cover"
+          },
+          "elevation_m": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Range"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slope_deg": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SlopeStats"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rain_mm_30d": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rain Mm 30D"
+          },
+          "recent_scenes": {
+            "$ref": "#/components/schemas/SceneCounts"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "country",
+          "area_ha",
+          "pixels_10m",
+          "land_cover",
+          "elevation_m",
+          "slope_deg",
+          "rain_mm_30d",
+          "recent_scenes"
+        ],
+        "title": "PlaceContext",
+        "description": "What `describe(area)` returns: enough to plan, without reading any satellite pixels twice."
+      },
+      "PointInput": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat",
+            "description": "Latitude in degrees (WGS84)."
+          },
+          "lon": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lon",
+            "description": "Longitude in degrees (WGS84)."
+          },
+          "radius_m": {
+            "type": "number",
+            "maximum": 50000.0,
+            "minimum": 10.0,
+            "title": "Radius M",
+            "description": "Circle radius in metres.",
+            "default": 400
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "PointInput",
+        "description": "A point plus a radius; the area is the circle around it."
+      },
+      "ProofScene": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "sat": {
+            "type": "string",
+            "title": "Sat"
+          },
+          "cloud": {
+            "type": "number",
+            "title": "Cloud",
+            "description": "Cloud over the area, percent."
+          },
+          "used": {
+            "type": "boolean",
+            "title": "Used"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why",
+            "description": "Why it was skipped, when not used."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "date",
+          "sat",
+          "cloud",
+          "used"
+        ],
+        "title": "ProofScene",
+        "description": "A satellite scene that was looked at, and whether it was used."
+      },
+      "Provenance": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "satellite": {
+            "type": "string",
+            "title": "Satellite"
+          },
+          "scene": {
+            "type": "string",
+            "title": "Scene"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "cloud_over_area": {
+            "type": "number",
+            "title": "Cloud Over Area"
+          },
+          "resolution_m": {
+            "type": "number",
+            "title": "Resolution M"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "satellite",
+          "scene",
+          "date",
+          "cloud_over_area",
+          "resolution_m",
+          "method"
+        ],
+        "title": "Provenance",
+        "description": "Where a number came from (HANDOFF B1.8). Attached to every result."
+      },
+      "Range": {
+        "properties": {
+          "min": {
+            "type": "number",
+            "title": "Min"
+          },
+          "max": {
+            "type": "number",
+            "title": "Max"
+          }
+        },
+        "type": "object",
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "Range"
+      },
+      "ReplyRequest": {
+        "properties": {
+          "answers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "maxProperties": 20,
+            "title": "Answers"
+          },
+          "remember": {
+            "type": "boolean",
+            "title": "Remember",
+            "description": "Save the answers to the place profile.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers"
+        ],
+        "title": "ReplyRequest",
+        "description": "Answers to clarification questions, keyed by question key."
+      },
+      "RouteOption": {
+        "properties": {
+          "sat": {
+            "type": "string",
+            "title": "Sat"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "chosen",
+              "support",
+              "skipped",
+              "fallback"
+            ],
+            "title": "Status"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sat",
+          "status",
+          "why"
+        ],
+        "title": "RouteOption",
+        "description": "A data source considered for the question and what happened to it."
+      },
+      "RunRecord": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "place_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Place Ids"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "lang": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$",
+            "title": "Lang",
+            "description": "Requested answer language (from `RunRequest.lang`).",
+            "default": "en"
+          },
+          "area": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Area"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The area the run is about (stored once; None = demo preset)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "waiting_user",
+              "done",
+              "failed",
+              "refused"
+            ],
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "UTC."
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Answer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blocks": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ThenNowBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/TimelineBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/SceneStripBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/HighlightBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/HypothesesBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/StatBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/LimitsBlock"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "highlight": "#/components/schemas/HighlightBlock",
+                  "hypotheses": "#/components/schemas/HypothesesBlock",
+                  "limits": "#/components/schemas/LimitsBlock",
+                  "scene_strip": "#/components/schemas/SceneStripBlock",
+                  "stat": "#/components/schemas/StatBlock",
+                  "then_now": "#/components/schemas/ThenNowBlock",
+                  "timeline": "#/components/schemas/TimelineBlock"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Blocks"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array",
+            "title": "Provenance"
+          },
+          "method": {
+            "$ref": "#/components/schemas/Method"
+          },
+          "script": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Script",
+            "description": "Last successful script (dashboard refresh)."
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cost"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "events": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/RunStarted"
+                },
+                {
+                  "$ref": "#/components/schemas/GuardEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/HypothesesRegistered"
+                },
+                {
+                  "$ref": "#/components/schemas/ClarificationNeeded"
+                },
+                {
+                  "$ref": "#/components/schemas/ClarificationAnswered"
+                },
+                {
+                  "$ref": "#/components/schemas/StepStarted"
+                },
+                {
+                  "$ref": "#/components/schemas/StepFinished"
+                },
+                {
+                  "$ref": "#/components/schemas/BlockReady"
+                },
+                {
+                  "$ref": "#/components/schemas/AnswerEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ErrorEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/Done"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "event",
+                "mapping": {
+                  "answer": "#/components/schemas/AnswerEvent",
+                  "block_ready": "#/components/schemas/BlockReady",
+                  "clarification_answered": "#/components/schemas/ClarificationAnswered",
+                  "clarification_needed": "#/components/schemas/ClarificationNeeded",
+                  "done": "#/components/schemas/Done",
+                  "error": "#/components/schemas/ErrorEvent",
+                  "guard": "#/components/schemas/GuardEvent",
+                  "hypotheses_registered": "#/components/schemas/HypothesesRegistered",
+                  "run_started": "#/components/schemas/RunStarted",
+                  "step_finished": "#/components/schemas/StepFinished",
+                  "step_started": "#/components/schemas/StepStarted"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Events",
+            "description": "Full event log, for replay."
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "thread_id",
+          "user_id",
+          "question",
+          "status"
+        ],
+        "title": "RunRecord",
+        "description": "Everything about a run, enough to replay it exactly (BUILD-PLAN I4)."
+      },
+      "RunRequest": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "area": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "place_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Id",
+            "description": "A saved place id."
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id",
+            "description": "Continue a thread the server issued (from `run_started`); 404 if this user has no runs in it. Omit to start a new thread."
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Id",
+            "description": "Force a specific skill."
+          },
+          "lang": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$",
+            "title": "Lang",
+            "description": "Language for the answer text (BCP 47, e.g. 'en', 'zh-Hant', 'yue'). Stored on the run; answers are English until translation lands.",
+            "default": "en"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "RunRequest",
+        "description": "Start a run: a question, optionally about an area or saved place, in a thread."
+      },
+      "RunStarted": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "run_started",
+            "title": "Event",
+            "default": "run_started"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "thread_id"
+        ],
+        "title": "RunStarted",
+        "description": "The run has been accepted and started."
+      },
+      "SceneCounts": {
+        "properties": {
+          "optical": {
+            "type": "integer",
+            "title": "Optical"
+          },
+          "clear": {
+            "type": "integer",
+            "title": "Clear"
+          },
+          "radar": {
+            "type": "integer",
+            "title": "Radar"
+          }
+        },
+        "type": "object",
+        "required": [
+          "optical",
+          "clear",
+          "radar"
+        ],
+        "title": "SceneCounts"
+      },
+      "SceneStripBlock": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary",
+            "default": false
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "links": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "cursor",
+                "follow",
+                "set"
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "time",
+                "selection",
+                "measure"
+              ]
+            },
+            "type": "object",
+            "title": "Links",
+            "default": {}
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array",
+            "title": "Provenance",
+            "default": []
+          },
+          "type": {
+            "type": "string",
+            "const": "scene_strip",
+            "title": "Type",
+            "default": "scene_strip"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/StripScene"
+            },
+            "type": "array",
+            "title": "Scenes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "scenes"
+        ],
+        "title": "SceneStripBlock"
+      },
+      "SkillRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version"
+        ],
+        "title": "SkillRef",
+        "description": "A skill used by the method, pinned to a version."
+      },
+      "SlopeStats": {
+        "properties": {
+          "mean": {
+            "type": "number",
+            "title": "Mean"
+          },
+          "p90": {
+            "type": "number",
+            "title": "P90"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mean",
+          "p90"
+        ],
+        "title": "SlopeStats"
+      },
+      "StatBlock": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary",
+            "default": false
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "links": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "cursor",
+                "follow",
+                "set"
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "time",
+                "selection",
+                "measure"
+              ]
+            },
+            "type": "object",
+            "title": "Links",
+            "default": {}
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array",
+            "title": "Provenance",
+            "default": []
+          },
+          "type": {
+            "type": "string",
+            "const": "stat",
+            "title": "Type",
+            "default": "stat"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "lo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lo"
+          },
+          "hi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hi"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "label",
+          "value",
+          "unit"
+        ],
+        "title": "StatBlock"
+      },
+      "StatItem": {
+        "properties": {
+          "l": {
+            "type": "string",
+            "title": "L",
+            "description": "Label, e.g. 'Dry area'."
+          },
+          "v": {
+            "type": "string",
+            "title": "V",
+            "description": "Value with unit, e.g. '4.6 ha'."
+          },
+          "ci": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci",
+            "description": "Uncertainty, e.g. '90% range 3.9\u20135.3'."
+          }
+        },
+        "type": "object",
+        "required": [
+          "l",
+          "v"
+        ],
+        "title": "StatItem",
+        "description": "One headline number."
+      },
+      "Step": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "desc": {
+            "type": "string",
+            "title": "Desc"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ms"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Provenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "title",
+          "desc",
+          "tool"
+        ],
+        "title": "Step",
+        "description": "A visible reasoning step as stored on the run."
+      },
+      "StepFinished": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "step_finished",
+            "title": "Event",
+            "default": "step_finished"
+          },
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "desc": {
+            "type": "string",
+            "title": "Desc"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ms"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Provenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "title",
+          "desc",
+          "tool"
+        ],
+        "title": "StepFinished",
+        "description": "A visible reasoning step finished."
+      },
+      "StepStarted": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "step_started",
+            "title": "Event",
+            "default": "step_started"
+          },
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "desc": {
+            "type": "string",
+            "title": "Desc"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "title",
+          "desc",
+          "tool"
+        ],
+        "title": "StepStarted",
+        "description": "A visible reasoning step started."
+      },
+      "StripScene": {
+        "properties": {
+          "scene": {
+            "type": "string",
+            "title": "Scene"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "satellite": {
+            "type": "string",
+            "title": "Satellite"
+          },
+          "cloud": {
+            "type": "number",
+            "title": "Cloud"
+          },
+          "used": {
+            "type": "boolean",
+            "title": "Used"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scene",
+          "date",
+          "satellite",
+          "cloud",
+          "used"
+        ],
+        "title": "StripScene"
+      },
+      "ThenNowBlock": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary",
+            "default": false
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "links": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "cursor",
+                "follow",
+                "set"
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "time",
+                "selection",
+                "measure"
+              ]
+            },
+            "type": "object",
+            "title": "Links",
+            "default": {}
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array",
+            "title": "Provenance",
+            "default": []
+          },
+          "type": {
+            "type": "string",
+            "const": "then_now",
+            "title": "Type",
+            "default": "then_now"
+          },
+          "measure": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "greenness",
+                  "moisture",
+                  "water",
+                  "bare",
+                  "burn",
+                  "roughness"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measure"
+          },
+          "before": {
+            "$ref": "#/components/schemas/Image"
+          },
+          "after": {
+            "$ref": "#/components/schemas/Image"
+          },
+          "outline": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "measure",
+          "before",
+          "after"
+        ],
+        "title": "ThenNowBlock"
+      },
+      "TimelineBand": {
+        "properties": {
+          "month": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Month"
+          },
+          "lo": {
+            "type": "number",
+            "title": "Lo"
+          },
+          "hi": {
+            "type": "number",
+            "title": "Hi"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "lo",
+          "hi"
+        ],
+        "title": "TimelineBand"
+      },
+      "TimelineBlock": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary",
+            "default": false
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "links": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "cursor",
+                "follow",
+                "set"
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "time",
+                "selection",
+                "measure"
+              ]
+            },
+            "type": "object",
+            "title": "Links",
+            "default": {}
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array",
+            "title": "Provenance",
+            "default": []
+          },
+          "type": {
+            "type": "string",
+            "const": "timeline",
+            "title": "Type",
+            "default": "timeline"
+          },
+          "measure": {
+            "type": "string",
+            "enum": [
+              "greenness",
+              "moisture",
+              "water",
+              "bare",
+              "burn",
+              "roughness"
+            ],
+            "title": "Measure"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TimelinePoint"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "band": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineBand"
+            },
+            "type": "array",
+            "title": "Band",
+            "default": []
+          },
+          "marks": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineMark"
+            },
+            "type": "array",
+            "title": "Marks",
+            "default": []
+          },
+          "compare": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineSeries"
+            },
+            "type": "array",
+            "title": "Compare",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "measure",
+          "data"
+        ],
+        "title": "TimelineBlock"
+      },
+      "TimelineMark": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "label"
+        ],
+        "title": "TimelineMark"
+      },
+      "TimelinePoint": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "scene": {
+            "type": "string",
+            "title": "Scene"
+          },
+          "clean_px": {
+            "type": "integer",
+            "title": "Clean Px"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "value",
+          "scene",
+          "clean_px"
+        ],
+        "title": "TimelinePoint"
+      },
+      "TimelineSeries": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TimelinePoint"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "data"
+        ],
+        "title": "TimelineSeries",
+        "description": "An extra line, e.g. the surroundings for local-vs-regional."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ValueSource": {
+        "properties": {
+          "from": {
+            "type": "string",
+            "enum": [
+              "memory",
+              "inferred"
+            ],
+            "title": "From"
+          },
+          "saved": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved",
+            "description": "When the remembered value was saved."
+          }
+        },
+        "type": "object",
+        "required": [
+          "from"
+        ],
+        "title": "ValueSource",
+        "description": "Where a prefilled clarification value came from."
       }
     }
   }
