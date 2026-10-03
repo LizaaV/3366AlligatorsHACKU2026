@@ -169,9 +169,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLoading({ catalog: true, skills: true, places: true, watches: true });
     setErrors({});
 
+    // One request: the catalog and the map layers are the same response.
     api.catalog
-      .get(ac.signal)
-      .then((c) => live && setCatalog(c))
+      .load(ac.signal)
+      .then((c) => {
+        if (!live) return;
+        setCatalog(c.catalog);
+        setMapLayers(c.mapLayers);
+      })
       .catch(fail('catalog'))
       .finally(done('catalog'));
     api.skills
@@ -190,10 +195,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .catch(fail('watches'))
       .finally(done('watches'));
 
-    // Small reference lists; a failure here degrades a panel, not the page.
-    api.catalog
-      .mapLayers(ac.signal)
-      .then((l) => live && setMapLayers(l))
+    // The user's installed skills; a failure leaves the list empty, not the page broken.
+    api.skills
+      .installed(ac.signal)
+      .then((ids) => live && setInstalled(ids))
       .catch(() => undefined);
 
     return () => {
@@ -205,19 +210,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
   /* ---------- UI state ---------- */
-  const [installed, setInstalled] = useState<string[]>([
-    'dry-patch-finder',
-    'weekly-crop-health',
-    'reservoir-level-tracker',
-    'deforestation-alerts',
-    'active-fire-map',
-    'algae-red-tide-alert',
-  ]);
+  const [installed, setInstalled] = useState<string[]>([]);
   const [askPlaceId, setAskPlaceId] = useState<string | null>(null);
   // English only: answers, PDFs and the interface.
   const lang = 'en';
   const [connectors, setConnectors] = useState<Connectors>({
-    email: { connected: true, address: 'you@farm.example' },
+    email: { connected: false, address: '' },
     whatsapp: { connected: false, number: '' },
     sms: { connected: false, number: '' },
     push: { connected: false },
@@ -255,6 +253,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   /* ---------- mutations ---------- */
 
   /** Snapshot for optimistic rollback, read inside callbacks without re-creating them. */
+  const installedRef = useRef<string[]>([]);
+  installedRef.current = installed;
   const watchesRef = useRef<Watch[]>([]);
   watchesRef.current = watches;
 
@@ -308,6 +308,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setWatches((all) => all.filter((w) => w.id !== id));
   }, []);
 
+  /** Install / uninstall on the server. Optimistic; rolls back and says so if the call fails. */
+  const toggleInstall = useCallback(
+    (id: string) => {
+      const before = installedRef.current;
+      const next = !before.includes(id);
+      setInstalled(next ? [...before, id] : before.filter((x) => x !== id));
+      api.skills
+        .setInstalled(id, next)
+        .then((ids) => setInstalled(ids))
+        .catch(() => {
+          setInstalled(before);
+          notify(next ? 'Could not install the skill. Try again.' : 'Could not uninstall the skill. Try again.', undefined, undefined, 'error');
+        });
+    },
+    [notify],
+  );
+
   const categories = catalog?.categories ?? EMPTY_CATALOG.categories;
   const category = useCallback((key: string) => categoryOf(categories, key), [categories]);
 
@@ -338,7 +355,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeWatch,
 
       installed,
-      toggleInstall: (id) => setInstalled((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])),
+      toggleInstall,
       askPlaceId,
       setAskPlace: setAskPlaceId,
       lang,
@@ -373,6 +390,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateWatch,
       removeWatch,
       installed,
+      toggleInstall,
       askPlaceId,
       lang,
       connectors,

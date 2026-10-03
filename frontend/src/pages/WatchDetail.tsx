@@ -54,7 +54,7 @@ function chartReading(w: Watch) {
 const LEVEL_COLOR = { info: 'var(--subtle)', warn: 'var(--yellow)', alert: 'var(--red)' } as const;
 
 export function WatchDetail({ id }: { id: string }) {
-  const { watches, places, skills, channels, category, go, open, notify, updateWatch, removeWatch, connectors } = useStore();
+  const { watches, places, skills, channels, category, go, open, notify, updateWatch, removeWatch, loading } = useStore();
   const w = watches.find((x) => x.id === id);
   const proof = useResource(useCallback((signal) => api.watches.proof(id, signal), [id]), [id]);
   const dashboards = useResource(useCallback((signal) => api.dashboards.list(signal), []), []);
@@ -63,7 +63,7 @@ export function WatchDetail({ id }: { id: string }) {
     return (
       <div className="col" style={{ gap: 16 }}>
         <button className="btn btn-text" style={{ alignSelf: 'flex-start' }} onClick={() => go('triggers')}><Ms n="arrow_back" className="ms-flip" />All triggers</button>
-        <Empty icon="visibility_off" title="This trigger no longer exists" body="It may have been deleted. Your other triggers are still running.">
+        <Empty icon="visibility_off" title="This trigger no longer exists" body="It may have been deleted. Your other triggers are still saved.">
           <Btn variant="primary" onClick={() => go('triggers')}>See all triggers</Btn>
         </Empty>
       </div>
@@ -85,11 +85,11 @@ export function WatchDetail({ id }: { id: string }) {
 
   const del = async () => {
     const name = w.name;
+    if (!window.confirm(`Delete \u201c${name}\u201d? This cannot be undone.`)) return;
     try {
       await removeWatch(w.id);
       go('triggers');
       // No Undo: re-creating would mint a new server-side record rather than restore this one.
-      // TODO(api): a soft-delete + POST /watches/{id}/restore would let Undo work honestly.
       notify(`Deleted \u201c${name}\u201d`, undefined, undefined, 'delete');
     } catch {
       notify('Could not delete the trigger', undefined, undefined, 'error');
@@ -255,16 +255,20 @@ export function WatchDetail({ id }: { id: string }) {
               <div><div className="l">Satellite</div><div className="v" style={{ fontSize: 15 }}>{w.satellites}</div></div>
               <div>
                 <div className="l">Skill</div>
-                <button className="btn-text" style={{ border: 0, background: 'none', padding: 0, marginTop: 2, color: 'var(--blue)', font: '600 15px/1.35 var(--font)' }} onClick={() => go('library', w.skillId)}>
-                  {skill?.name ?? w.skillId} <Ms n="arrow_forward" size={14} className="ms-flip" />
-                </button>
+                {skill || loading.skills ? (
+                  <button className="btn-text" style={{ border: 0, background: 'none', padding: 0, marginTop: 2, color: 'var(--blue)', font: '600 15px/1.35 var(--font)' }} onClick={() => go('library', w.skillId)}>
+                    {skill?.name ?? w.skillId} <Ms n="arrow_forward" size={14} className="ms-flip" />
+                  </button>
+                ) : (
+                  <div className="v" style={{ fontSize: 15 }} title={w.skillId}>{w.skillId} · Skill coming to the library</div>
+                )}
               </div>
             </div>
             <div className="col" style={{ gap: 4 }}>
               <div className="l caption" style={{ marginBottom: 6 }}>Deliver to</div>
+              <div className="tiny" style={{ marginBottom: 4 }}>Alerts are not sent yet. Your choice is saved for when they are.</div>
               {channels.map((c) => {
                 const on = w.channels.includes(c.id);
-                const needsConnect = c.id === 'whatsapp' && !connectors.whatsapp.connected;
                 return (
                   <div key={c.id} className="row" style={{ gap: 10, padding: '8px 0' }}>
                     <button onClick={() => toggleChannel(c)} className="row grow" style={{ gap: 10, background: 'none', border: 0, padding: 0, textAlign: 'left' }} aria-pressed={on}>
@@ -272,11 +276,7 @@ export function WatchDetail({ id }: { id: string }) {
                       <Ms n={c.icon} size={18} className="muted" />
                       <span className="body-sm ink">{c.name}</span>
                     </button>
-                    {needsConnect ? (
-                      <Btn size="sm" variant="text" onClick={() => open({ kind: 'connectors', focus: 'whatsapp' })}>Connect</Btn>
-                    ) : (
-                      <span className="tiny hide-mobile">{c.note}</span>
-                    )}
+                    <span className="tiny hide-mobile">{c.note}</span>
                   </div>
                 );
               })}

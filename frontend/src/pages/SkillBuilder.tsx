@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { toApiError } from '../api';
 import type { SkillModule } from '../model';
-import { slug } from '../lib/format';
 import { Btn, IconBtn, Ms, Toggle } from '../components/ui';
 import { ErrorState } from '../components/async';
 import { CopyBtn, JsonCode, StorageExplainer } from './libraryParts';
@@ -79,10 +78,7 @@ export function SkillBuilder() {
   }, [steps, satellites]);
 
   const version = '0.1.0';
-  const skillSlug = slug(name) || 'untitled-skill';
   const manifest = {
-    $schema: 'https://groundtruth.earth/schemas/skill/v1.json',
-    id: `you.${categoryKey}.${skillSlug}`,
     version,
     name: name.trim() || 'Untitled skill',
     category: categoryKey,
@@ -101,7 +97,6 @@ export function SkillBuilder() {
       { key: 'metrics', type: 'metric[]', with_confidence: true },
       { key: 'proof', type: 'proof_pack' },
     ],
-    accuracy: { resolution: '10 m', revisit: '5 days', statement: 'Not yet validated', known_limits: [] as string[] },
   };
   const json = JSON.stringify(manifest, null, 2);
 
@@ -273,7 +268,7 @@ export function SkillBuilder() {
 
           <div className="col" style={{ gap: 10 }}>
             <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span className="eyebrow">Skill file · live</span>
+              <span className="eyebrow">Preview — the server assigns the final id</span>
               <CopyBtn text={json} />
             </div>
             <JsonCode value={manifest} />

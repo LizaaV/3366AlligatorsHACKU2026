@@ -212,7 +212,7 @@ function WatchCard({ w, placeName, place, dashboardName }: { w: Watch; placeName
           </span>
         )}
         <span style={{ position: 'absolute', right: 12, bottom: 12 }}>
-          {w.enabled ? <span className="live"><span className="dot" />LIVE</span> : <span className="live" style={{ color: 'var(--muted)' }}><Ms n="pause" size={12} />PAUSED</span>}
+          {w.enabled ? <span className="live" style={{ color: 'var(--muted)' }}><Ms n="bookmark" size={12} />SAVED</span> : <span className="live" style={{ color: 'var(--muted)' }}><Ms n="pause" size={12} />PAUSED</span>}
         </span>
       </div>
 

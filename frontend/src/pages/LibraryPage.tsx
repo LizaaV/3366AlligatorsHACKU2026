@@ -104,7 +104,7 @@ function LibraryHome() {
             <Section
               title="Official · by Constellation"
               badge={<span className="lib-badge official"><Ms n="verified" />Verified</span>}
-              line="Built and validated by Constellation. Accuracy tested on ground-truth plots."
+              line="Built by Constellation."
               items={official}
               installed={installed}
               onOpen={(id) => go('library', id)}

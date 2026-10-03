@@ -225,7 +225,7 @@ export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunS
 
       <div className="row wrap" style={{ gap: 8, borderTop: '1px solid var(--hair)', paddingTop: 14 }}>
         {a.kind === 'place' ? (
-          <Btn variant="primary" icon="visibility" onClick={() => open({ kind: 'watchBuilder', prefill: watchPrefill(question, a, place?.name), placeId, skillId: a.skillId ?? undefined, fromAnswer: true })}>Keep watching</Btn>
+          <Btn variant="primary" icon="visibility" onClick={() => open({ kind: 'watchBuilder', prefill: watchPrefill(question), placeId, skillId: a.skillId ?? undefined, fromAnswer: true })}>Keep watching</Btn>
         ) : (
           <Btn variant="primary" icon="pentagon" onClick={() => go('places')}>Pick a place</Btn>
         )}
@@ -241,5 +241,4 @@ export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunS
   );
 }
 
-const watchPrefill = (q: string, a: Answer, place?: string) =>
-  a.skillId === 'dry-patch-finder' ? `Tell me when the dry patch on ${place ?? 'my field'} passes 5 ha` : `Tell me when anything changes: ${q}`;
+const watchPrefill = (q: string) => `Tell me when anything changes: ${q}`;

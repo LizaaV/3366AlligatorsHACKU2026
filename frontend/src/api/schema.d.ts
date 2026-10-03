@@ -846,6 +846,47 @@ export interface paths {
         patch: operations["rename_project_api_projects__project_id__patch"];
         trace?: never;
     };
+    "/api/me/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List my installed skills */
+        get: operations["list_installed_api_me_skills_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/skills/{skill_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Install a skill
+         * @description Idempotent. 404 when the skill is not in `GET /api/skills` for this user.
+         */
+        put: operations["install_skill_api_me_skills__skill_id__put"];
+        post?: never;
+        /**
+         * Uninstall a skill
+         * @description Idempotent: uninstalling a skill that is not installed just returns the list.
+         */
+        delete: operations["uninstall_skill_api_me_skills__skill_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1909,6 +1950,14 @@ export interface components {
              * @default true
              */
             saved: boolean;
+        };
+        /** InstalledSkills */
+        InstalledSkills: {
+            /**
+             * Installed
+             * @description Skill ids the user installed, oldest first.
+             */
+            installed: string[];
         };
         /** LanguageDto */
         LanguageDto: {
@@ -5963,6 +6012,113 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_installed_api_me_skills_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstalledSkills"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    install_skill_api_me_skills__skill_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstalledSkills"];
+                };
+            };
+            /** @description No such skill (or not visible to this user). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uninstall_skill_api_me_skills__skill_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstalledSkills"];
+                };
             };
             /** @description Validation Error */
             422: {
