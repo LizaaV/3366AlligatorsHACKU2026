@@ -212,3 +212,40 @@ def test_nan_in_findings_becomes_null():
 def test_run_id_is_validated(bad_id):
     with pytest.raises(ValueError):
         asyncio.run(run_script(GOOD, {}, bad_id))
+
+
+# --- pydantic v1-compat constructors (security audit, 4 Oct) ------------------------------------
+
+PICKLE_RCE = (
+    "import earth\n"
+    "def run(**p):\n"
+    "    earth.Area.parse_raw(b'\\x80\\x04N.', proto='pickle', allow_pickle=True)\n"
+    "    return {'findings': {}, 'evidence': [], 'blocks': []}\n"
+)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        PICKLE_RCE,
+        "import earth\ndef run(**p):\n    return earth.Area.parse_file('/etc/hosts')",
+        "import earth\ndef run(**p):\n    return earth.Scene.parse_obj({})",
+        "import earth\ndef run(**p):\n    return earth.LayerRef.model_construct(id='x')",
+        "from earth import PlaceHit\ndef run(**p):\n    return PlaceHit.construct()",
+    ],
+)
+def test_pydantic_v1_constructors_are_rejected(body):
+    out = run(body)
+    assert not out.ok and out.error.kind == "scan", out.error
+
+
+def test_unpickling_is_disabled_in_the_child_even_if_the_scan_misses(monkeypatch):
+    import pickle
+
+    from app.services import sandbox_child
+
+    monkeypatch.setattr(pickle, "loads", pickle.loads)  # restored after the test
+    monkeypatch.setattr(pickle, "load", pickle.load)
+    sandbox_child._disable_deserialisers()
+    with pytest.raises(PermissionError):
+        pickle.loads(b"\x80\x04N.")

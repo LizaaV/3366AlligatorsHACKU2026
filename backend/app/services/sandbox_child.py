@@ -52,7 +52,9 @@ def _limit_resources(timeout_s: int) -> None:
         limit = int(timeout_s) + 2
         resource.setrlimit(resource.RLIMIT_CPU, (limit, limit + 1))
         if sys.platform == "linux":  # RLIMIT_AS is unreliable on macOS
-            resource.setrlimit(resource.RLIMIT_AS, (2 * 1024**3, 2 * 1024**3))
+            # Address space, not RSS: real earth reads (GDAL, odc-stac, BLAS) start many threads,
+            # each reserving virtual stack. 2 GiB broke them ("can't start new thread").
+            resource.setrlimit(resource.RLIMIT_AS, (16 * 1024**3, 16 * 1024**3))
     except Exception:  # noqa: BLE001 — best effort, unsupported on some platforms
         pass
 
@@ -110,6 +112,18 @@ def _safe_builtins(proxies: dict[str, SimpleNamespace]) -> dict[str, Any]:
     return safe
 
 
+def _disable_deserialisers() -> None:
+    """Defence in depth: nothing in a sandboxed script needs pickle, and library code that could
+    be tricked into unpickling (e.g. pydantic's deprecated parse_raw) must not. (Not marshal:
+    the import system uses it to load cached bytecode.)"""
+    import pickle
+
+    def _blocked(*_a: Any, **_k: Any) -> Any:
+        raise PermissionError("deserialising pickle data is not allowed in the sandbox")
+
+    pickle.load = pickle.loads = _blocked  # type: ignore[assignment]
+
+
 def _tail(text: str, n: int = 20) -> str:
     return "\n".join(text.rstrip().splitlines()[-n:])
 
@@ -133,6 +147,7 @@ def main() -> None:
             "__name__": "__sandbox__",
             "__builtins__": _safe_builtins(_proxies()),
         }
+        _disable_deserialisers()
         exec(compile(job["script"], "<script>", "exec"), namespace)  # noqa: S102
         result = namespace["run"](**job["params"])
         if not isinstance(result, dict):
