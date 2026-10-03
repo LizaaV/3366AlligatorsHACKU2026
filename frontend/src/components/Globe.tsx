@@ -11,9 +11,15 @@ export interface GlobeProps {
   visible: boolean;
   autoRotate?: boolean;
   offsetRight?: boolean;
+  /**
+   * Horizontal shift of the globe's centre, in pixels from the middle of the host, e.g. half the
+   * width of a side panel so the globe sits centred in the space beside it. Overrides the
+   * default `offsetRight` shift.
+   */
+  offsetPx?: number;
   /** Called when the user clicks (not drags) the earth. */
   onPickLocation?: (p: GlobePick) => void;
-  /** Smoothly rotate so this point faces the camera (and drop a pin there). */
+  /** Smoothly rotate so this point faces the camera, drop a pin there, and hold it in view. */
   focus?: GlobePick | null;
   showSatellites?: boolean;
 }
@@ -22,10 +28,10 @@ const SAT_REFRESH_MS = 30_000;
 const fmt = (n: number, pos: string, neg: string) => `${Math.abs(n).toFixed(1)}°${n >= 0 ? pos : neg}`;
 
 /** Draggable, zoomable 3D Earth with live satellites and click-to-pick. Sizes to its parent. */
-export function Globe({ visible, autoRotate = true, offsetRight = true, onPickLocation, focus = null, showSatellites = true }: GlobeProps) {
+export function Globe({ visible, autoRotate = true, offsetRight = true, offsetPx, onPickLocation, focus = null, showSatellites = true }: GlobeProps) {
   const el = useRef<HTMLDivElement>(null);
-  const live = useRef({ visible, autoRotate, offsetRight, onPickLocation, showSatellites });
-  live.current = { visible, autoRotate, offsetRight, onPickLocation, showSatellites };
+  const live = useRef({ visible, autoRotate, offsetRight, offsetPx, onPickLocation, showSatellites });
+  live.current = { visible, autoRotate, offsetRight, offsetPx, onPickLocation, showSatellites };
   const api3d = useRef<{ setFocus: (f: GlobePick | null) => void; refreshLayout: () => void } | null>(null);
   const [hover, setHover] = useState<(SatHover & { x: number; y: number }) | null>(null);
 
@@ -127,7 +133,10 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, onPickLo
 
     // Focus animation target
     let target: { lon: number; lat: number } | null = null;
+    // While a point is focused, auto-rotate stays off so it does not drift out of view.
+    let held = false;
     const setFocus = (f: GlobePick | null) => {
+      held = !!f;
       if (!f) { pin.visible = false; target = null; return; }
       placePin(f);
       target = { lon: spinForLon(f.lon), lat: THREE.MathUtils.clamp((f.lat * Math.PI) / 180, -1.2, 1.2) };
@@ -143,7 +152,8 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, onPickLo
       const vh = 2 * BASE_Z * Math.tan(THREE.MathUtils.degToRad(20));
       const vw = vh * cam.aspect;
       const wide = cam.aspect > 1.2 && live.current.offsetRight;
-      grp.position.x = wide ? vw * 0.2 : 0;
+      const px = live.current.offsetPx;
+      grp.position.x = px != null ? vw * (px / w) : wide ? vw * 0.2 : 0;
       grp.position.y = cam.aspect > 1.2 ? 0 : -0.35;
       grp.scale.setScalar(cam.aspect > 1.2 ? 1 : 0.82);
     };
@@ -198,7 +208,7 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, onPickLo
         grp.rotation.x += dx * 0.08;
         grp.rotation.z += dz * 0.08;
         if (Math.abs(dy) < 0.002 && Math.abs(dx) < 0.002) target = null;
-      } else if (!ctrl.dragging && !interacted && live.current.autoRotate) {
+      } else if (!ctrl.dragging && !interacted && !held && live.current.autoRotate) {
         spin.rotation.y += 0.0011;
       }
       stars.rotation.y += 0.00005;
@@ -225,8 +235,9 @@ export function Globe({ visible, autoRotate = true, offsetRight = true, onPickLo
     };
   }, []);
 
-  useEffect(() => { api3d.current?.setFocus(focus ?? null); }, [focus?.lat, focus?.lon]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { api3d.current?.refreshLayout(); }, [offsetRight]);
+  // Re-applied when the globe comes back into view, so returning from the map re-centres the place.
+  useEffect(() => { if (visible) api3d.current?.setFocus(focus ?? null); }, [focus?.lat, focus?.lon, visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { api3d.current?.refreshLayout(); }, [offsetRight, offsetPx]);
 
   return (
     <div ref={el} style={{ position: 'absolute', inset: 0, opacity: visible ? 1 : 0, transition: 'opacity .6s ease', cursor: 'grab', pointerEvents: visible ? 'auto' : 'none', touchAction: 'none' }}>

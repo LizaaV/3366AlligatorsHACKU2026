@@ -295,6 +295,7 @@ export function AskPage({ active }: { active: boolean }) {
         <Globe
           visible={active && !isMap}
           offsetRight={!mobile}
+          offsetPx={mobile ? 0 : sideW / 2}
           focus={focusPt ? { lat: focusPt.lat, lon: focusPt.lon } : null}
           onPickLocation={(p) => setGlobePick({ lat: p.lat, lon: p.lon })}
         />
