@@ -42,9 +42,10 @@ const en: Dict = {
   'cta.askHere': 'Ask about this place', 'cta.explore': 'Library',
   'tier.free': 'Free', 'tier.paid': 'Paid',
   'places.title': 'Places', 'places.sub': 'Fields, plots, sites and water bodies you have saved. Pick one to ask about it.',
-  'watches.title': 'Watches', 'watches.sub': 'Questions the agent re-asks on every new satellite pass, sorted by what they watch.',
+  'watches.title': 'Triggers', 'watches.sub': 'Things the agent looks out for on every new satellite pass, and tells you when they happen.',
   'library.title': 'Skills library', 'library.sub': 'Reproducible recipes that turn a question into satellite steps. Official skills are built and validated by Groundtruth.',
   'common.all': 'All',
+  'nav.triggers': 'Triggers',
 };
 
 const de: Dict = {
@@ -58,6 +59,7 @@ const de: Dict = {
   'watches.title': 'Wachen', 'watches.sub': 'Fragen, die der Agent bei jedem neuen Satellitenüberflug erneut stellt – nach Thema sortiert.',
   'library.title': 'Skill-Bibliothek', 'library.sub': 'Reproduzierbare Rezepte, die eine Frage in Satellitenschritte übersetzen. Offizielle Skills sind von Groundtruth gebaut und validiert.',
   'common.all': 'Alle',
+  'nav.triggers': 'Auslöser',
 };
 
 const es: Dict = {
@@ -71,6 +73,7 @@ const es: Dict = {
   'watches.title': 'Vigilancias', 'watches.sub': 'Preguntas que el agente repite en cada nuevo paso de satélite, ordenadas por tema.',
   'library.title': 'Biblioteca de skills', 'library.sub': 'Recetas reproducibles que convierten una pregunta en pasos satelitales. Las oficiales las crea y valida Groundtruth.',
   'common.all': 'Todo',
+  'nav.triggers': 'Disparadores',
 };
 
 const fr: Dict = {
@@ -84,6 +87,7 @@ const fr: Dict = {
   'watches.title': 'Veilles', 'watches.sub': "Questions que l'agent repose à chaque nouveau passage satellite, classées par thème.",
   'library.title': 'Bibliothèque de skills', 'library.sub': 'Recettes reproductibles qui transforment une question en étapes satellites. Les skills officiels sont validés par Groundtruth.',
   'common.all': 'Tous',
+  'nav.triggers': 'Déclencheurs',
 };
 
 const pt: Dict = {
@@ -97,6 +101,7 @@ const pt: Dict = {
   'watches.title': 'Vigias', 'watches.sub': 'Perguntas que o agente refaz a cada nova passagem de satélite, organizadas por tema.',
   'library.title': 'Biblioteca de skills', 'library.sub': 'Receitas reproduzíveis que transformam uma pergunta em etapas de satélite. Skills oficiais são validados pela Groundtruth.',
   'common.all': 'Todos',
+  'nav.triggers': 'Gatilhos',
 };
 
 const hi: Dict = {
@@ -110,6 +115,7 @@ const hi: Dict = {
   'watches.title': 'निगरानी', 'watches.sub': 'सवाल जो एजेंट हर नए उपग्रह पास पर दोबारा पूछता है, विषय के अनुसार।',
   'library.title': 'स्किल लाइब्रेरी', 'library.sub': 'दोहराए जा सकने वाले तरीके जो सवाल को उपग्रह चरणों में बदलते हैं।',
   'common.all': 'सभी',
+  'nav.triggers': 'ट्रिगर',
 };
 
 const sw: Dict = {
@@ -123,6 +129,7 @@ const sw: Dict = {
   'watches.title': 'Ufuatiliaji', 'watches.sub': 'Maswali ambayo wakala huuliza tena kila satelaiti inapopita.',
   'library.title': 'Maktaba ya ujuzi', 'library.sub': 'Mapishi yanayorudiwa yanayogeuza swali kuwa hatua za satelaiti.',
   'common.all': 'Zote',
+  'nav.triggers': 'Vichochezi',
 };
 
 const ar: Dict = {
@@ -136,6 +143,7 @@ const ar: Dict = {
   'watches.title': 'المراقبة', 'watches.sub': 'أسئلة يعيد الوكيل طرحها مع كل مرور جديد للقمر الصناعي.',
   'library.title': 'مكتبة المهارات', 'library.sub': 'وصفات قابلة لإعادة الإنتاج تحول السؤال إلى خطوات بالأقمار الصناعية.',
   'common.all': 'الكل',
+  'nav.triggers': 'المشغّلات',
 };
 
 const DICTS: Record<string, Dict> = { en, de, es, fr, pt, hi, sw, ar };

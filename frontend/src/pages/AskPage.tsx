@@ -474,7 +474,7 @@ export function AskPage({ active }: { active: boolean }) {
                     <button className="btn btn-text btn-sm" onClick={() => open({ kind: 'watchBuilder', placeId: place.id })}><Ms n="add" />Add watch<Tier tier="free" /></button>
                   </div>
                   {placeWatches.slice(0, 3).map((w) => (
-                    <button key={w.id} onClick={() => go('watches', w.id)} className="row" style={{ gap: 8, padding: '6px 8px', borderRadius: 8, background: 'var(--s2)', border: 0, textAlign: 'left' }}>
+                    <button key={w.id} onClick={() => go('triggers', w.id)} className="row" style={{ gap: 8, padding: '6px 8px', borderRadius: 8, background: 'var(--s2)', border: 0, textAlign: 'left' }}>
                       <span className="dot" style={{ background: w.status === 'ok' ? 'var(--green)' : w.status === 'warn' ? 'var(--yellow)' : 'var(--red)' }} />
                       <span className="grow" style={{ font: '500 13px/1.38 var(--font)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.name}</span>
                       <span className="tiny ink">{w.value}{w.unit ? ' ' + w.unit : ''}</span>
@@ -555,7 +555,6 @@ export function AskPage({ active }: { active: boolean }) {
                     <div className="row" style={{ justifyContent: 'space-between' }}><span className="eyebrow">Reference image</span><span className="tiny muted">Basemap · 2020 · 10 m</span></div>
                     <img onError={hideBroken} src={thumb(center.lat, center.lon, Math.min(17, zoom))} alt="" style={{ width: '100%', aspectRatio: '1', borderRadius: 8, display: 'block', background: '#000', objectFit: 'cover' }} />
                     <div className="caption muted">{place?.name ?? 'Map centre'} · {fmtC(center.lat, center.lon)}</div>
-                    <Btn size="sm" icon="hd" tier="paid" tierLabel="$12/km²" onClick={() => open({ kind: 'upgrade', feature: '30 cm reference image (Pléiades Neo)', price: '$12 / km²' })}>Order 30 cm image</Btn>
                   </div>
                 )}
               </div>
@@ -612,7 +611,7 @@ export function AskPage({ active }: { active: boolean }) {
         <Btn variant="primary" icon="auto_stories" onClick={() => { setSheet(true); setPop(null); setPanel(null); }}>{mobile ? '' : 'Skills'}</Btn>
         <Btn icon="layers" onClick={() => { setPop(null); setPanel((p) => (p === 'layers' ? null : 'layers')); }} style={{ background: panel === 'layers' ? 'var(--s3)' : undefined }}>{mobile ? '' : 'Layers'}</Btn>
         {!mobile && (
-          <Btn icon="visibility" onClick={() => go('watches')}>
+          <Btn icon="visibility" onClick={() => go('triggers')}>
             Watches<span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999, background: '#fff', color: '#000', font: '600 11px/18px var(--font)', textAlign: 'center' }}>{watches.filter((w) => w.enabled).length}</span>
           </Btn>
         )}
