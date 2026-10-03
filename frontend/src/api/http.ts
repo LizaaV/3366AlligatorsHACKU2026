@@ -81,6 +81,8 @@ export interface RequestOptions<T = unknown> {
   signal?: AbortSignal;
   /** Multipart upload. Mutually exclusive with `body`. */
   form?: FormData;
+  /** Override REQUEST_TIMEOUT_MS for a call that legitimately takes longer (satellite reads). */
+  timeoutMs?: number;
   /**
    * TEMPORARY local stand-in, used while `VITE_API_SOURCE=fixture` and this endpoint has no
    * backend yet. Delete this property to put the endpoint live.
@@ -89,7 +91,7 @@ export interface RequestOptions<T = unknown> {
 }
 
 export async function request<T>(opts: RequestOptions<T>): Promise<T> {
-  const { method, path, query, body, form, signal, fixture } = opts;
+  const { method, path, query, body, form, signal, fixture, timeoutMs } = opts;
 
   if (fixture && usingFixtures()) {
     await sleep(FIXTURE_LATENCY_MS, signal);
@@ -100,7 +102,7 @@ export async function request<T>(opts: RequestOptions<T>): Promise<T> {
   }
 
   const timeout = new AbortController();
-  const timer = setTimeout(() => timeout.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => timeout.abort(), timeoutMs ?? REQUEST_TIMEOUT_MS);
   const onAbort = () => timeout.abort();
   signal?.addEventListener('abort', onAbort);
 

@@ -331,17 +331,4 @@ export const detectBoundary = (lat: number, lon: number, w = 400, h = 300) => {
   return pts;
 };
 
-export const PARCEL_SYSTEMS = [
-  { id: 'br', name: 'Brazil · CAR', placeholder: 'RO-1100205-8F3A…', tier: 'free' as const, lat: -10.082, lon: -62.914, categoryKey: 'forests' },
-  { id: 'eu', name: 'EU · INSPIRE cadastral parcel', placeholder: 'NL.IMKAD.KadastraalPerceel.…', tier: 'free' as const, lat: 51.982, lon: 4.418, categoryKey: 'agriculture' },
-  { id: 'in', name: 'India · Survey number', placeholder: 'Anand / 214/2', tier: 'free' as const, lat: 22.552, lon: 72.968, categoryKey: 'agriculture' },
-  { id: 'us', name: 'United States · APN (county)', placeholder: '055-123-04-0-00-00-001', tier: 'paid' as const, lat: 37.951, lon: -100.884, categoryKey: 'agriculture' },
-  { id: 'ke', name: 'Kenya · LR number', placeholder: 'Nakuru/Block 4/112', tier: 'paid' as const, lat: -0.312, lon: 36.081, categoryKey: 'agriculture' },
-];
-
-export const WHATSAPP_PINS = [
-  { id: 'wa1', from: 'You', when: '2 min ago', note: 'Lower shamba, near the borehole', lat: -0.3021, lon: 36.0712 },
-  { id: 'wa2', from: 'Field team · Juma', when: 'Yesterday, 16:40', note: 'Maize block east of road', lat: 37.9903, lon: -100.9061 },
-];
-
 export const WHATSAPP_NUMBER = '+1 (555) 014-7788';

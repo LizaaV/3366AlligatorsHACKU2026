@@ -12,12 +12,7 @@
 import { request } from '../http';
 import { usingFixtures } from '../config';
 import * as fixtures from '../fixtures';
-import type {
-  DetectBoundaryResponse,
-  ParcelLookupRequest,
-  ParcelLookupResponse,
-  ParseBoundaryFileResponse,
-} from '../types';
+import type { DetectBoundaryResponse, ParseBoundaryFileResponse } from '../types';
 import type { components } from '../schema';
 import { toPlace, type Place } from '../../model';
 import { approxAreaHa, ptsToRing } from '../../lib/geo';
@@ -27,6 +22,27 @@ type S = components['schemas'];
 export type PlaceDto = S['PlaceDto'];
 export type PlaceMemory = S['PlaceMemory'];
 export type MemoryPatch = S['MemoryPatch'];
+type DetectBoundaryDto = S['DetectBoundaryResponse'];
+type ParseFileDto = S['ParseFileResponse'];
+
+/** satellite reads on a cold cache take ~35 s; the server answers a fallback after 60 s */
+const DETECT_TIMEOUT_MS = 75_000;
+
+const fromDetectDto = (d: DetectBoundaryDto): DetectBoundaryResponse => ({
+  geometry: d.geometry as unknown as DetectBoundaryResponse['geometry'],
+  areaHa: d.area_ha,
+  confidence: d.confidence,
+  method: d.method,
+  note: d.note ?? '',
+});
+
+const fromParseDto = (d: ParseFileDto, fileName: string): ParseBoundaryFileResponse => ({
+  geometry: d.geometry as unknown as ParseBoundaryFileResponse['geometry'],
+  center: d.center,
+  areaHa: d.area_ha,
+  suggestedName: d.name || fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Uploaded field',
+  note: d.note ?? 'Outline from file',
+});
 
 /**
  * What the add-place wizard produces, in the frontend's own vocabulary.
@@ -146,78 +162,65 @@ export const placesApi = {
 
 
   /**
-   * TODO(api): POST /api/places/detect-boundary
-   * Suggests a field outline around a coordinate — the "AI boundary detector" in the add-place
-   * wizard. The stand-in generates a deterministic field-like shape from the coordinates.
+   * POST /api/places/detect-boundary
+   * Suggests the outline of the field / pond / plot around a coordinate (the "Use AI boundary"
+   * option). Grown from the latest clear Sentinel-2 scene; `method: 'fallback_square'` with
+   * `confidence: 'Low'` is a ~1 ha square when there is no usable imagery.
    */
   detectBoundary: (lat: number, lon: number, signal?: AbortSignal): Promise<DetectBoundaryResponse> =>
-    request<DetectBoundaryResponse>({
+    request<DetectBoundaryDto>({
       method: 'POST',
       path: '/places/detect-boundary',
       body: { lat, lon },
       signal,
-      fixture: () => {
-        const pts = fixtures.detectBoundary(lat, lon);
-        return {
-          geometry: { type: 'Polygon' as const, coordinates: [ptsToRing(pts, { lat, lon })] },
-          areaHa: approxAreaHa(pts, lat),
-          confidence: 'Medium' as const,
-        };
-      },
-    }),
+      timeoutMs: DETECT_TIMEOUT_MS,
+      ...(usingFixtures()
+        ? {
+            fixture: (): DetectBoundaryDto => {
+              const pts = fixtures.detectBoundary(lat, lon);
+              return {
+                geometry: { type: 'Polygon', coordinates: [ptsToRing(pts, { lat, lon })] },
+                area_ha: approxAreaHa(pts, lat),
+                confidence: 'Medium',
+                method: 'sentinel2_segmentation',
+                note: 'Sample outline (fixture data).',
+              };
+            },
+          }
+        : {}),
+    }).then(fromDetectDto),
 
   /**
-   * TODO(api): POST /api/places/parse-file (multipart)
-   * Parses KML / GeoJSON / Shapefile / CSV-of-points into a single outline.
+   * POST /api/places/parse-file (multipart, field `file`, max 5 MB)
+   * One outline from GeoJSON, KML/KMZ, GPX or a CSV of lat/lon points. Shapefiles answer 415
+   * with a hint to export GeoJSON or KML instead.
    */
   parseBoundaryFile: (file: File, signal?: AbortSignal): Promise<ParseBoundaryFileResponse> => {
     const form = new FormData();
     form.set('file', file);
-    return request<ParseBoundaryFileResponse>({
+    return request<ParseFileDto>({
       method: 'POST',
       path: '/places/parse-file',
       form,
       signal,
-      fixture: () => {
-        const center = { lat: 37.9937, lon: -100.9216 };
-        const pts = fixtures.detectBoundary(center.lat, center.lon, 460, 330);
-        const base = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Uploaded field';
-        return {
-          geometry: { type: 'Polygon' as const, coordinates: [ptsToRing(pts, center)] },
-          center,
-          areaHa: approxAreaHa(pts, center.lat),
-          suggestedName: base.charAt(0).toUpperCase() + base.slice(1),
-          note: /\.csv$/i.test(file.name) ? 'Outline around the uploaded points' : 'Outline from file',
-        };
-      },
-    });
+      ...(usingFixtures()
+        ? {
+            fixture: (): ParseFileDto => {
+              const center = { lat: 37.9937, lon: -100.9216 };
+              const pts = fixtures.detectBoundary(center.lat, center.lon, 460, 330);
+              return {
+                geometry: { type: 'Polygon', coordinates: [ptsToRing(pts, center)] },
+                center,
+                area_ha: approxAreaHa(pts, center.lat),
+                name: null,
+                note: /\.csv$/i.test(file.name) ? 'Outline around the uploaded points' : 'Outline from file',
+              };
+            },
+          }
+        : {}),
+    }).then((d) => fromParseDto(d, file.name));
   },
 
-  /** TODO(api): POST /api/places/lookup-parcel — queries a cadastre/registry */
-  lookupParcel: (body: ParcelLookupRequest, signal?: AbortSignal): Promise<ParcelLookupResponse> =>
-    request<ParcelLookupResponse>({
-      method: 'POST',
-      path: '/places/lookup-parcel',
-      body,
-      signal,
-      fixture: () => {
-        const sys = fixtures.PARCEL_SYSTEMS.find((p) => p.id === body.system) ?? fixtures.PARCEL_SYSTEMS[0];
-        const center = { lat: sys.lat, lon: sys.lon };
-        const pts = fixtures.detectBoundary(sys.lat, sys.lon, 380, 420);
-        return {
-          geometry: { type: 'Polygon' as const, coordinates: [ptsToRing(pts, center)] },
-          center,
-          areaHa: approxAreaHa(pts, sys.lat),
-          registryLabel: `${sys.name.split(' · ')[1] ?? sys.name} ${body.parcelId.trim()}`,
-          categoryKey: sys.categoryKey,
-        };
-      },
-    }),
-
-  /** Registry systems offered in the add-place wizard. TODO(api): fold into GET /api/catalog */
-  parcelSystems: () => fixtures.PARCEL_SYSTEMS,
-
-  /** Inbound WhatsApp location pins. TODO(api): GET /api/places/inbound-pins */
-  inboundPins: () => fixtures.WHATSAPP_PINS,
+  /** Phone number shown in the connectors modal. TODO(api): comes with the WhatsApp channel. */
   whatsappNumber: () => fixtures.WHATSAPP_NUMBER,
 };
