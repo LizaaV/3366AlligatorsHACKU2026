@@ -34,7 +34,6 @@ import {
   categoryOf,
   type Catalog,
   type Category,
-  type ClarifyingQuestion,
   type DeliveryChannel,
   type MapLayer,
   type Place,
@@ -103,7 +102,6 @@ interface Store {
   places: Place[];
   watches: Watch[];
   mapLayers: MapLayer[];
-  clarifyingQuestions: ClarifyingQuestion[];
   /** Shortcut for `catalog.modules` — the building blocks a skill is composed from. */
   modules: SkillModule[];
   /** Shortcut for `catalog.channels` — email / push / WhatsApp / SMS / Slack. */
@@ -153,7 +151,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [places, setPlaces] = useState<Place[]>([]);
   const [watches, setWatches] = useState<Watch[]>([]);
   const [mapLayers, setMapLayers] = useState<MapLayer[]>([]);
-  const [clarifyingQuestions, setClarifyingQuestions] = useState<ClarifyingQuestion[]>([]);
 
   const [loading, setLoading] = useState<LoadState>({ catalog: true, skills: true, places: true, watches: true });
   const [errors, setErrors] = useState<LoadErrors>({});
@@ -197,10 +194,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     api.catalog
       .mapLayers(ac.signal)
       .then((l) => live && setMapLayers(l))
-      .catch(() => undefined);
-    api.catalog
-      .clarifyingQuestions(ac.signal)
-      .then((q) => live && setClarifyingQuestions(q))
       .catch(() => undefined);
 
     return () => {
@@ -341,7 +334,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       places,
       watches,
       mapLayers,
-      clarifyingQuestions,
       modules: catalog?.modules ?? [],
       channels: catalog?.channels ?? [],
       loading,
@@ -383,7 +375,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       places,
       watches,
       mapLayers,
-      clarifyingQuestions,
       loading,
       errors,
       reload,

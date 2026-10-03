@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
 import { Btn, ConfidenceBadge, Ms, Tier } from '../components/ui';
-import type { RouteOptionDto } from '../api/types';
 import type { Answer } from '../model';
 
-const ROUTE_STYLE: Record<RouteOptionDto['status'], { label: string; color: string; icon: string; dash?: boolean; dim?: boolean }> = {
+/** The contract's `RouteOption` (`contracts/openapi.json`): `sat`, not `satellite`. */
+type RouteOption = Answer['route'][number];
+
+const ROUTE_STYLE: Record<RouteOption['status'], { label: string; color: string; icon: string; dash?: boolean; dim?: boolean }> = {
   chosen: { label: 'Chosen', color: '#ffffff', icon: 'check_circle' },
   support: { label: 'Supporting', color: 'var(--blue)', icon: 'add_circle' },
   fallback: { label: 'Fallback', color: 'var(--subtle)', icon: 'alt_route', dash: true },
@@ -27,7 +29,7 @@ function Section({ icon, title, meta, children, defaultOpen = false }: { icon: s
 }
 
 /** Satellite routing: how the agent picked sources — free first, paid only when needed. */
-function Routing({ route }: { route: RouteOptionDto[] }) {
+function Routing({ route }: { route: RouteOption[] }) {
   return (
     <div className="col" style={{ gap: 0 }}>
       <div className="row" style={{ gap: 8 }}>
@@ -38,7 +40,7 @@ function Routing({ route }: { route: RouteOptionDto[] }) {
         const st = ROUTE_STYLE[r.status];
         const lastRow = i === route.length - 1;
         return (
-          <div key={r.satellite} className="row" style={{ gap: 0, alignItems: 'stretch' }}>
+          <div key={r.sat} className="row" style={{ gap: 0, alignItems: 'stretch' }}>
             <svg width="30" height="48" style={{ flex: 'none' }} aria-hidden>
               <line x1="11" y1="0" x2="11" y2={lastRow ? 24 : 48} stroke="var(--hair)" strokeWidth="1.5" />
               <path d="M11 14 Q11 24 21 24 L30 24" fill="none" stroke={st.color} strokeWidth="1.5" strokeDasharray={st.dash ? '3 3' : r.status === 'skipped' ? '1 4' : undefined} style={r.status === 'chosen' ? { strokeDasharray: '6 3', animation: 'dash 1s linear infinite' } : undefined} />
@@ -46,7 +48,7 @@ function Routing({ route }: { route: RouteOptionDto[] }) {
             <div className="row grow" style={{ gap: 10, margin: '6px 0', padding: '6px 10px', borderRadius: 8, background: r.status === 'chosen' ? 'var(--s1)' : 'transparent', border: `1px solid ${r.status === 'chosen' ? 'var(--hair)' : 'var(--hair-soft)'}`, opacity: st.dim ? 0.7 : 1 }}>
               <Ms n={st.icon} size={16} style={{ color: st.color }} />
               <div className="col grow">
-                <span style={{ font: '600 13px/1.38 var(--font)', textDecoration: r.status === 'skipped' ? 'line-through' : undefined, textDecorationColor: 'var(--subtle)' }}>{r.satellite}</span>
+                <span style={{ font: '600 13px/1.38 var(--font)', textDecoration: r.status === 'skipped' ? 'line-through' : undefined, textDecorationColor: 'var(--subtle)' }}>{r.sat}</span>
                 <span className="tiny">{r.why}</span>
               </div>
               <span className="tiny" style={{ color: st.color, whiteSpace: 'nowrap' }}>{st.label}</span>
@@ -58,36 +60,64 @@ function Routing({ route }: { route: RouteOptionDto[] }) {
   );
 }
 
-export function AnswerCard({ answer: a, question, placeId, onRunSkill }: { answer: Answer; question: string; placeId: string | null; onRunSkill: (id: string) => void }) {
-  const { open, notify, go, places, skills, category } = useStore();
+export function AnswerCard({ answer: a, question, placeId, onRunSkill, onAskFollowup }: { answer: Answer; question: string; placeId: string | null; onRunSkill: (id: string) => void; onAskFollowup?: (q: string) => void }) {
+  const { open, notify, go, places, skills } = useStore();
   const used = a.proof.filter((p) => p.used).length;
   const place = places.find((p) => p.id === placeId);
-  const color = category(a.categoryKey).color;
+  // The backend sends the accent colour; it has no notion of our category list.
+  const color = a.color ?? 'var(--subtle)';
   return (
     <div className="col" style={{ padding: 18, borderRadius: 12, background: 'var(--s2)', border: '1px solid var(--hair)', gap: 14, animation: 'fadeUp .4s ease both' }}>
       <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-        <div className="row"><span className="sq" style={{ background: color }} /><span className="eyebrow muted">{a.eyebrow}</span></div>
+        <div className="row">
+          <span className="sq" style={{ background: color }} />
+          <span className="eyebrow muted">{a.eyebrow}</span>
+          {/* The stub run and any cached preset answer are marked, so a demo is never mistaken for a measurement. */}
+          {a.preset && <span className="tiny" style={{ padding: '1px 6px', borderRadius: 4, background: 'var(--s3)', color: 'var(--subtle)' }}>demo data</span>}
+        </div>
         <ConfidenceBadge level={a.confidence.level} pct={a.confidence.pct} />
       </div>
       <div style={{ font: '600 22px/1.18 var(--font)', letterSpacing: -0.4, textWrap: 'balance' }}>{a.title}</div>
-      <div className="stats" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
-        {a.stats.map((s) => (
-          <div key={s.label}><div className="l">{s.label}</div><div className="v">{s.value}</div>{s.ci && <div className="ci">{s.ci}</div>}</div>
-        ))}
-      </div>
+      {a.sentence && (
+        <div className="body-sm" style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-dim, inherit)' }}>{a.sentence}</div>
+      )}
+      {a.stats.length > 0 && (
+        <div className="stats" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
+          {a.stats.map((s) => (
+            <div key={s.label}><div className="l">{s.label}</div><div className="v">{s.value}</div>{s.ci && <div className="ci">{s.ci}</div>}</div>
+          ))}
+        </div>
+      )}
       <div>
         <div style={{ font: '600 13px/1.38 var(--font)' }}>{a.findingLabel}</div>
-        <div className="body-sm" style={{ marginTop: 2, fontSize: 14, lineHeight: 1.6 }}>{a.finding}</div>
+        {/* A measure-only answer has a measurement but no matching knowledge card, so there is
+            genuinely no cause to state. Saying so is better than implying one. */}
+        <div className="body-sm" style={{ marginTop: 2, fontSize: 14, lineHeight: 1.6, color: a.finding ? undefined : 'var(--subtle)' }}>
+          {a.finding ?? 'Cause unknown — this is a measurement only, with no matching knowledge card.'}
+        </div>
       </div>
-      <div>
-        <div style={{ font: '600 13px/1.38 var(--font)' }}>{a.actionLabel}</div>
-        <div className="body-sm" style={{ marginTop: 2, fontSize: 14, lineHeight: 1.6 }}>{a.action}</div>
-      </div>
+      {a.action && (
+        <div>
+          <div style={{ font: '600 13px/1.38 var(--font)' }}>{a.actionLabel}</div>
+          <div className="body-sm" style={{ marginTop: 2, fontSize: 14, lineHeight: 1.6 }}>{a.action}</div>
+        </div>
+      )}
 
-      {a.kind === 'general' && a.suggestedSkillIds && (
+      {a.followups.length > 0 && onAskFollowup && (
+        <div className="col" style={{ gap: 6 }}>
+          <div className="eyebrow">Ask next</div>
+          <div className="row wrap" style={{ gap: 6 }}>
+            {a.followups.map((q) => (
+              <button key={q} className="chip" onClick={() => onAskFollowup(q)} style={{ textAlign: 'left' }}>{q}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {a.kind === 'general' && a.suggested.length > 0 && (
         <div className="col" style={{ gap: 6 }}>
           <div className="eyebrow">Skills that answer this</div>
-          {a.suggestedSkillIds.map((id) => {
+          {a.suggested.map((id: string) => {
             const s = skills.find((x) => x.id === id);
             if (!s) return null;
             return (
@@ -109,7 +139,7 @@ export function AnswerCard({ answer: a, question, placeId, onRunSkill }: { answe
         </ul>
       </Section>
 
-      <Section icon="satellite_alt" title="Satellite routing" meta={a.route.filter((r) => r.status === 'chosen' || r.status === 'support').map((r) => r.satellite.split(' ')[0]).join(' + ')}>
+      <Section icon="satellite_alt" title="Satellite routing" meta={a.route.filter((r) => r.status === 'chosen' || r.status === 'support').map((r) => r.sat.split(' ')[0]).join(' + ')}>
         <Routing route={a.route} />
       </Section>
 
@@ -117,11 +147,11 @@ export function AnswerCard({ answer: a, question, placeId, onRunSkill }: { answe
         <Section icon="verified_user" title="Proof" meta={`${used} scenes used · ${a.proof.length - used} skipped`}>
           <div className="col" style={{ gap: 4, maxHeight: 220, overflowY: 'auto' }}>
             {a.proof.map((p) => (
-              <div key={p.sceneId + p.date} className="row" style={{ gap: 8, padding: '6px 8px', borderRadius: 6, background: p.used ? 'var(--s1)' : 'transparent' }}>
+              <div key={p.id + p.date} className="row" style={{ gap: 8, padding: '6px 8px', borderRadius: 6, background: p.used ? 'var(--s1)' : 'transparent' }}>
                 <Ms n={p.used ? 'check' : 'remove'} size={14} style={{ color: p.used ? 'var(--green)' : 'var(--subtle)' }} />
                 <span className="tiny ink" style={{ width: 44, flex: 'none' }}>{p.date}</span>
-                <span className="tiny grow" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.sceneId}>{p.sceneId}</span>
-                <span className="tiny" style={{ whiteSpace: 'nowrap' }}>{p.used ? `${p.cloudPct}% cloud` : p.why}</span>
+                <span className="tiny grow" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.id}>{p.id}</span>
+                <span className="tiny" style={{ whiteSpace: 'nowrap' }}>{p.used ? `${Math.round(p.cloud * 100)}% cloud` : p.why}</span>
               </div>
             ))}
           </div>
@@ -134,7 +164,7 @@ export function AnswerCard({ answer: a, question, placeId, onRunSkill }: { answe
 
       <div className="row wrap" style={{ gap: 8, borderTop: '1px solid var(--hair)', paddingTop: 14 }}>
         {a.kind === 'place' ? (
-          <Btn variant="primary" icon="visibility" tier="free" onClick={() => open({ kind: 'watchBuilder', prefill: watchPrefill(question, a, place?.name), placeId, skillId: a.skillId, fromAnswer: true })}>Keep watching</Btn>
+          <Btn variant="primary" icon="visibility" tier="free" onClick={() => open({ kind: 'watchBuilder', prefill: watchPrefill(question, a, place?.name), placeId, skillId: a.skillId ?? undefined, fromAnswer: true })}>Keep watching</Btn>
         ) : (
           <Btn variant="primary" icon="pentagon" onClick={() => go('places')}>Pick a place</Btn>
         )}
