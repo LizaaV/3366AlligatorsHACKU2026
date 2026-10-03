@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { addSatellites } from './globeSatellites';
 
-/** Spinning, draggable 3D Earth — ported from the prototype's initGlobe(). */
+/** Spinning, draggable 3D Earth with the live satellite constellation — ported from the prototype's initGlobe(). */
 export function Globe({ visible, autoRotate = true, offsetRight = true }: { visible: boolean; autoRotate?: boolean; offsetRight?: boolean }) {
   const el = useRef<HTMLDivElement>(null);
   const live = useRef({ visible, autoRotate, offsetRight });
@@ -34,12 +35,13 @@ export function Globe({ visible, autoRotate = true, offsetRight = true }: { visi
       new THREE.SphereGeometry(1, 64, 64),
       new THREE.ShaderMaterial({
         vertexShader: 'varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-        fragmentShader: 'varying vec3 vN;void main(){float i=pow(0.68-dot(vN,vec3(0.0,0.0,1.0)),2.6);gl_FragColor=vec4(0.17,0.54,1.0,1.0)*i;}',
+        fragmentShader: 'varying vec3 vN;void main(){float i=pow(0.68-dot(vN,vec3(0.0,0.0,1.0)),3.2);gl_FragColor=vec4(0.17,0.54,1.0,1.0)*i*0.55;}',
         side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true,
       }),
     );
-    atm.scale.setScalar(1.14);
+    atm.scale.setScalar(1.08);
     grp.add(atm);
+    const sats = addSatellites(earth);
     const g = new THREE.BufferGeometry();
     const N = 2200;
     const pos = new Float32Array(N * 3);
@@ -93,12 +95,14 @@ export function Globe({ visible, autoRotate = true, offsetRight = true }: { visi
       if (!live.current.visible) return;
       if (!drag && live.current.autoRotate) earth.rotation.y += 0.0011;
       stars.rotation.y += 0.00005;
+      sats.update();
       r.render(scene, cam);
     };
     loop();
 
     return () => {
       cancelAnimationFrame(raf);
+      sats.dispose();
       ro.disconnect();
       host.removeEventListener('pointerdown', down);
       window.removeEventListener('pointerup', up);
