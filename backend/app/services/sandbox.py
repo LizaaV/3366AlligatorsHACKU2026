@@ -55,7 +55,12 @@ class RunOutcome(BaseModel):
 
 # --- AST scan -----------------------------------------------------------------------------------
 
-_ALLOWED_MODULES = {"math", "statistics", "datetime", "json", "numpy"}
+_ALLOWED_MODULES = {
+    "math",
+    "statistics",
+    "datetime",
+    "json",
+}  # no numpy: its file I/O (np.load, loadtxt) bypasses the scan
 _ALLOWED_EARTH = {
     "earth",
     "earth.show",
@@ -153,7 +158,7 @@ def scan_script(script: str) -> ScriptError | None:
         kind="scan",
         message=f"Script rejected before running: {shown}{more}",
         hint=(
-            "Only import earth, math, statistics, datetime, json, numpy; no file, network or "
+            "Only import earth, math, statistics, datetime, json; no file, network or "
             "dunder access; define `def run(**params)` that returns a dict."
         ),
     )

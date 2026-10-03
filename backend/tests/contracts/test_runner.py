@@ -63,6 +63,7 @@ def test_good_script_streams_calls_in_order():
         "from earth import settings\ndef run(**p):\n    return {}",
         "import earth\ndef run(**p):\n    earth.calls.set_listener(None)\n    return {}",
         "def run(**p):\n    open('x')",
+        "import numpy\ndef run(**p):\n    return {'k': str(numpy.loadtxt('.env', dtype=str))}",
         "def run(**p):\n    return __import__('os')",
         "def run(**p):\n    return ().__class__",
         "def run(**p):\n    return eval('1')",
