@@ -10,8 +10,10 @@ from __future__ import annotations
 import ast
 import asyncio
 import contextlib
+import functools
 import json
 import os
+import re
 import signal
 import sys
 import time
@@ -26,6 +28,7 @@ from earth.types import EarthCall
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 MAX_LINES = 300
+RUN_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 CALL = "@@EARTH_CALL "
 RESULT = "@@RESULT "
@@ -37,6 +40,7 @@ class ScriptError(BaseModel):
     message: str
     hint: str | None = None
     traceback_tail: str | None = None  # last ~20 lines, for the agent's fix loop
+    earth_kind: str | None = None  # e.g. "no_clear_scenes", "area_too_small" (EarthError.kind)
 
 
 class ScriptResult(BaseModel):  # HANDOFF B2.3
@@ -55,27 +59,16 @@ class RunOutcome(BaseModel):
 
 # --- AST scan -----------------------------------------------------------------------------------
 
-_ALLOWED_MODULES = {
-    "math",
-    "statistics",
-    "datetime",
-    "json",
-}  # no numpy: its file I/O (np.load, loadtxt) bypasses the scan
-_ALLOWED_EARTH = {
-    "earth",
-    "earth.show",
-    "earth.blocks",
-    "earth.types",
-    "earth.errors",
-    "earth.presets",
-}
-_PRIVATE_EARTH = {"_stub", "real", "settings", "calls", "set_listener", "set_run"}
+# What a script can see. The child hands the script proxies holding ONLY these names, so
+# module internals (earth.importlib, statistics.sys, json.codecs, ...) are unreachable at runtime;
+# the scan rejects the rest before anything runs. Docker (SANDBOX_IMPL=docker) is the outer wall.
+_PRIVATE_EARTH = {"set_listener", "set_run"}
+SUBMODULES = {("earth", "show"): "earth.show", ("earth", "presets"): "earth.presets"}
 _BANNED_NAMES = {
     "eval",
     "exec",
     "compile",
     "open",
-    "__import__",
     "getattr",
     "setattr",
     "delattr",
@@ -84,7 +77,76 @@ _BANNED_NAMES = {
     "vars",
     "breakpoint",
     "input",
+    "type",
+    "help",
+    "exit",
+    "quit",
+    "memoryview",
+    "object",
+    "super",
+    "classmethod",
+    "staticmethod",
+    "property",
 }
+# Attributes that lead from ordinary objects to frames, code or module globals
+_BANNED_ATTRS = {
+    "gi_frame",
+    "gi_code",
+    "gi_yieldfrom",
+    "cr_frame",
+    "cr_code",
+    "cr_await",
+    "ag_frame",
+    "ag_code",
+    "f_globals",
+    "f_locals",
+    "f_builtins",
+    "f_back",
+    "f_code",
+    "tb_frame",
+    "tb_next",
+    "format",
+    "format_map",
+    "mro",
+}
+
+
+@functools.cache
+def public_names() -> dict[str, frozenset[str]]:
+    """Module → names a script may use. Shared with the child, which builds proxies from it."""
+    import datetime
+    import json as json_mod
+    import math
+    import statistics
+
+    import earth
+    import earth.presets
+    import earth.show
+
+    show = {
+        n
+        for n, v in vars(earth.show).items()
+        if not n.startswith("_") and callable(v) and getattr(v, "__module__", "") == "earth.show"
+    }
+    return {
+        "earth": frozenset(set(earth.__all__) - _PRIVATE_EARTH | {"presets"}),
+        "earth.show": frozenset(show),
+        "earth.presets": frozenset(n for n in vars(earth.presets) if n.isupper()),
+        "math": frozenset(n for n in dir(math) if not n.startswith("_")),
+        "statistics": frozenset(statistics.__all__),
+        "datetime": frozenset(datetime.__all__),
+        "json": frozenset(json_mod.__all__),
+    }
+
+
+def _module_of(node: ast.expr, modules: dict[str, str]) -> str | None:
+    """The allowed module an expression refers to (`earth`, `earth.show`, ...), if any."""
+    if isinstance(node, ast.Name):
+        return modules.get(node.id)
+    if isinstance(node, ast.Attribute):
+        parent = _module_of(node.value, modules)
+        return SUBMODULES.get((parent, node.attr)) if parent else None
+    return None
 
 
 def scan_script(script: str) -> ScriptError | None:
@@ -105,7 +167,22 @@ def scan_script(script: str) -> ScriptError | None:
             hint=f"Fix the syntax at line {exc.lineno}.",
         )
 
+    allowed = public_names()
     problems: list[tuple[int, str]] = []
+
+    # Names bound to modules by imports → which module (to check `earth.x` early, with a hint).
+    modules: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                top = alias.name if alias.asname else alias.name.split(".")[0]
+                if top in allowed:  # disallowed imports are reported below
+                    modules[alias.asname or top] = top
+        elif isinstance(node, ast.ImportFrom) and node.module in allowed:
+            for alias in node.names:
+                sub = SUBMODULES.get((node.module, alias.name))
+                if sub:
+                    modules[alias.asname or alias.name] = sub
 
     def bad(node: ast.AST, what: str) -> None:
         problems.append((getattr(node, "lineno", 0), what))
@@ -113,38 +190,32 @@ def scan_script(script: str) -> ScriptError | None:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                name = alias.name
-                if name in _ALLOWED_EARTH or name in _ALLOWED_MODULES:
-                    continue
-                if name.split(".")[0] == "earth":
-                    bad(node, f"import of private module '{name}' is not allowed")
-                else:
-                    bad(node, f"import of '{name}' is not allowed")
+                if alias.name not in allowed:
+                    bad(node, f"import of '{alias.name}' is not allowed")
         elif isinstance(node, ast.ImportFrom):
             mod = node.module or ""
             if node.level:
                 bad(node, "relative imports are not allowed")
-            elif mod.split(".")[0] == "earth":
-                if mod not in _ALLOWED_EARTH:
-                    bad(node, f"import from private module '{mod}' is not allowed")
-                elif mod == "earth":
-                    for alias in node.names:
-                        if alias.name.startswith("_") or alias.name in _PRIVATE_EARTH:
-                            bad(node, f"'earth.{alias.name}' is private")
-            elif mod not in _ALLOWED_MODULES:
+            elif mod not in allowed:
                 bad(node, f"import from '{mod}' is not allowed")
+            else:
+                for alias in node.names:
+                    if alias.name not in allowed[mod]:
+                        bad(node, f"'{mod}.{alias.name}' is not available")
         elif isinstance(node, ast.Name):
             if node.id in _BANNED_NAMES or node.id.startswith("__"):
                 bad(node, f"use of '{node.id}' is not allowed")
         elif isinstance(node, ast.Attribute):
-            if node.attr.startswith("__"):
-                bad(node, f"dunder attribute '{node.attr}' is not allowed")
-            elif (
-                isinstance(node.value, ast.Name)
-                and node.value.id == "earth"
-                and node.attr in _PRIVATE_EARTH
-            ):
-                bad(node, f"'earth.{node.attr}' is private")
+            if node.attr.startswith("_"):
+                bad(node, f"private attribute '{node.attr}' is not allowed")
+            elif node.attr in _BANNED_ATTRS:
+                bad(node, f"attribute '{node.attr}' is not allowed")
+            elif (mod := _module_of(node.value, modules)) and node.attr not in allowed[mod]:
+                bad(node, f"'{mod}.{node.attr}' is not available")
+        elif isinstance(node, ast.ClassDef):
+            bad(node, "class definitions are not allowed")
+        elif isinstance(node, ast.Global | ast.Nonlocal):
+            bad(node, "global/nonlocal are not allowed")
 
     if not any(isinstance(n, ast.FunctionDef) and n.name == "run" for n in tree.body):
         problems.append((1, "no top-level 'def run(**params)' found"))
@@ -158,8 +229,9 @@ def scan_script(script: str) -> ScriptError | None:
         kind="scan",
         message=f"Script rejected before running: {shown}{more}",
         hint=(
-            "Only import earth, math, statistics, datetime, json; no file, network or "
-            "dunder access; define `def run(**params)` that returns a dict."
+            "Only import earth (+ earth.show, earth.presets), math, statistics, datetime, json and "
+            "use their public names; no files, network, private (_x) attributes or classes; "
+            "define `def run(**params)` that returns a dict."
         ),
     )
 
@@ -210,6 +282,8 @@ async def run_script(
     on_call: Callable[[EarthCall], Awaitable[None]] | None = None,
     timeout_s: int = 60,
 ) -> RunOutcome:
+    if not RUN_ID_RE.fullmatch(run_id):
+        raise ValueError(f"invalid run_id: {run_id!r}")
     calls: list[EarthCall] = []
 
     def fail(error: ScriptError) -> RunOutcome:

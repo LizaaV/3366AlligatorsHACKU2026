@@ -135,3 +135,80 @@ def test_child_env_has_no_secrets(monkeypatch):
     allowed = {"PATH", "PYTHONPATH", "HOME", "TMPDIR", "EARTH_IMPL", "EARTH_DATA_DIR", "RUN_ID"}
     assert set(env) <= allowed
     assert env["RUN_ID"] == "r1" and env["EARTH_IMPL"] == "stub"
+
+
+# --- Escapes found by the Phase 1 integration test ----------------------------------------------
+
+ESCAPES = [
+    "import earth\ndef run(**p):\n    return earth.importlib.import_module('builtins')",
+    "from earth import importlib\ndef run(**p):\n    return {}",
+    "import statistics\ndef run(**p):\n    return statistics.sys",
+    "import json\ndef run(**p):\n    return json.codecs",
+    "import earth\ndef run(**p):\n    return earth.show.uuid",
+    "from earth import show\ndef run(**p):\n    return show.uuid",
+    "import earth as e\ndef run(**p):\n    return e.Transformer",
+    "from earth.types import json\ndef run(**p):\n    return {}",
+    "def run(**p):\n    return '{0.x}'.format(p)",
+    "def run(**p):\n    g = (i for i in [1])\n    return g.gi_frame.f_globals",
+    "def run(**p):\n    return type(p)",
+    "class A:\n    pass\ndef run(**p):\n    return {}",
+    "def run(**p):\n    return p._x",
+]
+
+
+@pytest.mark.parametrize("body", ESCAPES)
+def test_known_escapes_are_rejected_by_the_scan(body):
+    out = run(body)
+    assert not out.ok and out.error.kind == "scan", out.error
+
+
+def test_module_internals_are_unreachable_at_runtime_even_if_the_scan_misses():
+    # Aliasing a module past the scan: the script only ever holds a proxy of public names.
+    script = (
+        "import earth\n"
+        "def run(**p):\n"
+        "    m = [earth][0]\n"
+        "    return {'findings': {'x': str(m.importlib)}, 'evidence': [], 'blocks': []}\n"
+    )
+    out = run(script)
+    assert not out.ok and out.error.kind == "crash"
+    assert "importlib" in out.error.message
+
+
+def test_builtins_are_restricted_at_runtime():
+    script = (
+        "def run(**p):\n"
+        "    b = [__builtins__][0] if False else None\n"
+        "    return {'findings': {'open': 'open' in dir()}, 'evidence': [], 'blocks': []}\n"
+    )
+    # `__builtins__` is rejected by the scan; dir() shows no `open` in the script's scope.
+    assert run(script).error.kind == "scan"
+
+
+def test_earth_error_kind_is_passed_through_for_the_fix_loop():
+    script = (
+        "import earth\n"
+        "def run(**p):\n"
+        "    earth.load(earth.Area.from_point(22.5, 114.0, radius_m=20),\n"
+        "               earth.scenes(earth.presets.HOO_HOK_WAI).latest_clear())\n"
+    )
+    out = run(script)
+    assert out.error.kind == "crash"
+    assert out.error.earth_kind == "area_too_small"
+    assert out.error.hint
+
+
+def test_nan_in_findings_becomes_null():
+    script = (
+        "def run(**p):\n"
+        "    return {'findings': {'x': float('nan')}, 'evidence': [], 'blocks': []}\n"
+    )
+    out = run(script)
+    assert out.ok, out.error
+    assert out.result.findings == {"x": None}
+
+
+@pytest.mark.parametrize("bad_id", ["../../evil", "R1", "", "a/b"])
+def test_run_id_is_validated(bad_id):
+    with pytest.raises(ValueError):
+        asyncio.run(run_script(GOOD, {}, bad_id))
