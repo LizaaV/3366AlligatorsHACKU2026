@@ -7,6 +7,7 @@ import { LanguageModal } from './LanguageModal';
 import { UpgradeModal } from './UpgradeModal';
 import { AddPlaceModal } from './AddPlaceModal';
 import { WatchBuilderModal } from './WatchBuilderModal';
+import { KnowledgeCardModal } from './KnowledgeCardModal';
 
 export function ModalHost() {
   const { modal } = useStore();
@@ -20,5 +21,6 @@ export function ModalHost() {
     case 'upgrade': return <UpgradeModal feature={modal.feature} price={modal.price} />;
     case 'addPlace': return <AddPlaceModal />;
     case 'watchBuilder': return <WatchBuilderModal prefill={modal.prefill} placeId={modal.placeId} skillId={modal.skillId} fromAnswer={modal.fromAnswer} />;
+    case 'knowledgeCard': return <KnowledgeCardModal cardId={modal.cardId} />;
   }
 }

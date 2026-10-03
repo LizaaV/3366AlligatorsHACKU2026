@@ -139,6 +139,49 @@ export function AnswerCard({ answer: a, question, placeId, onRunSkill, onAskFoll
         </ul>
       </Section>
 
+      {/* The written rules behind the answer. These card ids were rendered nowhere until now,
+          which made "method" a word rather than something you could check. */}
+      {a.method && (a.method.cards?.length || a.method.skill || a.method.code_ref) && (
+        <Section
+          icon="menu_book"
+          title="Method"
+          meta={a.method.cards?.length ? `${a.method.cards.length} knowledge card${a.method.cards.length === 1 ? '' : 's'}` : undefined}
+        >
+          <div className="col" style={{ gap: 6 }}>
+            {(a.method.cards ?? []).map((c) => (
+              <button
+                key={c.id}
+                className="menu-item"
+                onClick={() => open({ kind: 'knowledgeCard', cardId: c.id })}
+                title={`Open the ${c.id} card`}
+              >
+                <Ms n="article" />
+                <span className="grow">
+                  {c.id}
+                  <span className="caption" style={{ display: 'block' }}>v{c.version} · {c.status}</span>
+                </span>
+                <Ms n="chevron_right" className="muted" />
+              </button>
+            ))}
+            {a.method.skill && (
+              <span className="tiny muted">Skill: {a.method.skill.id} v{a.method.skill.version}</span>
+            )}
+            {a.method.code_ref && (
+              <span className="tiny muted" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                {a.method.code_ref}
+              </span>
+            )}
+            {/* A draft card has not been tested on known cases — which is why the backend caps
+                confidence at Low while any of them are drafts. Saying so here joins the two up. */}
+            {(a.method.cards ?? []).some((c) => c.status === 'draft') && (
+              <span className="caption" style={{ color: 'var(--amber)' }}>
+                Some of these cards are drafts, not yet tested on known cases. That is why the confidence above is capped.
+              </span>
+            )}
+          </div>
+        </Section>
+      )}
+
       <Section icon="satellite_alt" title="Satellite routing" meta={a.route.filter((r) => r.status === 'chosen' || r.status === 'support').map((r) => r.sat.split(' ')[0]).join(' + ')}>
         <Routing route={a.route} />
       </Section>
