@@ -41,11 +41,12 @@ npx openapi-typescript ../contracts/openapi.json -o src/api/schema.d.ts
 | `GET /api/knowledge/cards/{card_id}` | One card, with its full Markdown body | `CardDetail` |
 | `GET /api/knowledge/find?q=...` | Which cards a sentence mentions ("were there floods here" → `water_gain`) | `CardIndexEntry[]` |
 | `GET /api/layers/{run_id}/{measure}/{scene}.png` | A rendered map image. You never build this URL yourself: it comes inside blocks (`image.url`) | PNG |
+| `GET /api/threads?limit=20` | **Chat history:** the user's conversations, newest first (title = first question, place, last question, status, answer line) | `ThreadSummary[]` |
+| `GET /api/threads/{thread_id}` | Reopen one conversation: every run, oldest first, with answers, blocks and event logs to redraw it exactly | `ThreadDetail` |
 | `GET /api/health` | Liveness check | `{status: "ok"}` |
 
 **Not built yet** (coming in later modules; keep using the mocks):
 
-- threads list (A4)
 - watches and skills listing (A5)
 
 ## 3. The live stream (`POST /api/runs`)
@@ -366,6 +367,16 @@ Map image URLs (`/api/layers/...png`) are always given inside blocks; use them a
 - An unusable area gives **422** with `detail: {kind, message, hint}`. Show the `hint`.
 
 `POST /api/areas/context` with `{"point": …}` or `{"geojson": …}` returns the place facts used for the "Spot picked" card: size, land cover, slope, and how many recent passes were clear.
+
+## 7b. Conversations (threads) and follow-ups
+
+- Every run belongs to a thread. Send the `thread_id` from `run_started` to ask a **follow-up** ("Since when?", "Is that normal?").
+- **What the follow-up keeps from the previous answer:** the agent starts from the last answer in the thread (its place, hypotheses, cards and measurements), so it only reads new data when it needs to.
+- **The place:** if a follow-up has no `area` or `place_id`, it reuses the previous run's place.
+- **History:** `GET /api/threads` lists conversations for a history sidebar, and `GET /api/threads/{id}` reloads one exactly (same events as when it streamed). Store `thread_id` so a refresh can reopen the chat.
+- **Limits:**
+  - A conversation holds at most **30 runs**, then `POST /api/runs` returns **409** ("start a new one": omit `thread_id`).
+  - **Anti-spam:** at most **40 runs per user** and **60 per client address** per hour (questions + clarification replies). Over that, the API returns **429** with `Retry-After` (seconds). There is also a few-second cooldown between runs.
 
 ## 8. Errors
 

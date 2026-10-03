@@ -62,6 +62,11 @@ __all__ = [
     "injection_precheck",
     "military_overlap",
     "reset_cooldowns",
+    "reset_rates",
+    "check_rates",
+    "client_address",
+    "RateLimited",
+    "SlidingWindow",
     "run_gates",
     "set_military_check",
     "size_gate",
@@ -170,6 +175,84 @@ def check_cooldown(user_id: str) -> None:
 def reset_cooldowns() -> None:
     """Clear the process-wide cooldowns (tests)."""
     _COOLDOWNS.reset()
+
+
+# --- Hourly rate limits (anti-spam) --------------------------------------------------------
+
+
+class RateLimited(PolicyGateError):
+    """Too many runs started in the last hour by this user or from this address."""
+
+    code = "rate_limited"
+
+    def __init__(self, retry_after: float, scope: str) -> None:
+        self.retry_after = max(1.0, retry_after)
+        self.scope = scope
+        super().__init__(
+            f"Too many questions in the last hour; try again in {math.ceil(self.retry_after)} s."
+        )
+
+
+class SlidingWindow:
+    """At most `limit` events per key in the last `window_s` seconds, in memory.
+
+    One process, hackathon scale (like `Cooldowns`). Keys are user ids and client
+    addresses, so changing `X-User-Id` alone does not escape the limit.
+    """
+
+    _PRUNE_AT = 10_000
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._events: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def hit(self, key: str, limit: int, window_s: float, scope: str) -> None:
+        """Record one event for `key`, or raise RateLimited (a refused hit is not recorded)."""
+        if limit <= 0:
+            return
+        now = self._clock()
+        with self._lock:
+            recent = [t for t in self._events.get(key, []) if now - t < window_s]
+            if len(recent) >= limit:
+                self._events[key] = recent
+                raise RateLimited(retry_after=window_s - (now - recent[0]), scope=scope)
+            recent.append(now)
+            self._events[key] = recent
+            if len(self._events) > self._PRUNE_AT:
+                self._events = {
+                    k: v for k, v in self._events.items() if v and now - v[-1] < window_s
+                }
+
+    def reset(self) -> None:
+        with self._lock:
+            self._events.clear()
+
+
+_RATES = SlidingWindow()
+_HOUR = 3600.0
+
+
+def client_address(host: str | None, headers: Mapping[str, str]) -> str:
+    """The caller's address: the socket peer, or the proxy's `X-Real-IP` / first
+    `X-Forwarded-For` hop when `settings.trust_proxy_headers` (only behind our nginx)."""
+    if settings.trust_proxy_headers:
+        real = headers.get("x-real-ip") or headers.get("x-forwarded-for", "").split(",")[0]
+        if real.strip():
+            return real.strip()[:64]
+    return (host or "unknown")[:64]
+
+
+def check_rates(user_id: str, address: str) -> None:
+    """Hourly caps on runs started (new questions and clarification replies) per user and
+    per address. Raises RateLimited; nothing is recorded for a refused start."""
+    _RATES.hit(f"addr:{address}", settings.runs_per_hour_per_ip, _HOUR, "address")
+    _RATES.hit(f"user:{user_id}", settings.runs_per_hour_per_user, _HOUR, "user")
+
+
+def reset_rates() -> None:
+    """Clear the process-wide rate windows (tests)."""
+    _RATES.reset()
 
 
 # --- Spend cap ------------------------------------------------------------------------------

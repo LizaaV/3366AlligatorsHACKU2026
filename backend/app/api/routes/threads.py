@@ -1,0 +1,43 @@
+"""Threads (BUILD-PLAN A4): list the user's conversations and reload one exactly."""
+
+from __future__ import annotations
+
+import asyncio
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.schemas.runs import ID_PATTERN
+from app.schemas.threads import ThreadDetail, ThreadSummary
+from app.services import threads
+from app.services.user import current_user
+
+router = APIRouter(tags=["threads"])
+_ID_RE = re.compile(ID_PATTERN)
+
+
+@router.get("/threads", response_model=list[ThreadSummary], summary="List my conversations")
+async def list_threads(
+    limit: int = Query(20, ge=1, le=threads.MAX_LIST),
+    user_id: str = Depends(current_user),
+) -> list[ThreadSummary]:
+    """The user's conversations, most recent first: title (first question), place, the
+    latest question, status and answer line."""
+    return await asyncio.to_thread(threads.list_threads, user_id, limit)
+
+
+@router.get(
+    "/threads/{thread_id}",
+    response_model=ThreadDetail,
+    summary="Reload one conversation",
+    responses={400: {"description": "Invalid thread id."}, 404: {"description": "Not found."}},
+)
+async def get_thread(thread_id: str, user_id: str = Depends(current_user)) -> ThreadDetail:
+    """Every run of the conversation, oldest first, with answers, blocks, steps and the
+    event log, so the chat can be redrawn exactly. Private agent state is left out."""
+    if not _ID_RE.fullmatch(thread_id):
+        raise HTTPException(status_code=400, detail=f"Invalid thread id: use {ID_PATTERN}.")
+    detail = await asyncio.to_thread(threads.get_thread, user_id, thread_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Thread not found.")
+    return detail

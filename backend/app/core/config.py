@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     agent_turn_max_tokens: int = 16000
     #: max_tokens for the guard call.
     guard_max_tokens: int = 4000
+    #: Anti-spam: runs started (new questions + clarification replies) per user per hour.
+    runs_per_hour_per_user: int = 40
+    #: Anti-spam: runs started from one client address per hour (0 = off).
+    runs_per_hour_per_ip: int = 60
+    #: Trust `X-Real-IP` / `X-Forwarded-For` for the client address (only behind our nginx).
+    trust_proxy_headers: bool = False
 
 
 settings = Settings()
