@@ -41,15 +41,21 @@ export function ErrorState({
   onRetry,
   title,
   compact,
+  message: override,
 }: {
   error: ApiError | Error | undefined;
   onRetry?: () => void;
   title?: string;
   compact?: boolean;
+  /**
+   * Replaces the message derived from `error`. For failures that arrive with their own
+   * explanation — a run stream's `error` event, say — which is better than the generic line.
+   */
+  message?: string;
 }) {
   const api = error instanceof ApiError ? error : undefined;
   const pending = api?.kind === 'not-implemented';
-  const message = api?.userMessage ?? 'Something went wrong. Try again.';
+  const message = override ?? api?.userMessage ?? 'Something went wrong. Try again.';
   const canRetry = !!onRetry && (api?.retryable ?? true);
 
   return (

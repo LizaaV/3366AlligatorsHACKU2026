@@ -775,14 +775,23 @@ function TurnView({
         </div>
       )}
 
-      {/* An in-stream error is not a failed request: the run reached the server and broke there. */}
-      {turn.streamError && (
+      {/* A *recoverable* stream error is a notice: the run carries on after it. A fatal one is
+          followed by done{status: "failed"}, and its message becomes the error card's — showing
+          the server's own explanation instead of a generic "something went wrong". */}
+      {turn.streamError?.recoverable && turn.phase !== 'error' && (
         <div className="caption" style={{ padding: 10, borderRadius: 8, background: 'var(--s2)', border: '1px solid var(--hair-soft)' }}>
           {turn.streamError.message}
         </div>
       )}
 
-      {turn.phase === 'error' && <ErrorState error={turn.error} onRetry={isLast ? onRetry : undefined} title="The agent could not answer" />}
+      {turn.phase === 'error' && (
+        <ErrorState
+          error={turn.error}
+          message={turn.streamError?.message}
+          onRetry={isLast ? onRetry : undefined}
+          title="The agent could not answer"
+        />
+      )}
 
       {turn.answer && turn.phase !== 'running' && (
         <AnswerCard
