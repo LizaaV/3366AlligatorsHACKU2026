@@ -1,8 +1,8 @@
 /**
  * Editable key/value profile, shared by "What the agent knows about this place" and "About you".
  *
- * The backend merges keys and never deletes them, so saved rows can be edited but not removed;
- * rows you add here and have not saved yet can be dropped. Limits mirror `schemas/memory.py`:
+ * The backend merges keys; sending a blank value forgets a saved fact, so the × on a saved row
+ * clears it and Save removes it. Limits mirror `schemas/memory.py`:
  * at most 30 keys per save, key up to 40 characters, value up to 300.
  */
 
@@ -46,8 +46,7 @@ export function ProfileEditor({ rows, onSave, emptyHint, keyPlaceholder = 'e.g. 
     for (const r of rows) {
       const d = drafts[r.key];
       if (d === undefined || d === r.value) continue;
-      if (!d.trim()) { problem = `“${r.key}” cannot be blank — the agent keeps saved facts, so overwrite it instead.`; continue; }
-      patch[r.key] = d.trim();
+      patch[r.key] = d.trim(); // blank = forget
     }
     for (const n of added) {
       const k = n.key.trim(), v = n.value.trim();
@@ -81,7 +80,8 @@ export function ProfileEditor({ rows, onSave, emptyHint, keyPlaceholder = 'e.g. 
             <span style={{ font: '600 13px/1.3 var(--font)', wordBreak: 'break-word' }}>{r.key}</span>
             {r.saved && <span className="tiny">Saved {r.saved}</span>}
           </div>
-          <input className="input grow" aria-label={`Value for ${r.key}`} maxLength={MAX_VALUE} value={drafts[r.key] ?? r.value} onChange={(e) => setDrafts((d) => ({ ...d, [r.key]: e.target.value }))} />
+          <input className="input grow" aria-label={`Value for ${r.key}`} maxLength={MAX_VALUE} value={drafts[r.key] ?? r.value} placeholder="Will be forgotten" onChange={(e) => setDrafts((d) => ({ ...d, [r.key]: e.target.value }))} />
+          <IconBtn icon="close" className="sm" aria-label={`Forget ${r.key}`} title="Forget this fact" onClick={() => setDrafts((d) => ({ ...d, [r.key]: '' }))} />
         </div>
       ))}
 
