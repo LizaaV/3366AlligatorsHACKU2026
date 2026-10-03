@@ -4,7 +4,7 @@ import { useStore } from '../state/store';
 // bundle and loaded when the globe first renders.
 const Globe = lazy(() => import('../components/Globe').then((m) => ({ default: m.Globe })));
 import { MapView } from '../components/MapView';
-import { Btn, CatPill, Check, IconBtn, Ms, hideBroken } from '../components/ui';
+import { Btn, CatPill, IconBtn, Ms, hideBroken } from '../components/ui';
 import { ErrorState } from '../components/async';
 import { api, toApiError } from '../api';
 import { useResource } from '../hooks/useResource';
@@ -67,7 +67,6 @@ export function AskPage({ active }: { active: boolean }) {
   const [layers, setLayers] = useState<MapLayer[]>([]);
   const [q, setQ] = useState('');
   const [pop, setPop] = useState<string | null>(null);
-  const [panel, setPanel] = useState<'layers' | null>(null);
   const [searchQ, setSearchQ] = useState('');
   const [drawing, setDrawing] = useState(false);
   // Corners of an outline being drawn, on the live map (pan and zoom keep working).
@@ -376,7 +375,6 @@ export function AskPage({ active }: { active: boolean }) {
   /** Start drawing on the map as it is; only fly there if we are still on the globe. */
   const startDraw = (shape: 'polygon' | 'circle' = 'polygon') => {
     setPop(null);
-    setPanel(null);
     setDraft([]);
     setDraftName('');
     setDraftKind('Not sure');
@@ -467,7 +465,6 @@ export function AskPage({ active }: { active: boolean }) {
 
   const toolClick = (k: string) => {
     if (['draw', 'contours'].includes(k)) return setPop((p) => (p === k ? null : k));
-    if (k === 'layers') { setPop(null); return setPanel((p) => (p === 'layers' ? null : 'layers')); }
   };
 
   /* ---------------- derived ---------------- */
@@ -559,8 +556,6 @@ export function AskPage({ active }: { active: boolean }) {
   const tools: { k: string; icon?: string; title?: string; caret?: boolean }[] = [
     { k: 'draw', icon: 'polyline', title: 'Draw an outline', caret: true },
     { k: 'contours', icon: 'pentagon', title: 'My places', caret: true },
-    { k: '|' },
-    { k: 'layers', icon: 'layers', title: 'Layers' },
   ];
 
   return (
@@ -633,8 +628,20 @@ export function AskPage({ active }: { active: boolean }) {
       {/* REAL LAYER: which rendered image is on the map, and before/after */}
       {isMap && overlayPair && (
         <div className="panel row fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : 20, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100% - 32px)', top: mobile ? 64 : 90, gap: 10, padding: '6px 6px 6px 14px', zIndex: 14 }}>
-          <span className="sq" style={{ width: 10, height: 10, background: layers.find((l) => l.id === overlayId)?.color ?? '#fff' }} />
-          <span style={{ font: '600 13px/1.38 var(--font)' }}>{overlayName}</span>
+          <span className="eyebrow muted" title="Images the agent measured for this answer">Answer</span>
+          {Object.keys(images).length > 1 && shownTurn ? (
+            Object.keys(images).map((k) => (
+              <button key={k} className={`chip ${overlayId === k ? 'on' : ''}`} style={{ padding: '4px 10px' }} onClick={() => showTurnLayer(shownTurn, k)} aria-pressed={overlayId === k}>
+                <span className="sq" style={{ width: 8, height: 8, marginRight: 6, background: layers.find((l) => l.id === k)?.color ?? '#fff' }} />
+                {layers.find((l) => l.id === k)?.name.split(' · ')[0] ?? k}
+              </button>
+            ))
+          ) : (
+            <>
+              <span className="sq" style={{ width: 10, height: 10, background: layers.find((l) => l.id === overlayId)?.color ?? '#fff' }} />
+              <span style={{ font: '600 13px/1.38 var(--font)' }}>{overlayName}</span>
+            </>
+          )}
           <span className="tiny muted">{overlay?.date}</span>
           {(['before', 'after'] as const).map((w) => (
             <button key={w} className={`chip ${overlayWhen === w ? 'on' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setOverlayWhen(w)} aria-pressed={overlayWhen === w}>
@@ -868,7 +875,7 @@ export function AskPage({ active }: { active: boolean }) {
           {tools.map((tl, i) =>
             tl.k === '|' ? <div key={i} style={{ width: 1, height: 26, background: 'var(--hair)', margin: '0 6px' }} /> : (
               <div key={tl.k} style={{ position: 'relative' }}>
-                <button onClick={() => toolClick(tl.k)} title={tl.title} aria-label={tl.title} style={{ height: 40, minWidth: 40, padding: `0 ${tl.caret ? 4 : 0}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: 0, background: pop === tl.k || (tl.k === 'layers' && panel === 'layers') || (tl.k === 'draw' && drawing) ? 'var(--s3)' : 'transparent' }}>
+                <button onClick={() => toolClick(tl.k)} title={tl.title} aria-label={tl.title} style={{ height: 40, minWidth: 40, padding: `0 ${tl.caret ? 4 : 0}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: 0, background: pop === tl.k || (tl.k === 'draw' && drawing) ? 'var(--s3)' : 'transparent' }}>
                   <Ms n={tl.icon!} size={22} />
                   {tl.caret && <Ms n="arrow_drop_down" size={18} className="muted" />}
                 </button>
@@ -901,34 +908,9 @@ export function AskPage({ active }: { active: boolean }) {
       )}
 
       {/* LAYERS PANEL */}
-      {panel === 'layers' && (
-        <div className="panel fade-up" style={{ position: 'absolute', right: mobile ? 16 : 20, left: mobile ? 16 : 'auto', top: mobile ? 12 : 90, width: mobile ? 'auto' : 340, maxHeight: 'calc(100% - 200px)', overflowY: 'auto', zIndex: 25 }}>
-          <div className="row" style={{ alignItems: 'flex-start', justifyContent: 'space-between', padding: '20px 20px 12px' }}>
-            <div><div className="eyebrow">Layers</div><div className="subhead" style={{ marginTop: 6 }}>{place?.name ?? 'No place selected'}</div></div>
-            <IconBtn icon="close" className="sm" onClick={() => setPanel(null)} aria-label="Close layers" />
-          </div>
-          {!Object.keys(images).length && <div className="sunk body-sm" style={{ margin: '0 20px 12px', padding: 12, fontSize: 13 }}>Satellite layers appear here after the agent answers a question about a place. They are the real images it measured.</div>}
-          <div className="col" style={{ padding: '0 8px 12px' }}>
-            {layers.filter((l) => l.isAgentMade).map((l) => {
-              const ready = !!images[l.id];
-              return (
-              <button key={l.id} className="menu-item" style={{ opacity: ready ? 1 : 0.4, gap: 12 }} onClick={() => (ready && panelTurn ? (overlayId === l.id ? setOverlaySel(null) : showTurnLayer(panelTurn, l.id)) : notify('Ask the agent about this place to render this layer', undefined, undefined, 'info'))}>
-                <Check on={overlayId === l.id} />
-                <span className="sq" style={{ width: 10, height: 10, background: l.color }} />
-                <span className="col grow"><span style={{ font: '600 14px/1.4 var(--font)' }}>{l.name}</span><span className="tiny">{l.source}</span></span>
-                {l.index && <span className="tiny muted">{l.index}</span>}
-              </button>
-              );
-            })}
-          </div>
-          <div className="caption" style={{ borderTop: '1px solid var(--hair-soft)', padding: '14px 20px 18px' }}>One layer at a time; switch Before / After on the map.</div>
-        </div>
-      )}
-
       {/* DOCK */}
       <div className="panel row" style={{ position: 'absolute', left: mobile ? 'auto' : chatW + 40, right: mobile ? 16 : 20, margin: mobile ? 0 : '0 auto', width: 'max-content', bottom: mobile ? 'auto' : 24, top: mobile ? 12 : 'auto', gap: 6, padding: 6, zIndex: 16, display: mobile && (turns.length > 0 || pop) ? 'none' : 'flex' }}>
-        <Btn variant="primary" icon="auto_stories" onClick={() => { setSheet(true); setPop(null); setPanel(null); }}>{mobile ? '' : 'Skills'}</Btn>
-        <Btn icon="layers" onClick={() => { setPop(null); setPanel((p) => (p === 'layers' ? null : 'layers')); }} style={{ background: panel === 'layers' ? 'var(--s3)' : undefined }}>{mobile ? '' : 'Layers'}</Btn>
+        <Btn variant="primary" icon="auto_stories" onClick={() => { setSheet(true); setPop(null); }}>{mobile ? '' : 'Skills'}</Btn>
         {!mobile && (
           <Btn icon="notifications_active" onClick={() => go('triggers')}>
             {t('nav.triggers')}<span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9999, background: '#fff', color: '#000', font: '600 11px/18px var(--font)', textAlign: 'center' }}>{watches.filter((w) => w.enabled).length}</span>
