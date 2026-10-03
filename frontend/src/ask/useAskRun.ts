@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, api, isEvent, toApiError, type StreamEvent } from '../api';
+import { ApiError, DEFAULT_PIN_RADIUS_M, api, isEvent, toApiError, type StreamEvent } from '../api';
 import type { AnswerBlock, Answer, RunStep } from '../model';
 import { toAnswer } from '../model';
 import type { components } from '../api/schema';
@@ -33,6 +33,8 @@ export interface AskTurn {
   text: string;
   placeId: string | null;
   skillId?: string;
+  /** A pinned spot with no saved place behind it (set from a globe click). */
+  point?: { lat: number; lon: number; name?: string } | null;
   /** `clarify` is waiting on the user; `running` has a stream open. */
   phase: 'clarify' | 'running' | 'done' | 'error';
   /** Ids the server assigned — `runId` for reload/reply/share, `threadId` for follow-ups. */
@@ -64,6 +66,8 @@ export interface SubmitOptions {
   skillId?: string;
   /** `undefined` means "use the currently selected place". */
   placeId?: string | null;
+  /** Ask about a pinned point instead of a saved place. */
+  point?: { lat: number; lon: number; name?: string } | null;
   /** Continue an existing conversation rather than starting a new thread. */
   threadId?: string | null;
 }
@@ -186,6 +190,9 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
               question: turn.text,
               lang,
               place_id: turn.placeId,
+              area: turn.point
+                ? { point: { lat: turn.point.lat, lon: turn.point.lon, radius_m: DEFAULT_PIN_RADIUS_M }, name: turn.point.name ?? null }
+                : null,
               thread_id: turn.threadId,
               skill_id: turn.skillId ?? null,
             },
@@ -217,6 +224,7 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
         text: trimmed,
         placeId: placeId ?? null,
         skillId: opts.skillId,
+        point: placeId ? null : (opts.point ?? null),
         phase: 'running',
         runId: null,
         threadId,
@@ -277,6 +285,12 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
     setTurns([]);
   }, []);
 
+  /** Replace the conversation with already-finished turns (a reloaded thread, or a hand-off from the mini chat). */
+  const hydrate = useCallback((next: AskTurn[]) => {
+    inflight.current?.abort();
+    setTurns(next);
+  }, []);
+
   const last = turns[turns.length - 1];
 
   /**
@@ -310,6 +324,7 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
     cancel,
     retry,
     reset,
+    hydrate,
     isBusy: last?.phase === 'running',
   };
 }

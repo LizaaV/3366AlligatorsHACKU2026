@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { href, useStore, type Page } from '../state/store';
-import { LANGS } from '../data/i18n';
 import { Ms } from './ui';
 
 const TABS: { page: Page; icon: string; key: string }[] = [
@@ -58,8 +57,6 @@ function AccountMenu() {
             <Ms n="hub" />Connectors
             <span className="tiny" style={{ marginLeft: 'auto' }}>{Object.values(connectors).filter((c) => c.connected).length} on</span>
           </button>
-          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'app' }); }}><Ms n="smartphone" />Get the mobile app</button>
-          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'lang' }); }}><Ms n="translate" />Language</button>
         </div>
       )}
     </div>
@@ -67,8 +64,7 @@ function AccountMenu() {
 }
 
 export function TopNav() {
-  const { route, t, lang, open } = useStore();
-  const L = LANGS.find((l) => l.code === lang)!;
+  const { route, t } = useStore();
   return (
     <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'var(--nav-h)', zIndex: 90, display: 'flex', alignItems: 'center', gap: 24, padding: '0 20px', background: '#000', borderBottom: '1px solid var(--hair-soft)' }}>
       <Logo />
@@ -84,10 +80,6 @@ export function TopNav() {
         })}
       </nav>
       <div className="row" style={{ marginLeft: 'auto', gap: 6 }}>
-        <button className="btn btn-text btn-sm" onClick={() => open({ kind: 'lang' })} title="Language" aria-label={`Language: ${L.english}`}>
-          <Ms n="translate" />
-          <span className="hide-mobile">{L.name}</span>
-        </button>
         <AccountMenu />
       </div>
     </header>

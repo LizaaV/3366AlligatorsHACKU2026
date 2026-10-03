@@ -6,6 +6,7 @@ import { PlacesPage } from './pages/PlacesPage';
 import { WatchesPage } from './pages/WatchesPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { ChatBubble } from './components/chat/ChatBubble';
 import { ModalHost } from './modals/ModalHost';
 
 function Routes() {
@@ -27,6 +28,12 @@ function Routes() {
         {route.page === 'library' && <LibraryPage />}
         {route.page === 'dashboard' && <DashboardPage />}
       </ErrorBoundary>
+      {/* One chat everywhere: the full chat lives on Ask, every other page gets the bubble. */}
+      {route.page !== 'ask' && (
+        <ErrorBoundary label="chat">
+          <ChatBubble />
+        </ErrorBoundary>
+      )}
       <MobileTabs />
       <ErrorBoundary label="modal">
         <ModalHost />

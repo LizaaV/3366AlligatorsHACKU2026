@@ -21,6 +21,7 @@ import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
 import { satellitesApi } from './endpoints/satellites';
 import { watchesApi } from './endpoints/watches';
+import { threadsApi } from './endpoints/threads';
 
 export const api = {
   catalog: catalogApi,
@@ -33,6 +34,7 @@ export const api = {
   knowledge: knowledgeApi,
   insights: insightsApi,
   exports: exportsApi,
+  threads: threadsApi,
   satellites: satellitesApi,
 };
 
@@ -45,4 +47,5 @@ export { isEvent } from './stream';
 export type { StreamEvent, StreamEventName } from './stream';
 export type { SkillQuery } from './endpoints/skills';
 export type { Dashboard, DashboardBlock, DashboardSummary } from './endpoints/dashboards';
+export type { ThreadSummary, ThreadDetail } from './endpoints/threads';
 export type { SatelliteDto, SatellitePoint } from './endpoints/satellites';
