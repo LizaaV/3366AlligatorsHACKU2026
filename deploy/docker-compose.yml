@@ -25,6 +25,8 @@ services:
       dockerfile: ../deploy/frontend.Dockerfile
       additional_contexts:
         nginxconf: .               # = deploy/, provides nginx.conf
+      args:
+        VITE_API_SOURCE: ${VITE_API_SOURCE:-http}   # baked in at build time; fixture = mocks only
     depends_on:
       backend:
         condition: service_healthy

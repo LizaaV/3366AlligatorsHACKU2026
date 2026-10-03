@@ -7,7 +7,7 @@ browser ──:80──> nginx (frontend container) ──/api/*──> backend:
                        └── serves the built SPA, history fallback to index.html
 ```
 
-nginx is the single public entry point; the backend is not published on the host. The SPA calls `/api` on its own origin, so no frontend config is needed.
+nginx is the single public entry point; the backend is not published on the host. The SPA calls `/api` on its own origin. The frontend image is built with `VITE_API_SOURCE=http` (Vite inlines it at build time), so the deployed app talks to the real backend instead of the scripted fixtures; set `VITE_API_SOURCE=fixture` in `deploy/.env` and rebuild to get the mock-only UI.
 
 ## 1. VM prerequisites
 
@@ -29,7 +29,22 @@ cp deploy/.env.example deploy/.env        # then edit: PUBLIC_BASE_URL, HTTP_POR
 
 - `backend/.env` holds the app settings and secrets (git-ignored). See `backend/.env.example` and `docs/BUILD-PLAN.md` section 9. If it is missing the stack still boots with defaults (stub earth, no LLM key).
   Do not set `EARTH_DATA_DIR` or `CORS_ORIGINS` there; compose sets them.
-- `deploy/.env` holds deploy-level values: `PUBLIC_BASE_URL` (e.g. `http://203.0.113.10` or `https://earth.example.com`, no trailing slash; it becomes the CORS origin) and `HTTP_PORT` (default 80).
+- `deploy/.env` holds deploy-level values: `PUBLIC_BASE_URL` (e.g. `http://203.0.113.10` or `https://earth.example.com`, no trailing slash; it becomes the CORS origin), `HTTP_PORT` (default 80) and `VITE_API_SOURCE` (default `http`, build-time).
+
+### Environment variables
+
+| Variable | Where | Default | Meaning |
+| --- | --- | --- | --- |
+| `EARTH_IMPL` | `backend/.env` | `stub` | `stub` = offline Hoo Hok Wai preset, no network. `real` = Sentinel-2 via STAC (needs outbound internet). |
+| `SANDBOX_IMPL` | `backend/.env` | `subprocess` | How agent-written scripts run. `docker` is not implemented yet. |
+| `ANTHROPIC_API_KEY` | `backend/.env` | unset | LLM key; only read once the LLM agent lands (see `docs/BUILD-PLAN.md` section 9). |
+| `SHARE_TTL_DAYS` | `backend/.env` | n/a yet | Planned (share links); ignored until implemented. |
+| `RUNS_DB_PATH` | `backend/.env` | `$EARTH_DATA_DIR/runs.sqlite` | Run store location. Leave unset. |
+| `EARTH_DATA_DIR` | compose | `/data` | Cache, rendered layers, memory, run DB (volume). Set by compose; do not override. |
+| `CORS_ORIGINS` | compose | `["$PUBLIC_BASE_URL"]` | Set by compose from `PUBLIC_BASE_URL`. |
+| `PUBLIC_BASE_URL` | `deploy/.env` | `http://localhost` | Public URL; CORS origin. |
+| `HTTP_PORT` | `deploy/.env` | `80` | Host port of nginx. |
+| `VITE_API_SOURCE` | `deploy/.env` | `http` | Frontend build arg: `http` real API, `fixture` mocks. Needs a rebuild. |
 
 ## 3. Start
 
@@ -45,6 +60,8 @@ Check:
 curl -s http://localhost/api/health        # {"status":"ok"}
 docker compose -f deploy/docker-compose.yml ps
 ```
+
+Verified on Docker Desktop (compose v2): the backend imports rasterio/pyproj/shapely/odc.stac/planetary_computer/pystac_client plus `earth` and `knowledge`; `/api/health`, SPA deep links (`/places`), `/api/knowledge/index`, the SSE run stream (`POST /api/runs`, delivered incrementally through nginx), the sandbox runner (as the non-root `app` user) and `/api/layers/...` PNGs from the data volume (surviving a container recreate) all work through port 80. Images: backend about 1.4 GB, frontend about 77 MB.
 
 ## 4. Day-to-day
 
@@ -66,6 +83,27 @@ docker compose -f deploy/docker-compose.yml down -v
 ```
 
 Dependencies are in their own image layer, so code-only redeploys are fast.
+
+## Deploy on a fresh Ubuntu VM (checklist)
+
+```bash
+# 1. Docker (Ubuntu 22.04/24.04), then log out and in again
+curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER
+
+# 2. Code and config
+git clone https://github.com/LizaaV/3366AlligatorsHACKU2026.git && cd 3366AlligatorsHACKU2026
+cp backend/.env.example backend/.env && nano backend/.env     # EARTH_IMPL=real, ANTHROPIC_API_KEY=... when needed
+cp deploy/.env.example deploy/.env && nano deploy/.env        # PUBLIC_BASE_URL=http://<vm-public-ip>
+
+# 3. Up
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
+
+# 4. Check, then open TCP 80 (and 443 for HTTPS) in the cloud security group
+curl -s localhost/api/health
+sudo ufw allow 80/tcp && sudo ufw allow 443/tcp     # only if ufw is active
+```
+
+Open `http://<vm-public-ip>/`. For a domain with HTTPS, follow the Caddy steps below.
 
 ## Data
 
