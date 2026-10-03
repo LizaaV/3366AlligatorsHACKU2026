@@ -11,6 +11,7 @@
  */
 
 import { areasApi } from './endpoints/areas';
+import { knowledgeApi } from './endpoints/knowledge';
 import { runsApi } from './endpoints/runs';
 import { catalogApi } from './endpoints/catalog';
 import { exportsApi } from './endpoints/exports';
@@ -26,6 +27,7 @@ export const api = {
   watches: watchesApi,
   runs: runsApi,
   areas: areasApi,
+  knowledge: knowledgeApi,
   insights: insightsApi,
   exports: exportsApi,
 };

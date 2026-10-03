@@ -57,7 +57,8 @@ export type Modal =
   | { kind: 'addPlace' }
   | { kind: 'watchBuilder'; prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean }
   | { kind: 'upgrade'; feature: string; price?: string }
-  | { kind: 'lang' };
+  | { kind: 'lang' }
+  | { kind: 'knowledgeCard'; cardId: string };
 
 export interface Connectors {
   email: { connected: boolean; address: string };
