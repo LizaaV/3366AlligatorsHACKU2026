@@ -8,7 +8,7 @@ import { DEFAULT_CENTER, thumb } from '../lib/geo';
 type Tab = 'link' | 'pdf' | 'data';
 
 export function ExportModal({ target }: { target: ExportTarget }) {
-  const { close, notify, lang, open, plan } = useStore();
+  const { close, notify, lang } = useStore();
   const [tab, setTab] = useState<Tab>('link');
   const [access, setAccess] = useState<'anyone' | 'team' | 'invited'>('anyone');
   const [expires, setExpires] = useState('30 days');
@@ -42,9 +42,6 @@ export function ExportModal({ target }: { target: ExportTarget }) {
   const copy = async () => {
     try { await navigator.clipboard.writeText(url); notify('Link copied', undefined, undefined, 'link'); } catch { notify('Copy failed — select the link and copy it', undefined, undefined, 'error'); }
   };
-  const paid = (feature: string, price: string, format: 'pdf' | 'data' = 'pdf') =>
-    plan === 'pro' ? void requestExport(format, feature) : open({ kind: 'upgrade', feature, price });
-
   return (
     <Modal onClose={close} size="wide" label="Export">
       <ModalHead eyebrow={`Export ${target.kind}`} title={target.title} sub={target.subtitle} onClose={close} />
@@ -116,7 +113,7 @@ export function ExportModal({ target }: { target: ExportTarget }) {
             </label>
             <div className="row wrap" style={{ gap: 8 }}>
               <Btn variant="primary" icon="download" tier="free" disabled={busy === 'PDF report'} onClick={() => void requestExport('pdf', 'PDF report')}>{busy === 'PDF report' ? 'Preparing…' : 'Download PDF'}</Btn>
-              <Btn icon="workspace_premium" tier="paid" tierLabel="$5" onClick={() => paid('Signed & time-stamped PDF', '$5 / report')}>Signed PDF</Btn>
+              <Btn icon="workspace_premium" tier="paid" tierLabel="$5" onClick={() => void requestExport('pdf', 'Signed & time-stamped PDF')}>Signed PDF</Btn>
             </div>
             <div className="tiny">Signed PDFs carry a time-stamp and a hash anyone can check — useful for lenders, insurers and EUDR buyers.</div>
           </div>
@@ -135,7 +132,7 @@ export function ExportModal({ target }: { target: ExportTarget }) {
             <div key={n} className="row" style={{ gap: 12, padding: '10px 12px', borderRadius: 8, background: '#000', border: '1px solid var(--hair-soft)' }}>
               <Ms n={i} size={20} className="muted" />
               <div className="col grow"><span style={{ font: '600 14px/1.4 var(--font)' }}>{n}</span><span className="tiny">{d}</span></div>
-              <Btn size="sm" icon="download" tier={tier} tierLabel={lbl || undefined} onClick={() => (tier === 'paid' ? paid(n, '$29 / month (Pro)', 'data') : void requestExport('data', n))}>Download</Btn>
+              <Btn size="sm" icon="download" tier={tier} tierLabel={lbl || undefined} onClick={() => void requestExport('data', n)}>Download</Btn>
             </div>
           ))}
         </div>

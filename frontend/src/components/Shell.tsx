@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { href, useStore, type Page } from '../state/store';
 import { LANGS } from '../data/i18n';
-import { Ms, Tier } from './ui';
+import { Ms } from './ui';
 
 const TABS: { page: Page; icon: string; key: string }[] = [
   { page: 'ask', icon: 'forum', key: 'nav.ask' },
   { page: 'places', icon: 'pentagon', key: 'nav.places' },
-  { page: 'watches', icon: 'visibility', key: 'nav.watches' },
+  { page: 'triggers', icon: 'notifications_active', key: 'nav.triggers' },
   { page: 'library', icon: 'auto_stories', key: 'nav.library' },
 ];
 
@@ -31,7 +31,7 @@ function useClickAway(open: boolean, close: () => void) {
 }
 
 function AccountMenu() {
-  const { plan, open, connectors } = useStore();
+  const { open, connectors } = useStore();
   const [show, setShow] = useState(false);
   const ref = useClickAway(show, () => setShow(false));
   return (
@@ -44,7 +44,6 @@ function AccountMenu() {
           <div className="menu-label eyebrow">Account</div>
           <div style={{ padding: '4px 10px 10px' }}>
             <div className="ink" style={{ font: '600 14px/1.4 var(--font)' }}>Your workspace</div>
-            <div className="tiny">{plan === 'free' ? 'Free plan · 40 runs left this month' : 'Pro plan · unlimited runs'}</div>
           </div>
           <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'connectors' }); }}>
             <Ms n="hub" />Connectors
@@ -52,10 +51,6 @@ function AccountMenu() {
           </button>
           <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'app' }); }}><Ms n="smartphone" />Get the mobile app</button>
           <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'lang' }); }}><Ms n="translate" />Language</button>
-          <div className="divider" style={{ margin: '6px 4px' }} />
-          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'upgrade', feature: 'Pro plan' }); }}>
-            <Ms n="bolt" />{plan === 'free' ? 'Upgrade to Pro' : 'Manage plan'}{plan === 'free' && <Tier tier="paid" label="$29/mo" />}
-          </button>
         </div>
       )}
     </div>
@@ -63,7 +58,7 @@ function AccountMenu() {
 }
 
 export function TopNav() {
-  const { route, t, lang, open, plan } = useStore();
+  const { route, t, lang, open } = useStore();
   const L = LANGS.find((l) => l.code === lang)!;
   return (
     <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'var(--nav-h)', zIndex: 90, display: 'flex', alignItems: 'center', gap: 24, padding: '0 20px', background: '#000', borderBottom: '1px solid var(--hair-soft)' }}>
@@ -84,17 +79,6 @@ export function TopNav() {
           <Ms n="translate" />
           <span className="hide-mobile">{L.name}</span>
         </button>
-        <button className="btn btn-text btn-sm hide-mobile" onClick={() => open({ kind: 'connectors', focus: 'whatsapp' })} title="WhatsApp connector">
-          <Ms n="chat" />WhatsApp
-        </button>
-        <button className="btn btn-text btn-sm hide-mobile" onClick={() => open({ kind: 'app' })} title="Mobile app">
-          <Ms n="smartphone" />App
-        </button>
-        {plan === 'free' && (
-          <button className="btn btn-ghost btn-sm hide-mobile" onClick={() => open({ kind: 'upgrade', feature: 'Pro plan' })}>
-            Free plan<Tier tier="paid" label="Upgrade" />
-          </button>
-        )}
         <AccountMenu />
       </div>
     </header>

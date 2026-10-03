@@ -65,7 +65,7 @@ function chartReading(w: Watch) {
 const LEVEL_COLOR = { info: 'var(--subtle)', warn: 'var(--yellow)', alert: 'var(--red)' } as const;
 
 export function WatchDetail({ id }: { id: string }) {
-  const { watches, places, skills, channels, category, go, open, notify, updateWatch, removeWatch, connectors, plan } = useStore();
+  const { watches, places, skills, channels, category, go, open, notify, updateWatch, removeWatch, connectors } = useStore();
   const w = watches.find((x) => x.id === id);
   const [range, setRange] = useState<Range>('season');
   const data = useMemo(() => (w ? chartData(w, range) : null), [w, range]);
@@ -73,9 +73,9 @@ export function WatchDetail({ id }: { id: string }) {
   if (!w || !data) {
     return (
       <div className="col" style={{ gap: 16 }}>
-        <button className="btn btn-text" style={{ alignSelf: 'flex-start' }} onClick={() => go('watches')}><Ms n="arrow_back" className="ms-flip" />All watches</button>
+        <button className="btn btn-text" style={{ alignSelf: 'flex-start' }} onClick={() => go('triggers')}><Ms n="arrow_back" className="ms-flip" />All watches</button>
         <Empty icon="visibility_off" title="This watch no longer exists" body="It may have been deleted. Your other watches are still running.">
-          <Btn variant="primary" onClick={() => go('watches')}>See all watches</Btn>
+          <Btn variant="primary" onClick={() => go('triggers')}>See all watches</Btn>
         </Empty>
       </div>
     );
@@ -91,10 +91,6 @@ export function WatchDetail({ id }: { id: string }) {
 
   const toggleChannel = (c: DeliveryChannel) => {
     const has = w.channels.includes(c.id);
-    if (!has && c.tier === 'paid' && plan === 'free') {
-      open({ kind: 'upgrade', feature: `${c.name} alerts`, price: c.note });
-      return;
-    }
     const next: ChannelId[] = has ? w.channels.filter((x) => x !== c.id) : [...w.channels, c.id];
     void updateWatch(w.id, { channels: next }).catch(() => notify('Could not update the channels', undefined, undefined, 'error'));
   };
@@ -103,7 +99,7 @@ export function WatchDetail({ id }: { id: string }) {
     const name = w.name;
     try {
       await removeWatch(w.id);
-      go('watches');
+      go('triggers');
       // No Undo: re-creating would mint a new server-side record rather than restore this one.
       // TODO(api): a soft-delete + POST /watches/{id}/restore would let Undo work honestly.
       notify(`Deleted \u201c${name}\u201d`, undefined, undefined, 'delete');
@@ -125,7 +121,7 @@ export function WatchDetail({ id }: { id: string }) {
 
       {/* sub header */}
       <div className="col" style={{ gap: 14, paddingBottom: 20, borderBottom: '1px solid var(--hair-soft)' }}>
-        <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start', marginLeft: -12 }} onClick={() => go('watches')}>
+        <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start', marginLeft: -12 }} onClick={() => go('triggers')}>
           <Ms n="arrow_back" className="ms-flip" />All watches
         </button>
         <div className="h1" style={{ fontSize: 'clamp(28px, 4vw, 48px)' }}>{w.name}</div>
