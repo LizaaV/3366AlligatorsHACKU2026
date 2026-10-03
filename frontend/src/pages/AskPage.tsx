@@ -15,6 +15,7 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, circlePts, fmtC, ptsToRing, thumb, type P
 import { LANGS } from '../data/i18n';
 import { useAskRun, type AskTurn } from '../ask/useAskRun';
 import { AnswerCard } from './AnswerCard';
+import { AnswerBlocks } from '../components/blocks';
 
 function useViewport() {
   const [v, setV] = useState({ W: window.innerWidth, H: window.innerHeight });
@@ -97,6 +98,20 @@ export function AskPage({ active }: { active: boolean }) {
   const setLayersOn = useCallback(
     (ids: string[]) => setLayers((ls) => ls.map((l) => (ids.includes(l.id) ? { ...l, ready: true, on: true } : l))),
     [],
+  );
+
+  /**
+   * Clicking a point on a timeline block moves the map's pass cursor to that scene.
+   *
+   * This is the `{"time": "cursor"}` link from §6: the block addresses the cursor by scene id,
+   * which is the only identifier both sides share — an index would mean nothing to the block.
+   */
+  const pickScene = useCallback(
+    (scene: string) => {
+      const i = timeline?.scenes.indexOf(scene) ?? -1;
+      if (i >= 0) setDateIdx(i);
+    },
+    [timeline],
   );
 
   /**
@@ -423,6 +438,7 @@ export function AskPage({ active }: { active: boolean }) {
                   onRetry={run.retry}
                   onRunSkill={(id) => runSkill(id)}
                   onAskFollowup={(q) => ask(q)}
+                  onPickScene={pickScene}
                 />
               ))}
               {last?.phase === 'done' && (
@@ -634,6 +650,7 @@ function TurnView({
   onRetry,
   onRunSkill,
   onAskFollowup,
+  onPickScene,
 }: {
   turn: AskTurn;
   isLast: boolean;
@@ -645,6 +662,8 @@ function TurnView({
   onRetry: () => void;
   onRunSkill: (id: string) => void;
   onAskFollowup: (q: string) => void;
+  /** Move the map's pass cursor to the scene a timeline point names. */
+  onPickScene: (scene: string) => void;
 }) {
   const place = places.find((x) => x.id === turn.placeId);
   const steps = turn.steps;
@@ -786,6 +805,11 @@ function TurnView({
           {turn.streamError.message}
         </div>
       )}
+
+      {/* Rendered from the turn, not the answer, so each block appears the moment its
+          `block_ready` event arrives rather than all at once when the run finishes. The answer
+          carries the same objects, so a reloaded run shows exactly the same visuals. */}
+      <AnswerBlocks blocks={turn.blocks} onPickScene={onPickScene} />
 
       {turn.phase === 'error' && (
         <ErrorState
