@@ -19,6 +19,7 @@ import { insightsApi } from './endpoints/insights';
 import { placesApi } from './endpoints/places';
 import { skillsApi } from './endpoints/skills';
 import { watchesApi } from './endpoints/watches';
+import { threadsApi } from './endpoints/threads';
 
 export const api = {
   catalog: catalogApi,
@@ -30,6 +31,7 @@ export const api = {
   knowledge: knowledgeApi,
   insights: insightsApi,
   exports: exportsApi,
+  threads: threadsApi,
 };
 
 export { ApiError, toApiError } from './http';
@@ -40,3 +42,4 @@ export { DEFAULT_PIN_RADIUS_M } from './endpoints/areas';
 export { isEvent } from './stream';
 export type { StreamEvent, StreamEventName } from './stream';
 export type { SkillQuery } from './endpoints/skills';
+export type { ThreadSummary, ThreadDetail } from './endpoints/threads';
