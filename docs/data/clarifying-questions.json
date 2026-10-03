@@ -1,0 +1,31 @@
+[
+  {
+    "k": "crop",
+    "label": "What crop?",
+    "opts": [
+      "Maize",
+      "Wheat",
+      "Soybean",
+      "Cotton"
+    ]
+  },
+  {
+    "k": "water",
+    "label": "How is it watered?",
+    "opts": [
+      "Center pivot",
+      "Drip",
+      "Flood",
+      "Rain-fed"
+    ]
+  },
+  {
+    "k": "when",
+    "label": "When did it start?",
+    "opts": [
+      "This week",
+      "1–2 weeks ago",
+      "3+ weeks ago"
+    ]
+  }
+]

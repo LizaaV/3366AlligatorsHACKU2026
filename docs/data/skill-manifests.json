@@ -1,0 +1,3387 @@
+[
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "gt.agriculture.dry-patch-finder",
+    "version": "2.0.0",
+    "name": "Dry patch finder",
+    "category": "agriculture",
+    "publisher": {
+      "name": "Groundtruth Labs",
+      "official": true,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      },
+      {
+        "key": "context",
+        "type": "answers",
+        "required": false
+      }
+    ],
+    "steps": [
+      {
+        "module": "ask.clarify",
+        "params": {
+          "questions": [
+            "What crop?",
+            "How is it watered?"
+          ]
+        }
+      },
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.anomaly",
+        "params": {
+          "min_dates": 2,
+          "z_score": -1.5
+        }
+      },
+      {
+        "module": "explain.cause",
+        "params": {
+          "layers": [
+            "elevation",
+            "soil",
+            "rain"
+          ]
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m",
+      "revisit": "5 days",
+      "statement": "Validated on 1,200 ground-truth plots · F1 0.86",
+      "known_limits": [
+        "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "agrisense-co-op.agriculture.weekly-crop-health",
+    "version": "1.1.1",
+    "name": "Weekly crop health",
+    "category": "agriculture",
+    "publisher": {
+      "name": "AgriSense Co-op",
+      "official": false,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m",
+      "revisit": "5 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "rangeland-watch.agriculture.pasture-for-herders",
+    "version": "1.2.2",
+    "name": "Pasture for herders",
+    "category": "agriculture",
+    "publisher": {
+      "name": "Rangeland Watch",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10–20 m",
+      "revisit": "6 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 10–20 m; features smaller than ~3 pixels can be missed.",
+        "Radar can confuse wet soil with water after heavy rain.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "gt.agriculture.small-field-stress-3-m",
+    "version": "2.3.0",
+    "name": "Small-field stress (3 m)",
+    "category": "agriculture",
+    "publisher": {
+      "name": "Groundtruth Labs",
+      "official": true,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "paid",
+      "price": "$1.80 / km²"
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "3 m",
+      "revisit": "Daily",
+      "statement": "Validated on 1,200 ground-truth plots · F1 0.86",
+      "known_limits": [
+        "Pixels are 3 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "gt.water.reservoir-level-tracker",
+    "version": "2.0.0",
+    "name": "Reservoir level tracker",
+    "category": "water",
+    "publisher": {
+      "name": "Groundtruth Labs",
+      "official": true,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m / 100 m",
+      "revisit": "5–21 days",
+      "statement": "Validated on 1,200 ground-truth plots · F1 0.86",
+      "known_limits": [
+        "Pixels are 10 m / 100 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "blueshore-analytics.water.algae-red-tide-alert",
+    "version": "1.5.2",
+    "name": "Algae & red tide alert",
+    "category": "water",
+    "publisher": {
+      "name": "BlueShore Analytics",
+      "official": false,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "300 m",
+      "revisit": "Daily",
+      "statement": "Regional — good for trends, not single fields",
+      "known_limits": [
+        "Pixels are 300 m; features smaller than ~1 km can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "canal-data.water.irrigation-water-use",
+    "version": "1.0.0",
+    "name": "Irrigation water use",
+    "category": "water",
+    "publisher": {
+      "name": "Canal Data",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "30 m",
+      "revisit": "8 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 30 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "gt.forests.deforestation-alerts",
+    "version": "2.3.0",
+    "name": "Deforestation alerts",
+    "category": "forests",
+    "publisher": {
+      "name": "Groundtruth Labs",
+      "official": true,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m",
+      "revisit": "6 days",
+      "statement": "Validated on 1,200 ground-truth plots · F1 0.86",
+      "known_limits": [
+        "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
+        "Radar can confuse wet soil with water after heavy rain.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "traceable-earth.forests.eudr-proof-pack",
+    "version": "1.2.2",
+    "name": "EUDR proof pack",
+    "category": "forests",
+    "publisher": {
+      "name": "Traceable Earth",
+      "official": false,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "paid",
+      "price": "$9 / plot"
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10–30 m",
+      "revisit": "5 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 10–30 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "tidewood.forests.mangrove-extent",
+    "version": "1.3.0",
+    "name": "Mangrove extent",
+    "category": "forests",
+    "publisher": {
+      "name": "Tidewood",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m",
+      "revisit": "5 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "gt.disasters.active-fire-map",
+    "version": "2.2.0",
+    "name": "Active fire map",
+    "category": "disasters",
+    "publisher": {
+      "name": "Groundtruth Labs",
+      "official": true,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "375 m",
+      "revisit": "~12 hours",
+      "statement": "Regional — good for trends, not single fields",
+      "known_limits": [
+        "Pixels are 375 m; features smaller than ~1 km can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "floodline.disasters.flood-extent",
+    "version": "1.5.2",
+    "name": "Flood extent",
+    "category": "disasters",
+    "publisher": {
+      "name": "Floodline",
+      "official": false,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m",
+      "revisit": "6 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
+        "Radar can confuse wet soil with water after heavy rain.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "strata-motion.disasters.ground-sinking",
+    "version": "1.0.0",
+    "name": "Ground sinking",
+    "category": "disasters",
+    "publisher": {
+      "name": "Strata Motion",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "~20 m",
+      "revisit": "12 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are ~20 m; features smaller than ~3 pixels can be missed.",
+        "Radar can confuse wet soil with water after heavy rain.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "gt.urban.land-use-change",
+    "version": "2.1.0",
+    "name": "Land-use change",
+    "category": "urban",
+    "publisher": {
+      "name": "Groundtruth Labs",
+      "official": true,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m",
+      "revisit": "5 days",
+      "statement": "Validated on 1,200 ground-truth plots · F1 0.86",
+      "known_limits": [
+        "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "cool-blocks.urban.urban-heat-map",
+    "version": "1.2.2",
+    "name": "Urban heat map",
+    "category": "urban",
+    "publisher": {
+      "name": "Cool Blocks",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "30 m",
+      "revisit": "8 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 30 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "sunroof-data.urban.rooftop-solar-potential",
+    "version": "1.3.0",
+    "name": "Rooftop solar potential",
+    "category": "urban",
+    "publisher": {
+      "name": "Sunroof Data",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "paid",
+      "price": "$0.40 / roof"
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "30–50 cm",
+      "revisit": "On order",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 30–50 cm; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "catch-forecast.oceans.fishing-zones",
+    "version": "1.4.1",
+    "name": "Fishing zones",
+    "category": "oceans",
+    "publisher": {
+      "name": "Catch Forecast",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "300 m–1 km",
+      "revisit": "Daily",
+      "statement": "Regional — good for trends, not single fields",
+      "known_limits": [
+        "Pixels are 300 m–1 km; features smaller than ~1 km can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "openwake.oceans.dark-ship-detection",
+    "version": "1.5.2",
+    "name": "Dark ship detection",
+    "category": "oceans",
+    "publisher": {
+      "name": "OpenWake",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m",
+      "revisit": "6 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
+        "Radar can confuse wet soil with water after heavy rain.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "reef-pulse.oceans.coral-reef-watch",
+    "version": "1.0.0",
+    "name": "Coral reef watch",
+    "category": "oceans",
+    "publisher": {
+      "name": "Reef Pulse",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m / 1 km",
+      "revisit": "Daily",
+      "statement": "Regional — good for trends, not single fields",
+      "known_limits": [
+        "Pixels are 10 m / 1 km; features smaller than ~1 km can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "gt.air.air-pollution-no",
+    "version": "2.3.0",
+    "name": "Air pollution (NO₂)",
+    "category": "air",
+    "publisher": {
+      "name": "Groundtruth Labs",
+      "official": true,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "5.5 km",
+      "revisit": "Daily",
+      "statement": "Regional — good for trends, not single fields",
+      "known_limits": [
+        "Pixels are 5.5 km; features smaller than ~1 km can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "plume-hunter.air.methane-leak-finder",
+    "version": "1.2.2",
+    "name": "Methane leak finder",
+    "category": "air",
+    "publisher": {
+      "name": "Plume Hunter",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "60 m / 5.5 km",
+      "revisit": "Daily / tasked",
+      "statement": "Regional — good for trends, not single fields",
+      "known_limits": [
+        "Pixels are 60 m / 5.5 km; features smaller than ~1 km can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "haze-map.air.wildfire-smoke-tracker",
+    "version": "1.3.0",
+    "name": "Wildfire smoke tracker",
+    "category": "air",
+    "publisher": {
+      "name": "Haze Map",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "5.5 km",
+      "revisit": "Daily",
+      "statement": "Regional — good for trends, not single fields",
+      "known_limits": [
+        "Pixels are 5.5 km; features smaller than ~1 km can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "harbour-signal.finance.port-activity-index",
+    "version": "1.4.1",
+    "name": "Port activity index",
+    "category": "finance",
+    "publisher": {
+      "name": "Harbour Signal",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m",
+      "revisit": "3–6 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
+        "Radar can confuse wet soil with water after heavy rain.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "gt.finance.crop-insurance-check",
+    "version": "2.3.0",
+    "name": "Crop insurance check",
+    "category": "finance",
+    "publisher": {
+      "name": "Groundtruth Labs",
+      "official": true,
+      "verified": true
+    },
+    "pricing": {
+      "tier": "paid",
+      "price": "$4 / claim"
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m / 50 cm",
+      "revisit": "5 days",
+      "statement": "Validated on 1,200 ground-truth plots · F1 0.86",
+      "known_limits": [
+        "Pixels are 10 m / 50 cm; features smaller than ~3 pixels can be missed.",
+        "Radar can confuse wet soil with water after heavy rain.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "ledger-fields.finance.lender-field-check",
+    "version": "1.0.0",
+    "name": "Lender field check",
+    "category": "finance",
+    "publisher": {
+      "name": "Ledger Fields",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m",
+      "revisit": "5 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "open-atlas.society.poverty-mapping",
+    "version": "1.1.1",
+    "name": "Poverty mapping",
+    "category": "society",
+    "publisher": {
+      "name": "Open Atlas",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "500 m",
+      "revisit": "Monthly",
+      "statement": "Regional — good for trends, not single fields",
+      "known_limits": [
+        "Pixels are 500 m; features smaller than ~1 km can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "vector-map.society.mosquito-risk-areas",
+    "version": "1.2.2",
+    "name": "Mosquito risk areas",
+    "category": "society",
+    "publisher": {
+      "name": "Vector Map",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10–30 m",
+      "revisit": "5 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 10–30 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  },
+  {
+    "$schema": "https://groundtruth.earth/schemas/skill/v1.json",
+    "id": "ancient-ground.society.heritage-site-watch",
+    "version": "1.3.0",
+    "name": "Heritage site watch",
+    "category": "society",
+    "publisher": {
+      "name": "Ancient Ground",
+      "official": false,
+      "verified": false
+    },
+    "pricing": {
+      "tier": "free",
+      "price": null
+    },
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {
+          "min_ha": 1
+        }
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 45,
+          "baseline_years": 3
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "l9",
+            "ps"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 20,
+          "skip_after_rain_h": 48
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDMI",
+            "NDVI",
+            "LST"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {
+          "min_area_ha": 0.5
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "key": "layers",
+        "type": "raster[]"
+      },
+      {
+        "key": "summary",
+        "type": "text",
+        "languages": "auto"
+      },
+      {
+        "key": "metrics",
+        "type": "metric[]",
+        "with_confidence": true
+      },
+      {
+        "key": "proof",
+        "type": "proof_pack"
+      }
+    ],
+    "accuracy": {
+      "resolution": "10 m",
+      "revisit": "5 days",
+      "statement": "Community-reported · not independently validated",
+      "known_limits": [
+        "Pixels are 10 m; features smaller than ~3 pixels can be missed.",
+        "Optical satellites cannot see through cloud; cloudy passes are skipped.",
+        "Causes are inferred from patterns, not observed directly — confirm on the ground."
+      ]
+    }
+  }
+]

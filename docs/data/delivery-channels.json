@@ -1,0 +1,37 @@
+[
+  {
+    "id": "email",
+    "name": "Email",
+    "icon": "mail",
+    "tier": "free",
+    "note": "Any address"
+  },
+  {
+    "id": "push",
+    "name": "Mobile app",
+    "icon": "smartphone",
+    "tier": "free",
+    "note": "iOS & Android push"
+  },
+  {
+    "id": "whatsapp",
+    "name": "WhatsApp",
+    "icon": "chat",
+    "tier": "free",
+    "note": "Messages + map image"
+  },
+  {
+    "id": "sms",
+    "name": "SMS",
+    "icon": "sms",
+    "tier": "paid",
+    "note": "$0.02 / message"
+  },
+  {
+    "id": "slack",
+    "name": "Slack",
+    "icon": "tag",
+    "tier": "paid",
+    "note": "Pro plan"
+  }
+]

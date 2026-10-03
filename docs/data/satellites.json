@@ -1,0 +1,76 @@
+[
+  {
+    "id": "s2",
+    "name": "Sentinel-2 L2A",
+    "res": "10 m",
+    "revisit": "5 days",
+    "tier": "free",
+    "kind": "optical",
+    "note": "Multispectral, good for NDVI/NDMI"
+  },
+  {
+    "id": "l9",
+    "name": "Landsat 9 TIRS",
+    "res": "30 m (100 m thermal)",
+    "revisit": "8 days",
+    "tier": "free",
+    "kind": "thermal",
+    "note": "Surface temperature"
+  },
+  {
+    "id": "s1",
+    "name": "Sentinel-1 SAR",
+    "res": "10 m",
+    "revisit": "6 days",
+    "tier": "free",
+    "kind": "radar",
+    "note": "Sees through clouds, day and night"
+  },
+  {
+    "id": "ps",
+    "name": "PlanetScope",
+    "res": "3 m",
+    "revisit": "Daily",
+    "tier": "paid",
+    "price": "$1.80 / km²",
+    "kind": "optical",
+    "note": "For very small fields"
+  },
+  {
+    "id": "hr",
+    "name": "Pléiades Neo",
+    "res": "30 cm",
+    "revisit": "On order",
+    "tier": "paid",
+    "price": "$12 / km²",
+    "kind": "optical",
+    "note": "Very high resolution, tasked"
+  },
+  {
+    "id": "s3",
+    "name": "Sentinel-3 OLCI",
+    "res": "300 m",
+    "revisit": "Daily",
+    "tier": "free",
+    "kind": "optical",
+    "note": "Ocean and lake colour"
+  },
+  {
+    "id": "viirs",
+    "name": "VIIRS / FIRMS",
+    "res": "375 m",
+    "revisit": "~12 hours",
+    "tier": "free",
+    "kind": "thermal",
+    "note": "Active fire hotspots"
+  },
+  {
+    "id": "s5p",
+    "name": "Sentinel-5P",
+    "res": "5.5 km",
+    "revisit": "Daily",
+    "tier": "free",
+    "kind": "atmos",
+    "note": "Air quality gases"
+  }
+]

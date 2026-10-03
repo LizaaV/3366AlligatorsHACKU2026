@@ -1,0 +1,179 @@
+[
+  {
+    "code": "en",
+    "name": "English",
+    "english": "English",
+    "region": "Global",
+    "ui": true
+  },
+  {
+    "code": "de",
+    "name": "Deutsch",
+    "english": "German",
+    "region": "Europe",
+    "ui": true
+  },
+  {
+    "code": "es",
+    "name": "Español",
+    "english": "Spanish",
+    "region": "Americas · Europe",
+    "ui": true
+  },
+  {
+    "code": "fr",
+    "name": "Français",
+    "english": "French",
+    "region": "Europe · Africa",
+    "ui": true
+  },
+  {
+    "code": "pt",
+    "name": "Português",
+    "english": "Portuguese",
+    "region": "Americas · Africa",
+    "ui": true
+  },
+  {
+    "code": "hi",
+    "name": "हिन्दी",
+    "english": "Hindi",
+    "region": "South Asia",
+    "ui": true
+  },
+  {
+    "code": "sw",
+    "name": "Kiswahili",
+    "english": "Swahili",
+    "region": "East Africa",
+    "ui": true
+  },
+  {
+    "code": "ar",
+    "name": "العربية",
+    "english": "Arabic",
+    "region": "Middle East · North Africa",
+    "ui": true,
+    "rtl": true
+  },
+  {
+    "code": "gu",
+    "name": "ગુજરાતી",
+    "english": "Gujarati",
+    "region": "South Asia",
+    "ui": false
+  },
+  {
+    "code": "mr",
+    "name": "मराठी",
+    "english": "Marathi",
+    "region": "South Asia",
+    "ui": false
+  },
+  {
+    "code": "bn",
+    "name": "বাংলা",
+    "english": "Bengali",
+    "region": "South Asia",
+    "ui": false
+  },
+  {
+    "code": "ta",
+    "name": "தமிழ்",
+    "english": "Tamil",
+    "region": "South Asia",
+    "ui": false
+  },
+  {
+    "code": "te",
+    "name": "తెలుగు",
+    "english": "Telugu",
+    "region": "South Asia",
+    "ui": false
+  },
+  {
+    "code": "pa",
+    "name": "ਪੰਜਾਬੀ",
+    "english": "Punjabi",
+    "region": "South Asia",
+    "ui": false
+  },
+  {
+    "code": "ur",
+    "name": "اردو",
+    "english": "Urdu",
+    "region": "South Asia",
+    "ui": false,
+    "rtl": true
+  },
+  {
+    "code": "ha",
+    "name": "Hausa",
+    "english": "Hausa",
+    "region": "West Africa",
+    "ui": false
+  },
+  {
+    "code": "yo",
+    "name": "Yorùbá",
+    "english": "Yoruba",
+    "region": "West Africa",
+    "ui": false
+  },
+  {
+    "code": "am",
+    "name": "አማርኛ",
+    "english": "Amharic",
+    "region": "East Africa",
+    "ui": false
+  },
+  {
+    "code": "tr",
+    "name": "Türkçe",
+    "english": "Turkish",
+    "region": "Europe · Asia",
+    "ui": false
+  },
+  {
+    "code": "id",
+    "name": "Bahasa Indonesia",
+    "english": "Indonesian",
+    "region": "Southeast Asia",
+    "ui": false
+  },
+  {
+    "code": "vi",
+    "name": "Tiếng Việt",
+    "english": "Vietnamese",
+    "region": "Southeast Asia",
+    "ui": false
+  },
+  {
+    "code": "th",
+    "name": "ไทย",
+    "english": "Thai",
+    "region": "Southeast Asia",
+    "ui": false
+  },
+  {
+    "code": "fil",
+    "name": "Filipino",
+    "english": "Filipino",
+    "region": "Southeast Asia",
+    "ui": false
+  },
+  {
+    "code": "zh",
+    "name": "中文",
+    "english": "Chinese",
+    "region": "East Asia",
+    "ui": false
+  },
+  {
+    "code": "ja",
+    "name": "日本語",
+    "english": "Japanese",
+    "region": "East Asia",
+    "ui": false
+  }
+]

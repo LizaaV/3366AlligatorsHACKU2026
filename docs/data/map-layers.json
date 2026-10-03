@@ -1,0 +1,56 @@
+[
+  {
+    "id": "contour",
+    "name": "Field contour",
+    "src": "Drawn by you",
+    "color": "#ffffff",
+    "on": true,
+    "ready": true,
+    "ai": false
+  },
+  {
+    "id": "ndmi",
+    "name": "NDMI · plant water",
+    "src": "Sentinel-2 B8A / B11",
+    "color": "#14c6cb",
+    "on": false,
+    "ready": false,
+    "ai": true
+  },
+  {
+    "id": "ndvi",
+    "name": "NDVI · plant health",
+    "src": "Sentinel-2 B4 / B8",
+    "color": "#00ca8e",
+    "on": false,
+    "ready": false,
+    "ai": true
+  },
+  {
+    "id": "lst",
+    "name": "Surface temperature",
+    "src": "Landsat 9 TIRS",
+    "color": "#f24c53",
+    "on": false,
+    "ready": false,
+    "ai": true
+  },
+  {
+    "id": "dry",
+    "name": "Dry spots · 2+ dates",
+    "src": "Agent · anomaly detection",
+    "color": "#ffcf25",
+    "on": false,
+    "ready": false,
+    "ai": true
+  },
+  {
+    "id": "clouds",
+    "name": "Cloud & shadow mask",
+    "src": "Sentinel-2 SCL",
+    "color": "#656a76",
+    "on": false,
+    "ready": false,
+    "ai": true
+  }
+]
