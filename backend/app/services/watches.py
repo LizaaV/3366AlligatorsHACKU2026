@@ -1,7 +1,8 @@
 """Watch records and the feasibility check (issue #40).
 
 Storage mirrors `places.py`: one JSON file per user, `<EARTH_DATA_DIR>/watches/<user_id>.json`.
-No demo seed: watches carry measured values, and there are no real runs to take them from yet.
+Every user is offered two working demo triggers once (`_seed_once`), on the demo and example
+places, so the Triggers page is never empty and "check now" can be shown from any browser.
 
 Feasibility is a deterministic rule table (no LLM), built from the cases in
 `docs/data/watch-feasibility.example.json`. Refusals (counting cars, identifying people) are
@@ -379,11 +380,71 @@ def _event(text: str, level: str = "info") -> dict:
     return {"at": _now(), "text": text, "level": level}
 
 
+# Demo triggers: (seed key, place, skill, name, question, condition). Each runs a real skill on
+# a seeded place, so "check now" gives a real reading.
+_DEMO_TRIGGERS: list[tuple[str, str, str, str, str, str]] = [
+    (
+        "demo_hhw_ponds",
+        "pl_hhw",
+        "pond-filling-check",
+        "Hoo Hok Wai ponds · filling",
+        "Tell me if the fish ponds are filled in",
+        "Open water drops below normal",
+    ),
+    (
+        "demo_hyde_park_green",
+        "pl_example_hyde_park",
+        "greenness-check",
+        "Hyde Park · greenness",
+        "Tell me if Hyde Park gets less green than usual",
+        "Greenness drops below normal",
+    ),
+]
+
+
+def _seed_marker(path: Path) -> Path:
+    return path.with_name(path.stem + ".seeded")
+
+
+def _seed_once(user_id: str, path: Path, rows: list[dict]) -> list[dict]:
+    """Offer each demo trigger once. Skipped when its place is gone or the user already has a
+    trigger with the same place and skill; a deleted demo trigger never comes back (the
+    marker lists what was offered). Callers must hold `_lock(path)`."""
+    from app.services import places  # places imports this module
+
+    marker = _seed_marker(path)
+    offered = set(marker.read_text().split()) if marker.exists() else set()
+    todo = [d for d in _DEMO_TRIGGERS if d[0] not in offered]
+    if not todo:
+        return rows
+    have = {(r.get("place_id"), r.get("skill_id")) for r in rows}
+    added = []
+    for _key, place_id, skill_id, name, question, condition in todo:
+        place = None if (place_id, skill_id) in have else places.get_place(user_id, place_id)
+        if place is None:
+            continue
+        req = CreateWatchRequest(
+            name=name,
+            category_key=place.category_key,  # filed like its place
+            place_id=place_id,
+            skill_id=skill_id,
+            question=question,
+            condition=condition,
+        )
+        added.append(_new_row(req, feasibility(question)))
+    if added:
+        rows = [*rows, *added]
+        _save(path, rows)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("\n".join(sorted(offered | {d[0] for d in todo})) + "\n")
+    return rows
+
+
 def list_watches(user_id: str) -> list[WatchDto]:
     """Newest first."""
     path = _path(user_id)
     with _lock(path):
-        rows = _load(path)
+        rows = _seed_once(user_id, path, _load(path))
     rows.reverse()  # ties (same second): later insertion first
     rows.sort(key=lambda r: r["created_at"], reverse=True)
     return [_dto(r) for r in rows]
@@ -394,7 +455,7 @@ def get_watch(user_id: str, watch_id: str) -> WatchDto | None:
         return None
     path = _path(user_id)
     with _lock(path):
-        rows = _load(path)
+        rows = _seed_once(user_id, path, _load(path))
     row = next((r for r in rows if r["id"] == watch_id), None)
     return None if row is None else _dto(row)
 
@@ -405,37 +466,42 @@ def create_watch(user_id: str, req: CreateWatchRequest, area_ha: float | None = 
     check = feasibility(req.question, area_ha)
     if not check.ok and check.title == _REFUSAL.title:
         raise NotWatchable(check)
-    rule = _BY_SKILL.get(req.skill_id)
-    spec = rule.dto() if rule is not None and not check.partial else check
     path = _path(user_id)
     with _lock(path):
         rows = _load(path)
         if len(rows) >= MAX_WATCHES_PER_USER:
             raise LimitReached(f"At most {MAX_WATCHES_PER_USER} watches per user.")
-        now = _now()
-        row = {
-            "id": f"w_{uuid.uuid4().hex[:12]}",
-            "name": req.name,
-            "category_key": req.category_key or spec.category_key,
-            "place_id": req.place_id,
-            "skill_id": req.skill_id or spec.skill_id,
-            "question": req.question,
-            "condition": req.condition or spec.condition,
-            "metric": spec.metric,
-            "confidence": spec.confidence,
-            "channels": req.channels,
-            "cadence": req.cadence or spec.cadence.replace("—", ""),
-            "tier": spec.tier,
-            "satellites": spec.satellites.replace("—", ""),
-            "enabled": True,
-            "events": [_event("Watch created. No passes measured yet.")],
-            "proof": {"scenes": [], "hash": ""},
-            "created_at": now,
-            "updated_at": now,
-        }
+        row = _new_row(req, check)
         rows.append(row)
         _save(path, rows)
     return _dto(row)
+
+
+def _new_row(req: CreateWatchRequest, check: FeasibilityDto) -> dict:
+    """A new watch record from the request and its feasibility check."""
+    rule = _BY_SKILL.get(req.skill_id)
+    spec = rule.dto() if rule is not None and not check.partial else check
+    now = _now()
+    return {
+        "id": f"w_{uuid.uuid4().hex[:12]}",
+        "name": req.name,
+        "category_key": req.category_key or spec.category_key,
+        "place_id": req.place_id,
+        "skill_id": req.skill_id or spec.skill_id,
+        "question": req.question,
+        "condition": req.condition or spec.condition,
+        "metric": spec.metric,
+        "confidence": spec.confidence,
+        "channels": req.channels,
+        "cadence": req.cadence or spec.cadence.replace("—", ""),
+        "tier": spec.tier,
+        "satellites": spec.satellites.replace("—", ""),
+        "enabled": True,
+        "events": [_event("Watch created. No passes measured yet.")],
+        "proof": {"scenes": [], "hash": ""},
+        "created_at": now,
+        "updated_at": now,
+    }
 
 
 def update_watch(user_id: str, watch_id: str, req: PatchWatchRequest) -> WatchDto | None:

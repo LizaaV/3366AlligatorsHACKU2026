@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services import watches as watches_svc
 from app.services.watches import parse_condition, watch_message
 
 POND = {
@@ -21,6 +22,7 @@ POND = {
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(watches_svc, "_DEMO_TRIGGERS", [])  # these tests make their own
     monkeypatch.setenv("EARTH_IMPL", "stub")
     return TestClient(app)
 
