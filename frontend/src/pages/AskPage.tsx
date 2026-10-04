@@ -769,11 +769,25 @@ export function AskPage({ active }: { active: boolean }) {
               </button>
             ))}
           </div>
-          {scene && band !== 'map' && (
-            <span className="tiny muted">
-              {viewLoading ? `Rendering ${BANDS.find((b) => b.id === band)?.label.toLowerCase()}…` : `${scene.satellite} · ${scene.date} · ${scene.cloud}% cloud · ${BANDS.find((b) => b.id === band)?.hint}`}
-            </span>
-          )}
+          {scene && band !== 'map' && (viewLoading ? (
+            <span className="tiny muted">Rendering {BANDS.find((b) => b.id === band)?.label.toLowerCase()}…</span>
+          ) : (
+            <div className="row wrap" style={{ gap: 6 }}>
+              <InfoPill icon="satellite_alt" title="Satellite that took this image">{scene.satellite}</InfoPill>
+              <InfoPill icon="calendar_today" title="Date of the pass">
+                {new Date(String(scene.date) + 'T00:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}
+              </InfoPill>
+              <InfoPill icon={scene.cloud < 5 ? 'wb_sunny' : 'cloud'} title="Cloud over the image tile">
+                {scene.cloud < 5 ? 'Clear sky' : `${scene.cloud}% cloud`}
+              </InfoPill>
+              {BAND_LEGEND[band] && (
+                <InfoPill title={BANDS.find((b) => b.id === band)?.hint}>
+                  <span style={{ width: 28, height: 8, borderRadius: 4, background: BAND_LEGEND[band]!.swatch, marginRight: 6, flex: 'none' }} />
+                  {BAND_LEGEND[band]!.text}
+                </InfoPill>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -1306,6 +1320,24 @@ function TurnView({
         />
       )}
     </div>
+  );
+}
+
+/* ---------------- live view facts: satellite, date, cloud, colour key ---------------- */
+
+/** What the colours of each band mean, as a small swatch and two words. */
+const BAND_LEGEND: Partial<Record<Band, { swatch: string; text: string }>> = {
+  greenness: { swatch: 'linear-gradient(90deg, #8c5a2b, #d9c36b, #2e9e44)', text: 'Bare to lush' },
+  water: { swatch: 'linear-gradient(90deg, #d8d2c4, #2b7bd6)', text: 'Dry to wet' },
+  bare: { swatch: 'linear-gradient(90deg, #2e9e44, #c9a46b)', text: 'Plants to bare' },
+};
+
+function InfoPill({ icon, title, children }: { icon?: string; title?: string; children: React.ReactNode }) {
+  return (
+    <span className="chip" title={title} style={{ padding: '3px 10px', fontSize: 12, gap: 6, display: 'inline-flex', alignItems: 'center', cursor: 'default' }}>
+      {icon && <Ms n={icon} size={14} />}
+      {children}
+    </span>
   );
 }
 
