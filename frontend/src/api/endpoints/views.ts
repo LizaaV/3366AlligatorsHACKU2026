@@ -14,6 +14,9 @@ type S = components['schemas'];
 export type ViewPass = S['ViewPass'];
 export type ViewImage = S['ViewImage'];
 export type ViewBand = ViewImage['band'];
+export type PrefetchResult = S['PrefetchResult'];
+/** How far back passes go: the latest clear ones (`4m`), or one clear pass a month for up to 5 years. */
+export type ViewPeriod = '4m' | '1y' | '2y' | '5y';
 
 const none = (): never => {
   throw new ApiError('Live views need the real backend', 'http', 404);
@@ -26,20 +29,30 @@ const where = (t: ViewTarget) =>
   'placeId' in t ? { place_id: t.placeId } : { lat: +t.lat.toFixed(5), lon: +t.lon.toFixed(5) };
 
 export const viewsApi = {
-  passes: (target: ViewTarget, signal?: AbortSignal): Promise<ViewPass[]> =>
+  passes: (target: ViewTarget, period: ViewPeriod = '4m', signal?: AbortSignal): Promise<ViewPass[]> =>
     request<ViewPass[]>({
       method: 'GET',
       path: '/views/passes',
-      query: where(target),
+      query: { ...where(target), period },
       signal,
       ...(usingFixtures() ? { fixture: none } : {}),
     }),
 
-  image: (target: ViewTarget, band: ViewBand, scene?: string, signal?: AbortSignal): Promise<ViewImage> =>
+  image: (target: ViewTarget, band: ViewBand, scene?: string, period: ViewPeriod = '4m', signal?: AbortSignal): Promise<ViewImage> =>
     request<ViewImage>({
       method: 'GET',
       path: '/views',
-      query: { ...where(target), band, ...(scene ? { scene } : {}) },
+      query: { ...where(target), band, period, ...(scene ? { scene } : {}) },
+      signal,
+      ...(usingFixtures() ? { fixture: none } : {}),
+    }),
+
+  /** POST /api/views/prefetch — render every band of every pass in the period in the background. */
+  prefetch: (target: ViewTarget, period: ViewPeriod = '4m', signal?: AbortSignal): Promise<PrefetchResult> =>
+    request<PrefetchResult>({
+      method: 'POST',
+      path: '/views/prefetch',
+      query: { ...where(target), period },
       signal,
       ...(usingFixtures() ? { fixture: none } : {}),
     }),

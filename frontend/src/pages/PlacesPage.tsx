@@ -70,8 +70,9 @@ function CardMenu({ place, onClose }: { place: Place; onClose: () => void }) {
       {item('add_alert', 'Add a trigger', () => open({ kind: 'watchBuilder', placeId: place.id }))}
       <div className="divider" style={{ margin: '6px 0' }} />
       {item('delete', 'Delete', () => {
-        removePlace(place.id);
-        notify(`${place.name} deleted`, undefined, undefined, 'delete');
+        removePlace(place.id)
+          .then(() => notify(`${place.name} deleted`, undefined, undefined, 'delete'))
+          .catch(() => notify(`Could not delete ${place.name}`, undefined, undefined, 'error'));
       }, true)}
     </div>
   );

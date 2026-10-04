@@ -350,3 +350,18 @@ export const WHATSAPP_PINS = [
 ];
 
 export const WHATSAPP_NUMBER = '+1 (555) 014-7788';
+
+/* ---------------- library concepts ---------------- */
+
+/**
+ * The 28 ready-made skills in 9 categories from the team's pitch and research docs, as the
+ * library shows them next to the backend's runnable skills. Marked `concept` (described, not
+ * runnable), with no invented run counts, ratings or accuracy figures. Delete each one as its
+ * real skill lands in the backend registry; the listing drops duplicates by id.
+ */
+export const conceptSkills = (): SkillDto[] =>
+  skills().map((s) => ({ ...s, status: 'concept', runs: null, rating: null, accuracy: null }));
+export const conceptManifest = (id: string): SkillManifestDto | undefined => {
+  const m = skillManifest(id);
+  return m && { ...m, status: 'concept', code_ref: null, code_sha256: null, accuracy: { ...m.accuracy, statement: null } };
+};

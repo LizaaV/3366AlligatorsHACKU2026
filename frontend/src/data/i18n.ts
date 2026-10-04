@@ -34,7 +34,7 @@ export const LANGS: Lang[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  'nav.ask': 'Ask', 'nav.places': 'Places', 'nav.library': 'Library',
+  'nav.ask': 'Chat', 'nav.places': 'Places', 'nav.library': 'Library',
   'hero.eyebrow': 'Connecting satellites to you', 'hero.title': 'Ask the planet a question.',
   'hero.sub': 'Ask about any place on Earth in plain language. The agent reads free satellite data and answers with evidence: before-and-after images, a timeline and the numbers behind it.',
   'chat.placeholder': 'Ask about any place on Earth…', 'chat.try': 'Try asking', 'chat.place': 'Place', 'chat.noPlace': 'No place · general question', 'cta.addPlace': 'Add place',
@@ -46,7 +46,7 @@ const en: Dict = {
 };
 
 const de: Dict = {
-  'nav.ask': 'Fragen', 'nav.places': 'Orte', 'nav.library': 'Bibliothek',
+  'nav.ask': 'Chat', 'nav.places': 'Orte', 'nav.library': 'Bibliothek',
   'hero.eyebrow': 'Satelliten, verbunden mit dir', 'hero.title': 'Stell dem Planeten eine Frage.',
   'hero.sub': 'Frag in einfacher Sprache nach jedem Ort der Erde. Der Agent liest freie Satellitendaten und antwortet mit Belegen: Vorher-nachher-Bilder, eine Zeitleiste und die Zahlen dahinter.',
   'chat.placeholder': 'Frag nach einem Ort auf der Erde…', 'chat.try': 'Probier zum Beispiel', 'chat.place': 'Ort', 'chat.noPlace': 'Kein Ort · allgemeine Frage', 'cta.addPlace': 'Ort hinzufügen',
@@ -58,7 +58,7 @@ const de: Dict = {
 };
 
 const es: Dict = {
-  'nav.ask': 'Preguntar', 'nav.places': 'Lugares', 'nav.library': 'Biblioteca',
+  'nav.ask': 'Chat', 'nav.places': 'Lugares', 'nav.library': 'Biblioteca',
   'hero.eyebrow': 'Conectando los satélites contigo', 'hero.title': 'Hazle una pregunta al planeta.',
   'hero.sub': 'Pregunta en lenguaje sencillo por cualquier lugar de la Tierra. El agente lee datos satelitales gratuitos y responde con pruebas: imágenes de antes y después, una línea de tiempo y las cifras.',
   'chat.placeholder': 'Pregunta por cualquier lugar de la Tierra…', 'chat.try': 'Prueba a preguntar', 'chat.place': 'Lugar', 'chat.noPlace': 'Sin lugar · pregunta general', 'cta.addPlace': 'Añadir lugar',
@@ -70,7 +70,7 @@ const es: Dict = {
 };
 
 const fr: Dict = {
-  'nav.ask': 'Demander', 'nav.places': 'Lieux', 'nav.library': 'Bibliothèque',
+  'nav.ask': 'Chat', 'nav.places': 'Lieux', 'nav.library': 'Bibliothèque',
   'hero.eyebrow': 'Les satellites, connectés à vous', 'hero.title': 'Posez une question à la planète.',
   'hero.sub': 'Interrogez n\'importe quel lieu sur Terre en langage courant. L\'agent lit des données satellites gratuites et répond avec des preuves : images avant/après, chronologie et chiffres.',
   'chat.placeholder': "Posez une question sur n'importe quel lieu…", 'chat.try': 'Essayez', 'chat.place': 'Lieu', 'chat.noPlace': 'Aucun lieu · question générale', 'cta.addPlace': 'Ajouter un lieu',
@@ -82,7 +82,7 @@ const fr: Dict = {
 };
 
 const pt: Dict = {
-  'nav.ask': 'Perguntar', 'nav.places': 'Lugares', 'nav.library': 'Biblioteca',
+  'nav.ask': 'Chat', 'nav.places': 'Lugares', 'nav.library': 'Biblioteca',
   'hero.eyebrow': 'Conectando satélites a você', 'hero.title': 'Faça uma pergunta ao planeta.',
   'hero.sub': 'Pergunte em linguagem simples sobre qualquer lugar da Terra. O agente lê dados de satélite gratuitos e responde com provas: imagens de antes e depois, uma linha do tempo e os números.',
   'chat.placeholder': 'Pergunte sobre qualquer lugar da Terra…', 'chat.try': 'Experimente perguntar', 'chat.place': 'Lugar', 'chat.noPlace': 'Sem lugar · pergunta geral', 'cta.addPlace': 'Adicionar lugar',
@@ -94,7 +94,7 @@ const pt: Dict = {
 };
 
 const hi: Dict = {
-  'nav.ask': 'पूछें', 'nav.places': 'स्थान', 'nav.library': 'लाइब्रेरी',
+  'nav.ask': 'चैट', 'nav.places': 'स्थान', 'nav.library': 'लाइब्रेरी',
   'hero.eyebrow': 'उपग्रहों को आपसे जोड़ते हुए', 'hero.title': 'धरती से एक सवाल पूछिए।',
   'hero.sub': 'पृथ्वी पर किसी भी जगह के बारे में सरल भाषा में पूछें। एजेंट मुफ़्त उपग्रह डेटा पढ़ता है और सबूत के साथ जवाब देता है: पहले-बाद की तस्वीरें, समयरेखा और आँकड़े।',
   'chat.placeholder': 'पृथ्वी पर किसी भी जगह के बारे में पूछें…', 'chat.try': 'यह पूछकर देखें', 'chat.place': 'स्थान', 'chat.noPlace': 'कोई स्थान नहीं · सामान्य सवाल', 'cta.addPlace': 'स्थान जोड़ें',
@@ -106,7 +106,7 @@ const hi: Dict = {
 };
 
 const sw: Dict = {
-  'nav.ask': 'Uliza', 'nav.places': 'Maeneo', 'nav.library': 'Maktaba',
+  'nav.ask': 'Gumzo', 'nav.places': 'Maeneo', 'nav.library': 'Maktaba',
   'hero.eyebrow': 'Kuunganisha satelaiti nawe', 'hero.title': 'Uliza sayari swali.',
   'hero.sub': 'Uliza kuhusu mahali popote Duniani kwa lugha rahisi. Wakala husoma data ya bure ya satelaiti na kujibu kwa ushahidi: picha za kabla na baada, mfuatano wa wakati na takwimu.',
   'chat.placeholder': 'Uliza kuhusu mahali popote Duniani…', 'chat.try': 'Jaribu kuuliza', 'chat.place': 'Mahali', 'chat.noPlace': 'Hakuna mahali · swali la jumla', 'cta.addPlace': 'Ongeza mahali',
@@ -118,7 +118,7 @@ const sw: Dict = {
 };
 
 const ar: Dict = {
-  'nav.ask': 'اسأل', 'nav.places': 'الأماكن', 'nav.library': 'المكتبة',
+  'nav.ask': 'دردشة', 'nav.places': 'الأماكن', 'nav.library': 'المكتبة',
   'hero.eyebrow': 'نصل الأقمار الصناعية بك', 'hero.title': 'اسأل الكوكب سؤالاً.',
   'hero.sub': 'اسأل عن أي مكان على الأرض بلغة بسيطة. يقرأ الوكيل بيانات الأقمار الصناعية المجانية ويجيب بأدلة: صور قبل وبعد، وخط زمني، والأرقام.',
   'chat.placeholder': 'اسأل عن أي مكان على الأرض…', 'chat.try': 'جرّب أن تسأل', 'chat.place': 'المكان', 'chat.noPlace': 'بدون مكان · سؤال عام', 'cta.addPlace': 'أضف مكاناً',

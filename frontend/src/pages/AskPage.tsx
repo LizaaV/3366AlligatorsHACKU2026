@@ -10,16 +10,18 @@ import { api, toApiError } from '../api';
 import { useResource } from '../hooks/useResource';
 import type { MapImage, MapLayer, Place } from '../model';
 import { mapImagesFrom, toSearchHits } from '../model';
-import { sourceLabel } from '../data/presentation';
+import { skillRunnable, sourceLabel } from '../data/presentation';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, circleRing, distanceM, parseLocation, thumb } from '../lib/geo';
 import { useAskRun, type AskTurn } from '../ask/useAskRun';
 import { AnswerCard } from './AnswerCard';
 import { stagesFrom } from '../ask/stages';
 import { landCoverLine, suggestionsFor } from '../ask/suggest';
 import { AnswerBlocks } from '../components/blocks';
+import { ArtifactChips, ArtifactsPanel, ArtifactsPill, artifactsOf, type Artifact } from '../components/artifacts/ArtifactsPanel';
 import { Splash } from '../components/Splash';
 import { BANDS, type Band } from '../lib/scenes';
-import type { PlaceContext, ViewImage, ViewPass, ViewTarget } from '../api';
+import { parseHash } from '../router';
+import type { PlaceContext, ViewImage, ViewPass, ViewPeriod, ViewTarget } from '../api';
 
 /** An icon for what a search hit is. */
 const kindIcon = (kind: string | null) =>
@@ -34,8 +36,23 @@ const kindIcon = (kind: string | null) =>
 // Drawn places get no type: suggestions come from the land cover measured inside them.
 const DRAWN_CATEGORY = 'society';
 
+/** The date ranges the live view can list: recent passes, or one clear pass a month for longer. */
+const PERIODS: { id: ViewPeriod; label: string; span: string; hint: string }[] = [
+  { id: '4m', label: 'Recent', span: 'the last 4 months', hint: 'The latest clear passes' },
+  { id: '1y', label: '1 yr', span: 'the last year', hint: 'One clear pass a month for a year' },
+  { id: '2y', label: '2 yrs', span: 'the last 2 years', hint: 'One clear pass a month for 2 years' },
+  { id: '5y', label: '5 yrs', span: 'the last 5 years', hint: 'One clear pass a month for 5 years: compare seasons and years' },
+];
+
 /** Radius of the circle a question about a dropped pin covers. */
 const SPOT_RADIUS_M = 350;
+
+/** The URL form of the Ask page's view: only the keys that describe it, in a fixed order. */
+const VIEW_KEYS = ['place', 'pin', 'view', 'draw', 'sheet'] as const;
+const viewKeyOf = (q: Partial<Record<string, string | undefined>>) =>
+  new URLSearchParams(
+    VIEW_KEYS.filter((k) => q[k] && !(k === 'place' && q[k] === 'none')).map((k) => [k, q[k]!] as [string, string]),
+  ).toString();
 
 function useViewport() {
   const [v, setV] = useState({ W: window.innerWidth, H: window.innerHeight });
@@ -57,6 +74,10 @@ export function AskPage({ active }: { active: boolean }) {
   const H = winH - navH - (mobile && !splash ? 64 : 0);
   const compact = W < 1280;
   const chatW = mobile ? W - 32 : compact ? 360 : 420;
+  // Answers' images, graphs and tables open in a panel on the right when there is room;
+  // on small screens they stay inline in the chat.
+  const sidePanel = !mobile && W >= 1100;
+  const panelW = compact ? 360 : 420;
 
   const place = places.find((p) => p.id === askPlaceId) || null;
 
@@ -96,6 +117,9 @@ export function AskPage({ active }: { active: boolean }) {
   const [viewNote, setViewNote] = useState<string | null>(null);
   const [view, setView] = useState<ViewImage | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
+  // How far back the passes go. Longer periods list one clear pass a month, for comparing
+  // seasons and years.
+  const [period, setPeriod] = useState<ViewPeriod>('4m');
 
   /** Look at a spot: drop the pin, fly the map there and start showing the latest photo. */
   const lookAt = useCallback(
@@ -147,14 +171,22 @@ export function AskPage({ active }: { active: boolean }) {
     const ac = new AbortController();
     setScenesLoading(true);
     api.views
-      .passes(focusTarget, ac.signal)
+      .passes(focusTarget, period, ac.signal)
       .then((sc) => !ac.signal.aborted && setScenes(sc))
       .catch((e) => !ac.signal.aborted && setViewNote(toApiError(e).detail ?? 'Live views are not available here.'))
       .finally(() => !ac.signal.aborted && setScenesLoading(false));
     return () => ac.abort();
     // focusKey stands for focusTarget (a new object each render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusKey, mode]);
+  }, [focusKey, mode, period]);
+
+  // A saved place keeps every band of every pass cached on the server, so flicking through
+  // dates is instant. New places are queued when saved; this covers older places and the
+  // longer periods. The backend ignores a repeat while the same job is running.
+  useEffect(() => {
+    if (!place || mode !== 'map') return;
+    api.views.prefetch({ placeId: place.id }, period).catch(() => undefined);
+  }, [place?.id, place?.geometry, mode, period]);
   const scene = scenes[sceneIdx] ?? null;
 
   // One rendered image in the chosen band and pass: inside a place's outline, or a 2 km square
@@ -165,7 +197,7 @@ export function AskPage({ active }: { active: boolean }) {
     const ac = new AbortController();
     setViewLoading(true);
     api.views
-      .image(focusTarget, band, scene.scene, ac.signal)
+      .image(focusTarget, band, scene.scene, period, ac.signal)
       .then((v) => !ac.signal.aborted && setView(v))
       .catch((e) => !ac.signal.aborted && setViewNote(toApiError(e).detail ?? 'Could not render this view.'))
       .finally(() => !ac.signal.aborted && setViewLoading(false));
@@ -180,7 +212,6 @@ export function AskPage({ active }: { active: boolean }) {
     setLayers((cur) => (cur.length ? cur : catalogLayers));
   }, [catalogLayers]);
 
-  const cx = mobile ? W / 2 : (W + chatW + 20) / 2;
   const cy = H / 2;
 
   const flyTo = useCallback((p: Place) => {
@@ -217,6 +248,22 @@ export function AskPage({ active }: { active: boolean }) {
   // `stage` to drive the map, and reads the blocks the run produced.
   const run = useAskRun({ lang, selectedPlaceId: askPlaceId });
   const { turns, last, stage, submit: ask } = run;
+
+  const artifacts = useMemo(() => artifactsOf(turns), [turns]);
+  const [artSel, setArtSel] = useState<string | null>(null);
+  const [artOpen, setArtOpen] = useState(true);
+  const selectArtifact = (id: string) => { setArtSel(id); setArtOpen(true); };
+  // Each new block opens on the right as it arrives, so the newest result is in view.
+  const newest = last?.blocks.length ? `${last.id}:${[...last.blocks].sort((a, b) => Number(b.primary) - Number(a.primary))[0].id}` : null;
+  useEffect(() => {
+    if (!newest) return;
+    setArtSel(newest);
+    setArtOpen(true);
+  }, [newest]);
+  const panelShown = sidePanel && !splash && artifacts.length > 0 && artOpen;
+  const cx = mobile ? W / 2 : (W - (panelShown ? panelW + 20 : 0) + chatW + 20) / 2;
+  // Floating controls keep clear of the artifacts panel.
+  const rightInset = panelShown ? panelW + 40 : 20;
 
   // A run's images belong to the place (or pin) that run was about. The overlay remembers its
   // turn and is only drawn while that place or pin is the one selected, so switching place never
@@ -339,6 +386,10 @@ export function AskPage({ active }: { active: boolean }) {
     (skillId: string, placeId?: string | null) => {
       const skill = skills.find((x) => x.id === skillId);
       if (!skill) return;
+      if (!skillRunnable(skill)) {
+        notify(`${skill.name} is a planned skill and cannot run yet`, undefined, undefined, 'info');
+        return;
+      }
       const pid = placeId !== undefined ? placeId : askPlaceId;
       if (!pid) {
         setSheet(false);
@@ -395,9 +446,8 @@ export function AskPage({ active }: { active: boolean }) {
     setCirc({ center: null, radiusM: 250, sizing: false });
   };
 
-  /** Undo the last circle step: a fixed size goes back to sizing; sizing drops the centre. */
-  const undoCircle = () =>
-    setCirc((c) => (!c.center ? c : c.sizing ? { ...c, center: null, sizing: false } : { ...c, sizing: true }));
+  /** Undo the circle in one click: it comes off the map, ready to be placed again. */
+  const undoCircle = () => setCirc((c) => ({ ...c, center: null, sizing: false }));
 
   /** A click on the map while drawing: a corner, or the circle's centre / size. */
   const drawTap = (lat: number, lon: number) => {
@@ -483,6 +533,61 @@ export function AskPage({ active }: { active: boolean }) {
     setPop(null);
     setQ('');
   }, [splash, homeTick]);
+
+  /* ---------------- history: Back steps through what the map showed ---------------- */
+
+  // The view (globe or map, the pin, the selected place, drawing, the skills sheet) is written
+  // to the URL as it changes, one history entry per step, and read back on Back/Forward.
+  const viewKey = viewKeyOf({
+    place: askPlaceId ?? undefined,
+    pin: !askPlaceId && spot ? `${spot.lat.toFixed(5)},${spot.lon.toFixed(5)}` : undefined,
+    view: mode === 'map' ? 'map' : undefined,
+    draw: drawing ? drawShape : undefined,
+    sheet: sheet ? '1' : undefined,
+  });
+  const wasActive = useRef(false);
+  useEffect(() => {
+    const cameBack = !wasActive.current;
+    wasActive.current = active && !splash;
+    if (!active || splash) return;
+    // A place named by the URL may arrive before the places list: wait until it resolves.
+    if (askPlaceId && !place) return;
+    const cur = parseHash();
+    if (cur.page !== 'ask' || viewKeyOf(cur.query) === viewKey) return;
+    const url = viewKey ? `#/ask?${viewKey}` : '#/ask';
+    // Coming back to this tab keeps its view and rewrites the bare `#/ask` link in place.
+    if (cameBack) window.history.replaceState(null, '', url);
+    else window.history.pushState(null, '', url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, splash, viewKey, place]);
+
+  const prevPage = useRef(route.page);
+  useEffect(() => {
+    const fromElsewhere = prevPage.current !== 'ask';
+    prevPage.current = route.page;
+    // Arriving from another tab: a `?place=` link is handled by the store and flies there.
+    if (route.page !== 'ask' || splash || fromElsewhere) return;
+    if (viewKeyOf(route.query) === viewKey) return;
+    const pid = route.query.place && route.query.place !== 'none' ? route.query.place : null;
+    const [plat, plon] = (route.query.pin ?? '').split(',').map(Number);
+    const pin = !pid && route.query.pin && Number.isFinite(plat) && Number.isFinite(plon) ? { lat: plat, lon: plon } : null;
+    const onMap = route.query.view === 'map' && !!(pid || pin);
+    if (pid !== askPlaceId) {
+      // Fly to a place only when the restored view is its map, not when it was on the globe.
+      if (!(onMap && pid)) skipFly.current = true;
+      setAskPlace(pid);
+    }
+    setSpot(pin);
+    if (pin) setCenter(pin);
+    setMode(onMap ? 'map' : 'globe');
+    const shape = route.query.draw === 'circle' || route.query.draw === 'polygon' ? route.query.draw : null;
+    if (shape && (!drawing || shape !== drawShape)) startDraw(shape);
+    else if (!shape && drawing) cancelDraw();
+    setSheet(route.query.sheet === '1');
+    setPop(null);
+    // Only a URL change (Back/Forward, a link) restores; local changes are written above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route]);
 
   /* ---------------- derived ---------------- */
 
@@ -618,7 +723,7 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* LIVE SATELLITE VIEW: band chips and recent passes for the pin or place in focus */}
       {isMap && !overlay && !drawing && (spot || place) && (
-        <div className="panel col fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : 20, margin: '0 auto', width: 'max-content', maxWidth: mobile ? 'calc(100% - 32px)' : `calc(100% - ${chatW + 60}px)`, top: mobile ? 64 : 90, gap: 8, padding: 8, zIndex: 14 }}>
+        <div className="panel col fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : rightInset, margin: '0 auto', width: 'max-content', maxWidth: mobile ? 'calc(100% - 32px)' : `calc(100% - ${chatW + rightInset + 40}px)`, top: mobile ? 64 : 90, gap: 8, padding: 8, zIndex: 14 }}>
           <div className="row wrap" style={{ gap: 6 }}>
             <button className={`chip ${band === 'map' ? 'on' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setBand('map')} title="Cloud-free basemap (2020)">Map</button>
             {BANDS.map((b) => (
@@ -627,10 +732,38 @@ export function AskPage({ active }: { active: boolean }) {
               </button>
             ))}
           </div>
+          <div className="row" style={{ gap: 6 }}>
+            <span className="tiny muted">Dates</span>
+            {PERIODS.map((pr) => (
+              <button key={pr.id} className={`chip ${period === pr.id ? 'on' : ''}`} style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => { setPeriod(pr.id); setSceneIdx(0); }} aria-pressed={period === pr.id} title={pr.hint}>
+                {pr.label}
+              </button>
+            ))}
+          </div>
           <div className="row" style={{ gap: 6, overflowX: 'auto' }}>
-            {scenesLoading && <span className="tiny muted">Finding recent clear passes…</span>}
-            {!scenesLoading && !scenes.length && <span className="tiny muted">{viewNote ?? 'No clear Sentinel-2 pass in the last 4 months here.'}</span>}
-            {scenes.slice(0, 6).map((sc, i) => (
+            {scenesLoading && <span className="tiny muted">{period === '4m' ? 'Finding recent clear passes…' : 'Finding a clear pass for each month… this can take a minute'}</span>}
+            {!scenesLoading && !scenes.length && <span className="tiny muted">{viewNote ?? `No clear Sentinel-2 pass in ${PERIODS.find((x) => x.id === period)?.span ?? 'this period'} here.`}</span>}
+            {!scenesLoading && period !== '4m' && scenes.length > 0 && (
+              <>
+                <IconBtn icon="chevron_left" className="sm" disabled={sceneIdx >= scenes.length - 1} onClick={() => { setSceneIdx((i) => Math.min(scenes.length - 1, i + 1)); if (band === 'map') setBand('photo'); }} aria-label="Older pass" />
+                <select
+                  className="input"
+                  value={sceneIdx}
+                  onChange={(e) => { setSceneIdx(+e.target.value); if (band === 'map') setBand('photo'); }}
+                  aria-label="Pass date"
+                  style={{ height: 30, width: 'auto', padding: '0 8px', fontSize: 13 }}
+                >
+                  {scenes.map((sc, i) => (
+                    <option key={sc.scene} value={i}>
+                      {new Date(String(sc.date) + 'T00:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })} · {sc.cloud}% cloud
+                    </option>
+                  ))}
+                </select>
+                <IconBtn icon="chevron_right" className="sm" disabled={sceneIdx <= 0} onClick={() => { setSceneIdx((i) => Math.max(0, i - 1)); if (band === 'map') setBand('photo'); }} aria-label="Newer pass" />
+                <span className="tiny muted">{scenes.length} months</span>
+              </>
+            )}
+            {period === '4m' && scenes.slice(0, 6).map((sc, i) => (
               <button key={sc.scene} onClick={() => { setSceneIdx(i); if (band === 'map') setBand('photo'); }} className="tiny" title={`${sc.satellite} · ${sc.cloud}% cloud in the tile`} style={{ flex: 'none', padding: '3px 8px', borderRadius: 9999, border: `1px solid ${i === sceneIdx && band !== 'map' ? '#fff' : 'var(--hair)'}`, background: 'transparent', color: i === sceneIdx && band !== 'map' ? '#fff' : 'var(--muted)' }}>
                 {new Date(String(sc.date) + 'T00:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' })}
               </button>
@@ -646,7 +779,7 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* REAL LAYER: which rendered image is on the map, and before/after */}
       {isMap && overlayPair && (
-        <div className="panel row fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : 20, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100% - 32px)', top: mobile ? 64 : 90, gap: 10, padding: '6px 6px 6px 14px', zIndex: 14 }}>
+        <div className="panel row fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : rightInset, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100% - 32px)', top: mobile ? 64 : 90, gap: 10, padding: '6px 6px 6px 14px', zIndex: 14 }}>
           <span className="eyebrow muted" title="Images the agent measured for this answer">Answer</span>
           {Object.keys(images).length > 1 && shownTurn ? (
             Object.keys(images).map((k) => (
@@ -673,7 +806,7 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* DRAWING: corners are added by clicking the live map; drag and scroll still move it */}
       {drawing && isMap && (
-        <div className="panel col fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : 20, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100% - 32px)', top: mobile ? 64 : 90, gap: 10, padding: 12, zIndex: 24 }}>
+        <div className="panel col fade-up" style={{ position: 'absolute', left: mobile ? 16 : chatW + 40, right: mobile ? 16 : rightInset, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100% - 32px)', top: mobile ? 64 : 90, gap: 10, padding: 12, zIndex: 24 }}>
           <div className="row" style={{ gap: 8 }}>
             <Ms n={drawShape === 'circle' ? 'radio_button_unchecked' : 'polyline'} size={18} />
             <span style={{ font: '600 14px/1.4 var(--font)' }}>{drawShape === 'circle' ? 'Draw a circle' : 'Draw an outline'}</span>
@@ -758,6 +891,9 @@ export function AskPage({ active }: { active: boolean }) {
             <div ref={thread} style={{ borderTop: '1px solid var(--hair-soft)', padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18, minHeight: 0 }}>
               {turns.map((turn) => (
                 <TurnView key={turn.id} turn={turn} isLast={turn === last} places={places}
+                  artifacts={sidePanel ? artifacts.filter((a) => a.turnId === turn.id) : null}
+                  selectedArtifact={artOpen ? artSel : null}
+                  onSelectArtifact={selectArtifact}
                   onToggle={() => run.toggleOpen(turn.id)}
                   onPick={(k, o) => run.setAnswerValue(turn.id, k, o)}
                   onRemember={(r) => run.setRemember(turn.id, r)}
@@ -921,7 +1057,7 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* LAYERS PANEL */}
       {/* DOCK */}
-      <div className="panel row" style={{ position: 'absolute', left: mobile ? 'auto' : chatW + 40, right: mobile ? 16 : 20, margin: mobile ? 0 : '0 auto', width: 'max-content', bottom: mobile ? 'auto' : 24, top: mobile ? 12 : 'auto', gap: 6, padding: 6, zIndex: 16, display: mobile && (turns.length > 0 || pop) ? 'none' : 'flex' }}>
+      <div className="panel row" style={{ position: 'absolute', left: mobile ? 'auto' : chatW + 40, right: mobile ? 16 : rightInset, margin: mobile ? 0 : '0 auto', width: 'max-content', bottom: mobile ? 'auto' : 24, top: mobile ? 12 : 'auto', gap: 6, padding: 6, zIndex: 16, display: mobile && (turns.length > 0 || pop) ? 'none' : 'flex' }}>
         <Btn variant="primary" icon="auto_stories" onClick={() => { setSheet(true); setPop(null); }}>{mobile ? '' : 'Skills'}</Btn>
         {!mobile && (
           <Btn icon="notifications_active" onClick={() => go('triggers')}>
@@ -933,11 +1069,25 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* ZOOM */}
       {isMap && !mobile && (
-        <div className="col" style={{ position: 'absolute', right: 20, bottom: 24, gap: 6, zIndex: 5 }}>
+        <div className="col" style={{ position: 'absolute', right: rightInset, bottom: 24, gap: 6, zIndex: 5 }}>
           <IconBtn icon="add" className="boxed" title="Zoom in" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(18, z + 1))} />
           <IconBtn icon="remove" className="boxed" title="Zoom out" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(3, z - 1))} />
         </div>
       )}
+
+      {/* ARTIFACTS — the answers' images, graphs and tables, on the right */}
+      {sidePanel && artifacts.length > 0 && (artOpen ? (
+        <ArtifactsPanel
+          artifacts={artifacts}
+          selectedId={artSel}
+          onSelect={setArtSel}
+          onClose={() => setArtOpen(false)}
+          width={panelW}
+          onShowOnMap={(turnId, key) => { const t = turns.find((x) => x.id === turnId); if (t) showTurnLayer(t, key); }}
+        />
+      ) : (
+        <ArtifactsPill count={artifacts.length} onOpen={() => setArtOpen(true)} />
+      ))}
 
       {/* SKILLS SHEET — quick pick, full library lives on the Library page */}
       {sheet && (
@@ -956,6 +1106,9 @@ function TurnView({
   turn,
   isLast,
   places,
+  artifacts,
+  selectedArtifact,
+  onSelectArtifact,
   onToggle,
   onPick,
   onRemember,
@@ -968,6 +1121,10 @@ function TurnView({
   turn: AskTurn;
   isLast: boolean;
   places: Place[];
+  /** This turn's artifacts when they are shown in the side panel; null shows them inline. */
+  artifacts: Artifact[] | null;
+  selectedArtifact: string | null;
+  onSelectArtifact: (id: string) => void;
   onToggle: () => void;
   onPick: (key: string, option: string) => void;
   onRemember: (remember: boolean) => void;
@@ -1123,7 +1280,11 @@ function TurnView({
       {/* Rendered from the turn, not the answer, so each block appears the moment its
           `block_ready` event arrives rather than all at once when the run finishes. The answer
           carries the same objects, so a reloaded run shows exactly the same visuals. */}
-      <AnswerBlocks blocks={turn.blocks} onShowOnMap={onShowOnMap} />
+      {artifacts ? (
+        <ArtifactChips list={artifacts} selectedId={selectedArtifact} onSelect={onSelectArtifact} />
+      ) : (
+        <AnswerBlocks blocks={turn.blocks} onShowOnMap={onShowOnMap} />
+      )}
 
       {turn.phase === 'error' && (
         <ErrorState
@@ -1222,7 +1383,11 @@ function SkillSheet({ cat, setCat, place, onClose, onRun, onOpen }: { cat: numbe
                 <div className="body-sm">{s.short}</div>
                 <div className="row" style={{ marginTop: 'auto', paddingTop: 8, justifyContent: 'space-between' }}>
                   <span className="tiny">by {s.publisherName}</span>
-                  <Btn size="sm" variant="primary" icon="play_arrow" onClick={() => onRun(s.id)}>Run</Btn>
+                  {skillRunnable(s) ? (
+                    <Btn size="sm" variant="primary" icon="play_arrow" onClick={() => onRun(s.id)}>Run</Btn>
+                  ) : (
+                    <Btn size="sm" icon="info" onClick={() => onOpen(s.id)} title="Planned skill: not runnable yet">Planned</Btn>
+                  )}
                 </div>
               </div>
             </div>

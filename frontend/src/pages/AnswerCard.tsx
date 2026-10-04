@@ -128,7 +128,7 @@ export function AnswerCard({ answer: a, question, placeId, runId, onRunSkill, on
   // The backend sends the accent colour; it has no notion of our category list.
   const color = a.color ?? 'var(--subtle)';
   return (
-    <div className="col" style={{ padding: 18, borderRadius: 12, background: 'var(--s2)', border: '1px solid var(--hair)', gap: 14, animation: 'fadeUp .4s ease both' }}>
+    <div className="col" style={{ padding: 16, borderRadius: 12, background: 'var(--s2)', border: '1px solid var(--hair)', gap: 12, animation: 'fadeUp .4s ease both' }}>
       <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div className="row">
           <span className="sq" style={{ background: color }} />
@@ -138,25 +138,27 @@ export function AnswerCard({ answer: a, question, placeId, runId, onRunSkill, on
         </div>
         <ConfidenceBadge level={a.confidence.level} pct={a.confidence.pct} />
       </div>
-      <div style={{ font: '600 22px/1.18 var(--font)', letterSpacing: -0.4, textWrap: 'balance' }}>{a.title}</div>
+      <div style={{ font: '600 19px/1.22 var(--font)', letterSpacing: -0.3, textWrap: 'balance' }}>{a.title}</div>
       {a.sentence && (
         <div className="body-sm" style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-dim, inherit)' }}>{a.sentence}</div>
       )}
       {a.stats.length > 0 && (
         <div className="stats" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
-          {a.stats.map((s) => (
+          {a.stats.slice(0, 3).map((s) => (
             <div key={s.label}><div className="l">{s.label}</div><div className="v">{s.value}</div>{s.ci && <div className="ci">{s.ci}</div>}</div>
           ))}
         </div>
       )}
+      {a.finding && (
       <div>
         <div style={{ font: '600 13px/1.38 var(--font)' }}>{a.findingLabel}</div>
         {/* A measure-only answer has a measurement but no matching knowledge card, so there is
             genuinely no cause to state. Saying so is better than implying one. */}
         <div className="body-sm" style={{ marginTop: 2, fontSize: 14, lineHeight: 1.6, color: a.finding ? undefined : 'var(--subtle)' }}>
-          {a.finding ?? 'Cause unknown — this is a measurement only, with no matching knowledge card.'}
+          {a.finding}
         </div>
       </div>
+      )}
       {a.action && (
         <div>
           <div style={{ font: '600 13px/1.38 var(--font)' }}>{a.actionLabel}</div>
@@ -168,7 +170,7 @@ export function AnswerCard({ answer: a, question, placeId, runId, onRunSkill, on
         <div className="col" style={{ gap: 6 }}>
           <div className="eyebrow">Ask next</div>
           <div className="row wrap" style={{ gap: 6 }}>
-            {a.followups.map((q) => (
+            {a.followups.slice(0, 3).map((q) => (
               <button key={q} className="chip" onClick={() => onAskFollowup(q)} style={{ textAlign: 'left' }}>{q}</button>
             ))}
           </div>
@@ -196,8 +198,12 @@ export function AnswerCard({ answer: a, question, placeId, runId, onRunSkill, on
         </div>
       )}
 
+      {/* Everything behind the answer sits in one closed section, so the answer itself stays
+          short: accuracy notes, method, satellite routing and the scenes used. */}
+      <Section icon="fact_check" title="How we know this" meta={`${a.confidence.level} confidence · ${a.caveats.length} notes`}>
+      <div className="col" style={{ gap: 10 }}>
       {/* honesty: what could be wrong */}
-      <Section icon="report" title="Accuracy & known issues" meta={`${a.caveats.length} notes`} defaultOpen={a.kind === 'place'}>
+      <Section icon="report" title="Accuracy & known issues" meta={`${a.caveats.length} notes`} defaultOpen>
         <div className="caption muted" style={{ marginBottom: 8 }}>{a.confidence.note}</div>
         <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }} className="body-sm">
           {a.caveats.map((c) => <li key={c} style={{ fontSize: 13 }}>{c}</li>)}
@@ -270,6 +276,8 @@ export function AnswerCard({ answer: a, question, placeId, runId, onRunSkill, on
           )}
         </Section>
       )}
+      </div>
+      </Section>
 
       <div className="row wrap" style={{ gap: 8, borderTop: '1px solid var(--hair)', paddingTop: 14 }}>
         {a.kind === 'place' ? (

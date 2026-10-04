@@ -125,8 +125,59 @@ function Overview() {
             <AddTile />
           </div>
         )}
+
+        <ExampleTriggers />
       </div>
     </>
+  );
+}
+
+/**
+ * Ready-made trigger ideas from the team's pitch and research docs. Picking one opens the
+ * builder with the sentence filled in, so the agent still checks it against real coverage.
+ */
+const EXAMPLE_TRIGGERS: { icon: string; categoryKey: string; title: string; text: string; when: string }[] = [
+  { icon: 'flood', categoryKey: 'disasters', title: 'Flood check after a rainstorm', text: 'When a Black Rainstorm warning is issued, check flooding around my building with radar and message me', when: 'On an event' },
+  { icon: 'water_drop', categoryKey: 'agriculture', title: 'Weekly dry-patch alert', text: 'Every week, tell me if a dry patch in my field grows past 2 ha', when: 'Weekly' },
+  { icon: 'set_meal', categoryKey: 'oceans', title: 'Red tide near a fish farm', text: 'Alert me if algae or red tide appears within 2 km of my fish farm', when: 'Every pass' },
+  { icon: 'forest', categoryKey: 'forests', title: 'Forest cleared on a plot', text: 'Warn me if any forest is cleared on this plot compared with 31 Dec 2020', when: 'Every pass' },
+  { icon: 'grass', categoryKey: 'agriculture', title: 'Pasture for herders', text: 'Tell me when the grass here drops below its 5-year average for this month', when: 'Every 10 days' },
+  { icon: 'construction', categoryKey: 'urban', title: 'New construction nearby', text: 'Tell me when new buildings or cleared ground appear around the reservoir', when: 'Monthly' },
+  { icon: 'local_fire_department', categoryKey: 'disasters', title: 'Fire close to my farm', text: 'Alert me if a fire starts within 10 km of my farm', when: 'Daily' },
+  { icon: 'waves', categoryKey: 'water', title: 'Pond filled in', text: 'Tell me if any of the ponds here stop holding open water', when: 'One time' },
+];
+
+function ExampleTriggers() {
+  const { open, category } = useStore();
+  return (
+    <section className="col" style={{ gap: 14, marginTop: 24 }}>
+      <div className="col" style={{ gap: 4 }}>
+        <span className="eyebrow">Examples</span>
+        <span className="caption">Start from one of these. Each can be recurring or one-time, and you can change the sentence before saving.</span>
+      </div>
+      <div className="grid-cards">
+        {EXAMPLE_TRIGGERS.map((ex) => {
+          const cat = category(ex.categoryKey);
+          return (
+            <button
+              key={ex.title}
+              className="card wp-card col"
+              onClick={() => open({ kind: 'watchBuilder', prefill: ex.text })}
+              style={{ padding: 18, gap: 8, textAlign: 'left', color: 'inherit', font: 'inherit' }}
+            >
+              <div className="row" style={{ gap: 8 }}>
+                <Ms n={ex.icon} size={20} style={{ color: cat.color }} />
+                <span className="eyebrow">{cat.name}</span>
+                <span className="tiny" style={{ marginLeft: 'auto' }}>{ex.when}</span>
+              </div>
+              <div className="card-title">{ex.title}</div>
+              <div className="body-sm">{ex.text}</div>
+              <span className="row tiny" style={{ marginTop: 'auto', paddingTop: 6, gap: 4, color: 'var(--blue)' }}><Ms n="add" size={14} />Use this trigger</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
