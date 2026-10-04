@@ -153,7 +153,8 @@ export function PlacesPage() {
   const [project, setProject] = useState('All');
   const [q, setQ] = useState('');
 
-  const projects = useMemo(() => ['All', ...Array.from(new Set(places.map((p) => p.project)))], [places]);
+  // Places with no project show under All only, never as a blank tab.
+  const projects = useMemo(() => ['All', ...Array.from(new Set(places.map((p) => p.project).filter(Boolean)))], [places]);
   useEffect(() => { if (!projects.includes(project)) setProject('All'); }, [projects, project]);
 
   const shown = places.filter((p) => {
@@ -168,7 +169,7 @@ export function PlacesPage() {
       <div className="page-inner">
         <div className="page-head">
           <div style={{ maxWidth: 640 }}>
-            <div className="eyebrow">{places.length} saved · {projects.length - 1} projects</div>
+            <div className="eyebrow">{places.length} saved · {projects.length - 1} {projects.length === 2 ? 'project' : 'projects'}</div>
             <h1 className="h1" style={{ margin: '8px 0 0' }}>{t('places.title')}</h1>
             <div className="body" style={{ marginTop: 8 }}>{t('places.sub')}</div>
           </div>
