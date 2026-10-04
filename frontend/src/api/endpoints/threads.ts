@@ -43,4 +43,20 @@ export const threadsApi = {
           }
         : {}),
     }),
+
+  /** PATCH /api/threads/{thread_id}: move a chat into a project, or out with `null`. */
+  setProject: (threadId: string, projectId: string | null, signal?: AbortSignal): Promise<ThreadSummary> =>
+    request<ThreadSummary>({
+      method: 'PATCH',
+      path: `/threads/${encodeURIComponent(threadId)}`,
+      body: { project_id: projectId },
+      signal,
+      ...(usingFixtures()
+        ? {
+            fixture: (): ThreadSummary => {
+              throw new ApiError(`No thread ${threadId}`, 'http', 404);
+            },
+          }
+        : {}),
+    }),
 };

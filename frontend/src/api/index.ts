@@ -23,6 +23,7 @@ import { watchesApi } from './endpoints/watches';
 import { threadsApi } from './endpoints/threads';
 import { sharesApi } from './endpoints/shares';
 import { viewsApi } from './endpoints/views';
+import { projectsApi } from './endpoints/projects';
 
 export const api = {
   catalog: catalogApi,
@@ -37,6 +38,7 @@ export const api = {
   threads: threadsApi,
   shares: sharesApi,
   views: viewsApi,
+  projects: projectsApi,
 };
 
 export { ApiError, toApiError } from './http';
@@ -49,6 +51,7 @@ export type { ThreadSummary, ThreadDetail } from './endpoints/threads';
 export type { SharedRun } from './endpoints/shares';
 export type { ViewPass, ViewImage, ViewBand, ViewTarget, ViewPeriod } from './endpoints/views';
 export type { WatchPatch } from './endpoints/watches';
+export type { Project } from './endpoints/projects';
 export type { AreaResolveRequest, AreaResolveResponse, Area, AreaMatch, PlaceContext } from './endpoints/areas';
 export { DEFAULT_PIN_RADIUS_M } from './endpoints/areas';
 export { isEvent } from './stream';

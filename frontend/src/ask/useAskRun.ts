@@ -306,6 +306,12 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
     setTurns([]);
   }, []);
 
+  /** Replace the conversation with stored turns (a chat reopened from the Chats panel). */
+  const hydrate = useCallback((loaded: AskTurn[]) => {
+    inflight.current?.abort();
+    setTurns(loaded);
+  }, []);
+
   const last = turns[turns.length - 1];
 
   /**
@@ -339,6 +345,7 @@ export function useAskRun({ lang, selectedPlaceId }: { lang: string; selectedPla
     cancel,
     retry,
     reset,
+    hydrate,
     isBusy: last?.phase === 'running',
   };
 }

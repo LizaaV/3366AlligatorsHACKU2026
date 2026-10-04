@@ -17,8 +17,13 @@ import { AnswerCard } from './AnswerCard';
 import { stagesFrom } from '../ask/stages';
 import { landCoverLine, suggestionsFor } from '../ask/suggest';
 import { AnswerBlocks } from '../components/blocks';
-import { ArtifactChips, ArtifactsPanel, ArtifactsPill, artifactsOf, type Artifact } from '../components/artifacts/ArtifactsPanel';
+import { ArtifactChips, ArtifactsPanel, ArtifactsPill, MIN_PANEL_W, artifactsOf, usePanelWidth, type Artifact } from '../components/artifacts/ArtifactsPanel';
 import { Splash } from '../components/Splash';
+import { Composer } from '../components/chat/Composer';
+import { ChatSidebar } from '../components/chat/ChatSidebar';
+import { PlacePicker } from '../components/chat/PlacePicker';
+import { turnsFromThread } from '../components/chat/threadTurns';
+import '../components/chat/chat.css';
 import { BANDS, type Band } from '../lib/scenes';
 import { parseHash } from '../router';
 import type { PlaceContext, ViewImage, ViewPass, ViewPeriod, ViewTarget } from '../api';
@@ -77,7 +82,11 @@ export function AskPage({ active }: { active: boolean }) {
   // Answers' images, graphs and tables open in a panel on the right when there is room;
   // on small screens they stay inline in the chat.
   const sidePanel = !mobile && W >= 1100;
-  const panelW = compact ? 360 : 420;
+  // Resizable and expandable like on main, but never over the chat column on the left.
+  const [panelStored, setPanelW] = usePanelWidth(W, compact ? 360 : 420);
+  const [artExpanded, setArtExpanded] = useState(false);
+  const panelMax = Math.max(MIN_PANEL_W, W - chatW - 100);
+  const panelW = Math.min(artExpanded ? panelMax : panelStored, panelMax);
 
   const place = places.find((p) => p.id === askPlaceId) || null;
 
@@ -109,6 +118,9 @@ export function AskPage({ active }: { active: boolean }) {
   // A pin dropped from the globe or the map. Questions about it send the circle as `area`,
   // so nothing has to be saved first.
   const [spot, setSpot] = useState<{ lat: number; lon: number } | null>(null);
+  const [chats, setChats] = useState(false);
+  const [loadingThread, setLoadingThread] = useState(false);
+  const closeChats = useCallback(() => setChats(false), []);
   const [spotInfo, setSpotInfo] = useState<PlaceContext | null>(null);
   const [band, setBand] = useState<Band | 'map'>('map');
   const [scenes, setScenes] = useState<ViewPass[]>([]);
@@ -248,6 +260,7 @@ export function AskPage({ active }: { active: boolean }) {
   // `stage` to drive the map, and reads the blocks the run produced.
   const run = useAskRun({ lang, selectedPlaceId: askPlaceId });
   const { turns, last, stage, submit: ask } = run;
+  const currentChat = last?.threadId ? { threadId: last.threadId, title: turns[0]?.text ?? 'New chat' } : null;
 
   const artifacts = useMemo(() => artifactsOf(turns), [turns]);
   const [artSel, setArtSel] = useState<string | null>(null);
@@ -396,6 +409,33 @@ export function AskPage({ active }: { active: boolean }) {
     setSheet(false);
     setPlaceOpen(false);
     ask(text, spotOptions());
+  };
+
+  /* ---------------- chat history (Chats button in the composer) ---------------- */
+
+  const newChat = () => {
+    run.reset();
+    setQ('');
+    setOverlaySel(null);
+  };
+
+  const openThread = async (threadId: string) => {
+    setLoadingThread(true);
+    try {
+      const loaded = turnsFromThread(await api.threads.get(threadId));
+      setOverlaySel(null);
+      run.hydrate(loaded);
+      const lastTurn = loaded[loaded.length - 1];
+      const pid = lastTurn?.placeId ?? null;
+      if (pid && places.some((p) => p.id === pid)) {
+        setSpot(null);
+        setAskPlace(pid);
+      }
+    } catch {
+      notify('Could not open that chat', undefined, undefined, 'error');
+    } finally {
+      setLoadingThread(false);
+    }
   };
 
   const runSkill = useCallback(
@@ -901,24 +941,65 @@ export function AskPage({ active }: { active: boolean }) {
 
       {/* LEFT COLUMN: chat on top, place detail at the bottom */}
       <div style={{ position: 'absolute', left: mobile ? 16 : 20, top: mobile ? 12 : 20, bottom: mobile ? 12 : 24, width: chatW, display: 'flex', flexDirection: 'column', gap: 12, zIndex: 20, pointerEvents: 'none' }}>
-        <div className="panel" style={{ flex: '0 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'visible', pointerEvents: 'auto' }}>
-          <div className="row" style={{ gap: 12, padding: '8px 8px 8px 14px', flex: 'none' }}>
-            <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #fff', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} /></div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder={place ? `Ask about ${place.name}…` : spot ? `Ask about ${spotName}…` : t('chat.placeholder')} aria-label="Ask a question" style={{ flex: 1, minWidth: 0, height: 36, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 15px/1.5 var(--font)' }} />
-            <button onClick={submit} title="Send" aria-label="Send" style={{ width: 36, height: 36, flex: 'none', borderRadius: 8, background: '#fff', color: '#000', border: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ms n="arrow_upward" size={20} /></button>
+        {/* COMPOSER (design from main): text box, Chats history, place picker, send */}
+        <div style={{ flex: '0 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10, pointerEvents: 'auto' }}>
+          <div style={{ flex: 'none', position: 'relative', zIndex: 2 }}>
+            <Composer
+              value={q}
+              onChange={setQ}
+              onSubmit={submit}
+              busy={run.isBusy}
+              placeholder={place ? `Ask about ${place.name}…` : spot ? `Ask about ${spotName}…` : t('chat.placeholder')}
+              leading={
+                <div className="row" style={{ gap: 6, rowGap: 6, flexWrap: 'wrap', position: 'relative', minWidth: 0 }}>
+                  <button
+                    data-chats-cta
+                    className="pill"
+                    onClick={() => setChats((o) => !o)}
+                    aria-expanded={chats}
+                    aria-haspopup="dialog"
+                    title="Chats and projects"
+                    style={{ border: '1px solid var(--glass-border)', background: chats ? 'var(--glass-fill-hover)' : 'var(--glass-fill)', color: '#fff', maxWidth: 150, minWidth: 0, cursor: 'pointer' }}
+                  >
+                    <Ms n="forum" size={14} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentChat ? currentChat.title : 'Chats'}</span>
+                    <Ms n={chats ? 'expand_less' : 'expand_more'} size={16} className="muted" />
+                  </button>
+                  <ChatSidebar
+                    open={chats}
+                    mobile={mobile}
+                    drop="down"
+                    activeThreadId={last?.threadId ?? null}
+                    current={currentChat}
+                    refreshKey={last?.phase === 'done' ? last.runId : null}
+                    onClose={closeChats}
+                    onNew={newChat}
+                    onOpen={(id) => void openThread(id)}
+                  />
+                  <PlacePicker
+                    placeId={askPlaceId}
+                    spot={spot ? { name: spotName, lat: spot.lat, lon: spot.lon, zoom } : null}
+                    onPlace={(id) => { setSpot(null); setAskPlace(id); }}
+                    onSpot={(sp) => lookAt(sp.lat, sp.lon, sp.zoom)}
+                    drop="down"
+                    onDraw={() => startDraw('polygon')}
+                  />
+                </div>
+              }
+            />
           </div>
-          {!turns.length && (
-            <div style={{ borderTop: '1px solid var(--hair-soft)', padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div className="eyebrow" style={{ marginBottom: 4 }}>{t('chat.try')}</div>
+          {!turns.length && !loadingThread && (
+            <div className="row wrap" style={{ gap: 8, flex: 'none' }}>
               {suggestions.map((sg) => (
-                <button key={sg.text} onClick={sg.go} className="menu-item" style={{ color: 'var(--muted)' }}>
-                  <Ms n={sg.icon} size={18} />{sg.text}
+                <button key={sg.text} onClick={sg.go} className="chip glass" style={{ color: '#fff', textAlign: 'left' }}>
+                  <Ms n={sg.icon} />{sg.text}
                 </button>
               ))}
             </div>
           )}
+          {loadingThread && <div className="panel tiny muted" style={{ padding: 12 }}>Opening chat…</div>}
           {!!turns.length && (
-            <div ref={thread} style={{ borderTop: '1px solid var(--hair-soft)', padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18, minHeight: 0 }}>
+            <div ref={thread} className="panel" style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18, minHeight: 0, flex: '0 1 auto' }}>
               {turns.map((turn) => (
                 <TurnView key={turn.id} turn={turn} isLast={turn === last} places={places} skills={skills}
                   artifacts={sidePanel ? artifacts.filter((a) => a.turnId === turn.id) : null}
@@ -935,7 +1016,7 @@ export function AskPage({ active }: { active: boolean }) {
                 />
               ))}
               {last?.phase === 'done' && (
-                <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => { run.reset(); setOverlaySel(null); }}>
+                <button className="btn btn-text btn-sm" style={{ alignSelf: 'flex-start' }} onClick={newChat}>
                   <Ms n="add_comment" />New chat
                 </button>
               )}
@@ -1111,8 +1192,11 @@ export function AskPage({ active }: { active: boolean }) {
           artifacts={artifacts}
           selectedId={artSel}
           onSelect={setArtSel}
-          onClose={() => setArtOpen(false)}
+          onClose={() => { setArtOpen(false); setArtExpanded(false); }}
           width={panelW}
+          onResize={setPanelW}
+          expanded={artExpanded}
+          onExpand={setArtExpanded}
           onShowOnMap={(turnId, key) => { const t = turns.find((x) => x.id === turnId); if (t) showTurnLayer(t, key); }}
         />
       ) : (
