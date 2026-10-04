@@ -1,10 +1,17 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Path, Response, UploadFile
 
-from app.schemas.places import CreatePlaceRequest, PatchPlaceRequest, PlaceDto
+from app.schemas.places import (
+    CreatePlaceRequest,
+    DetectBoundaryRequest,
+    DetectBoundaryResponse,
+    ParseFileResponse,
+    PatchPlaceRequest,
+    PlaceDto,
+)
+from app.services import boundary, place_files, views
 from app.services import places as svc
-from app.services import views
 from app.services.memory import ID_RE
 from app.services.user import current_user
 from earth.errors import EarthError
@@ -35,6 +42,33 @@ def create_place(body: CreatePlaceRequest, user_id: UserId) -> PlaceDto:
     # the background, so looking at the place later is instant.
     views.prefetch_place(created.id, created.geometry, created.name)
     return created
+
+
+@router.post("/places/detect-boundary", response_model=DetectBoundaryResponse)
+def detect_boundary(body: DetectBoundaryRequest) -> DetectBoundaryResponse:
+    """Suggest the outline of the field / pond / plot around a point (add-place wizard).
+
+    Grown from the latest clear Sentinel-2 scene; a ~1 ha square with `confidence: "Low"` when
+    there is no usable imagery. Never an error for imagery problems.
+    """
+    return boundary.detect_boundary(body.lat, body.lon)
+
+
+_FILE_ERRORS = {
+    413: {"description": "File too large or too many points: `{kind, message, hint}`"},
+    415: {"description": "Unsupported type (e.g. Shapefile): `{kind, message, hint}`"},
+    422: {"description": "Unreadable file or no outline in it: `{kind, message, hint}`"},
+}
+
+
+@router.post("/places/parse-file", response_model=ParseFileResponse, responses=_FILE_ERRORS)
+def parse_file(file: Annotated[UploadFile, File(description="GeoJSON, KML/KMZ, GPX or CSV")]):
+    """Read one outline from an uploaded boundary file (multipart field `file`, max 5 MB)."""
+    data = file.file.read(place_files.MAX_BYTES + 1)
+    try:
+        return place_files.parse_boundary_file(file.filename or "", data)
+    except place_files.FileProblem as exc:
+        raise HTTPException(exc.status, detail=exc.detail()) from exc
 
 
 @router.get("/places/{place_id}", response_model=PlaceDto, responses=_NOT_FOUND)

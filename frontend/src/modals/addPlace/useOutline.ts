@@ -12,8 +12,7 @@ import { approxAreaHa, circlePts, fitZoom, mpp, rectPts, ringToPts, type Pt } fr
 import type { Loc, Method, Shape } from './types';
 
 export function useOutline({ loc, step, method }: { loc: Loc | null; step: number; method: Method | null }) {
-  // 'detected' needs POST /places/detect-boundary, which the backend does not have yet, so
-  // every outline starts as the given one or a circle.
+  // Outlines start as the given one or a circle; 'detected' asks POST /places/detect-boundary.
   const [shape, setShape] = useState<Shape>('circle');
   const [radius, setRadius] = useState(300);
   const [rw, setRw] = useState(600);

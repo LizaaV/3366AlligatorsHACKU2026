@@ -8,6 +8,7 @@ from app.api.routes import (
     layers,
     memory,
     places,
+    projects,
     reports,
     runs,
     shares,
@@ -33,7 +34,10 @@ api_router.include_router(watches.router)
 api_router.include_router(skills_routes.router)
 api_router.include_router(catalog_routes.router)
 api_router.include_router(threads.router)
+api_router.include_router(projects.router)
 
+from app.api.routes import me_skills as me_skills_routes  # noqa: E402
 from app.api.routes import views as views_routes  # noqa: E402
 
 api_router.include_router(views_routes.router)
+api_router.include_router(me_skills_routes.router)

@@ -13,7 +13,8 @@ export function OutlineStep({ loc, draft, outline }: { loc: Loc; draft: Place; o
 
   const shapeOpts: { id: Shape; icon: string; label: string; ai?: boolean }[] = [
     ...(loc.pts ? [{ id: 'given' as Shape, icon: 'check_circle', label: loc.givenLabel ?? 'As provided' }] : []),
-    // 'Detected field boundary' is hidden until the backend can detect boundaries.
+    // Grown from the latest clear Sentinel-2 scene by POST /places/detect-boundary.
+    { id: 'detected', icon: 'auto_awesome', label: 'Detect the field', ai: true },
     { id: 'circle', icon: 'radio_button_unchecked', label: 'Circle' },
     { id: 'rect', icon: 'crop_square', label: 'Rectangle' },
   ];

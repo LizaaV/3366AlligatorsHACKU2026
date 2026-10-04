@@ -14,13 +14,14 @@ import type { MapLayers } from '../../components/MapView';
 export type Method = 'search' | 'coords' | 'draw' | 'upload' | 'parcel' | 'whatsapp' | 'pin' | 'project';
 
 /**
- * The methods offered in step 1. `upload`, `parcel` and `whatsapp` still have components, but
- * they need backend endpoints that do not exist yet (parse-file, lookup-parcel, a WhatsApp
- * bot), so they are not listed: a method that can only fail is worse than no method.
+ * The methods offered in step 1. `parcel` and `whatsapp` still have components, but they need
+ * backend endpoints that do not exist yet (lookup-parcel, a WhatsApp bot), so they are not
+ * listed: a method that can only fail is worse than no method.
  */
 export const METHODS: { id: Method; icon: string; title: string; hint: string }[] = [
   { id: 'search', icon: 'search', title: 'Search a place name', hint: 'Town, farm, lake, port or region' },
   { id: 'draw', icon: 'draw', title: 'Draw on map', hint: 'Click the corners of your field' },
+  { id: 'upload', icon: 'upload_file', title: 'Upload a file', hint: 'GeoJSON, KML/KMZ, GPX or a CSV of points' },
   { id: 'pin', icon: 'location_on', title: 'Drop pin + radius', hint: 'One tap, then set a radius' },
   { id: 'project', icon: 'folder_open', title: 'Copy from a project', hint: 'Reuse a place another project has' },
 ];

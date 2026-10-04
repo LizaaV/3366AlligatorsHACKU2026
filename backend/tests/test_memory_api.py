@@ -47,6 +47,16 @@ def test_patch_memory_updates_existing_key(client: TestClient) -> None:
     assert list(m["profile"]) == ["Crop"] and m["profile"]["Crop"]["value"] == "B"
 
 
+def test_patch_memory_blank_value_forgets_the_fact(client: TestClient) -> None:
+    client.get("/api/places")
+    client.patch("/api/places/pl_hhw/memory", json={"profile": {"Crop": "A", "Pump": "Solar"}})
+    m = client.patch("/api/places/pl_hhw/memory", json={"profile": {"Crop": ""}}).json()
+    assert list(m["profile"]) == ["Pump"]
+    me = client.patch("/api/me/memory", json={"profile": {"Units": "metric"}}).json()
+    assert me["profile"] == {"Units": "metric"}
+    assert client.patch("/api/me/memory", json={"profile": {"Units": "  "}}).json()["profile"] == {}
+
+
 def test_place_memory_404(client: TestClient) -> None:
     assert client.get("/api/places/pl_nope/memory").status_code == 404
     assert client.patch("/api/places/pl_nope/memory", json={"note": "x"}).status_code == 404

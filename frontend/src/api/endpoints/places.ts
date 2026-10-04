@@ -146,52 +146,60 @@ export const placesApi = {
 
 
   /**
-   * Suggests a field outline around a coordinate — the "AI boundary detector" in the add-place
-   * wizard. NOT on the backend: http mode rejects with `not_available` (no request); the
-   * fixture generates a deterministic field-like shape from the coordinates.
+   * POST /api/places/detect-boundary — the "AI boundary" in the add-place wizard: the field,
+   * pond or plot around a point, grown from the latest clear Sentinel-2 scene (or a ~1 ha
+   * square when there is no usable image).
    */
   detectBoundary: (lat: number, lon: number, signal?: AbortSignal): Promise<DetectBoundaryResponse> =>
-    !usingFixtures() ? notAvailable('Boundary detection') : request<DetectBoundaryResponse>({
+    request<{ geometry: DetectBoundaryResponse['geometry']; area_ha: number; confidence: DetectBoundaryResponse['confidence']; note?: string }>({
       method: 'POST',
       path: '/places/detect-boundary',
       body: { lat, lon },
       signal,
-      fixture: () => {
-        const pts = fixtures.detectBoundary(lat, lon);
-        return {
-          geometry: { type: 'Polygon' as const, coordinates: [ptsToRing(pts, { lat, lon })] },
-          areaHa: approxAreaHa(pts, lat),
-          confidence: 'Medium' as const,
-        };
-      },
-    }),
+      ...(usingFixtures()
+        ? {
+            fixture: () => {
+              const pts = fixtures.detectBoundary(lat, lon);
+              return {
+                geometry: { type: 'Polygon' as const, coordinates: [ptsToRing(pts, { lat, lon })] },
+                area_ha: approxAreaHa(pts, lat),
+                confidence: 'Medium' as const,
+              };
+            },
+          }
+        : {}),
+    }).then((d) => ({ geometry: d.geometry, areaHa: d.area_ha, confidence: d.confidence })),
 
   /**
-   * Parses KML / GeoJSON / Shapefile / CSV-of-points into a single outline. NOT on the
-   * backend: http mode rejects with `not_available` (no request); the fixture fakes an outline.
+   * POST /api/places/parse-file (multipart, field `file`, max 5 MB): one outline from GeoJSON,
+   * KML/KMZ, GPX or a CSV of lat/lon points. Shapefiles answer 415 with a hint to export.
    */
   parseBoundaryFile: (file: File, signal?: AbortSignal): Promise<ParseBoundaryFileResponse> => {
-    if (!usingFixtures()) return notAvailable('Boundary files');
     const form = new FormData();
     form.set('file', file);
-    return request<ParseBoundaryFileResponse>({
+    const base = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Uploaded field';
+    const fallbackName = base.charAt(0).toUpperCase() + base.slice(1);
+    return request<{ geometry: ParseBoundaryFileResponse['geometry']; center: { lat: number; lon: number }; area_ha: number; name: string | null; note?: string }>({
       method: 'POST',
       path: '/places/parse-file',
       form,
       signal,
-      fixture: () => {
-        const center = { lat: 37.9937, lon: -100.9216 };
-        const pts = fixtures.detectBoundary(center.lat, center.lon, 460, 330);
-        const base = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Uploaded field';
-        return {
-          geometry: { type: 'Polygon' as const, coordinates: [ptsToRing(pts, center)] },
-          center,
-          areaHa: approxAreaHa(pts, center.lat),
-          suggestedName: base.charAt(0).toUpperCase() + base.slice(1),
-          note: /\.csv$/i.test(file.name) ? 'Outline around the uploaded points' : 'Outline from file',
-        };
-      },
-    });
+      ...(usingFixtures()
+        ? {
+            fixture: () => {
+              const center = { lat: 37.9937, lon: -100.9216 };
+              const pts = fixtures.detectBoundary(center.lat, center.lon, 460, 330);
+              return {
+                geometry: { type: 'Polygon' as const, coordinates: [ptsToRing(pts, center)] },
+                center,
+                area_ha: approxAreaHa(pts, center.lat),
+                name: null,
+                note: /\.csv$/i.test(file.name) ? 'Outline around the uploaded points' : 'Outline from file',
+              };
+            },
+          }
+        : {}),
+    }).then((d) => ({ geometry: d.geometry, center: d.center, areaHa: d.area_ha, suggestedName: d.name ?? fallbackName, note: d.note ?? '' }));
   },
 
   /**
