@@ -229,6 +229,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/places/detect-boundary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Detect Boundary
+         * @description Suggest the outline of the field / pond / plot around a point (add-place wizard).
+         *
+         *     Grown from the latest clear Sentinel-2 scene; a ~1 ha square with `confidence: "Low"` when
+         *     there is no usable imagery. Never an error for imagery problems.
+         */
+        post: operations["detect_boundary_api_places_detect_boundary_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/places/parse-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Parse File
+         * @description Read one outline from an uploaded boundary file (multipart field `file`, max 5 MB).
+         */
+        post: operations["parse_file_api_places_parse_file_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/places/{place_id}": {
         parameters: {
             query?: never;
@@ -590,6 +633,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/watches/{watch_id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Watch
+         * @description Check now: measure the watch once (no LLM) and store value, status, event and proof.
+         */
+        post: operations["check_watch_api_watches__watch_id__check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/skills": {
         parameters: {
             query?: never;
@@ -736,7 +799,50 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * File a conversation in a project (or unfile it)
+         * @description Move the conversation into a project, or out of it with `project_id: null`.
+         */
+        patch: operations["patch_thread_api_threads__thread_id__patch"];
+        trace?: never;
+    };
+    "/api/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my chat projects
+         * @description The user's projects, oldest first.
+         */
+        get: operations["list_projects_api_projects_get"];
+        put?: never;
+        /** Create a chat project */
+        post: operations["create_project_api_projects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a chat project (its chats are kept, unfiled) */
+        delete: operations["delete_project_api_projects__project_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename a chat project */
+        patch: operations["rename_project_api_projects__project_id__patch"];
         trace?: never;
     };
     "/api/views/passes": {
@@ -799,6 +905,47 @@ export interface paths {
          */
         post: operations["view_prefetch_api_views_prefetch_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List my installed skills */
+        get: operations["list_installed_api_me_skills_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/skills/{skill_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Install a skill
+         * @description Idempotent. 404 when the skill is not in `GET /api/skills` for this user.
+         */
+        put: operations["install_skill_api_me_skills__skill_id__put"];
+        post?: never;
+        /**
+         * Uninstall a skill
+         * @description Idempotent: uninstalling a skill that is not installed just returns the list.
+         */
+        delete: operations["uninstall_skill_api_me_skills__skill_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1053,6 +1200,14 @@ export interface components {
             block_title: string;
             /** Title Index */
             title_index: number;
+        };
+        /** Body_parse_file_api_places_parse_file_post */
+        Body_parse_file_api_places_parse_file_post: {
+            /**
+             * File
+             * @description GeoJSON, KML/KMZ, GPX or CSV
+             */
+            file: string;
         };
         /**
          * CardDetail
@@ -1439,6 +1594,41 @@ export interface components {
             label: string;
             /** Value */
             value: string;
+        };
+        /** DetectBoundaryRequest */
+        DetectBoundaryRequest: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+        };
+        /**
+         * DetectBoundaryResponse
+         * @description A suggested outline for the field / pond / plot containing the point.
+         */
+        DetectBoundaryResponse: {
+            /** Geometry */
+            geometry: {
+                [key: string]: unknown;
+            };
+            /** Area Ha */
+            area_ha: number;
+            /**
+             * Confidence
+             * @enum {string}
+             */
+            confidence: "High" | "Medium" | "Low";
+            /**
+             * Method
+             * @description `sentinel2_segmentation`: grown from the latest clear Sentinel-2 scene. `fallback_square`: no usable imagery, a ~1 ha square around the point.
+             * @enum {string}
+             */
+            method: "sentinel2_segmentation" | "fallback_square";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
         };
         /**
          * Done
@@ -1829,6 +2019,14 @@ export interface components {
              */
             saved: boolean;
         };
+        /** InstalledSkills */
+        InstalledSkills: {
+            /**
+             * Installed
+             * @description Skill ids the user installed, oldest first.
+             */
+            installed: string[];
+        };
         /** LanguageDto */
         LanguageDto: {
             /** Code */
@@ -2032,6 +2230,26 @@ export interface components {
             /** Text */
             text: string;
         };
+        /**
+         * ParseFileResponse
+         * @description The single outline read from an uploaded boundary file.
+         */
+        ParseFileResponse: {
+            /** Geometry */
+            geometry: {
+                [key: string]: unknown;
+            };
+            /** Area Ha */
+            area_ha: number;
+            /** Name */
+            name?: string | null;
+            center: components["schemas"]["LatLon"];
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
         /** Patch */
         Patch: {
             /** Ha */
@@ -2234,6 +2452,38 @@ export interface components {
             tier: "free" | "paid";
             /** Price */
             price?: string | null;
+        };
+        /**
+         * Project
+         * @description One project (folder) of the user's chats.
+         */
+        Project: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Created At
+             * Format: date-time
+             * @description UTC.
+             */
+            created_at?: string;
+            /**
+             * Updated At
+             * Format: date-time
+             * @description UTC, last rename.
+             */
+            updated_at?: string;
+        };
+        /** ProjectCreate */
+        ProjectCreate: {
+            /** Name */
+            name: string;
+        };
+        /** ProjectUpdate */
+        ProjectUpdate: {
+            /** Name */
+            name: string;
         };
         /**
          * ProofScene
@@ -3078,6 +3328,22 @@ export interface components {
              * @description Without the agent's private state.
              */
             runs: components["schemas"]["RunRecord"][];
+            /**
+             * Project Id
+             * @description The chat project it is filed in, if any.
+             */
+            project_id?: string | null;
+        };
+        /**
+         * ThreadProjectUpdate
+         * @description Body of `PATCH /api/threads/{thread_id}`: file the chat in a project, or unfile it.
+         */
+        ThreadProjectUpdate: {
+            /**
+             * Project Id
+             * @description The project to move the chat into; null unfiles.
+             */
+            project_id: string | null;
         };
         /**
          * ThreadSummary
@@ -3122,6 +3388,11 @@ export interface components {
              * @description UTC, latest run.
              */
             updated_at: string;
+            /**
+             * Project Id
+             * @description The chat project it is filed in, if any.
+             */
+            project_id?: string | null;
         };
         /** TimelineBand */
         TimelineBand: {
@@ -3424,6 +3695,11 @@ export interface components {
              * @description Newest first.
              */
             events?: components["schemas"]["WatchEvent"][];
+            /**
+             * Message
+             * @description The one-line alert the user would receive, built from the last check; a sample based on the condition (starting 'Sample ·') before the first check.
+             */
+            message?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -3988,6 +4264,84 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    detect_boundary_api_places_detect_boundary_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DetectBoundaryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectBoundaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    parse_file_api_places_parse_file_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_parse_file_api_places_parse_file_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParseFileResponse"];
+                };
+            };
+            /** @description File too large or too many points: `{kind, message, hint}` */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unsupported type (e.g. Shapefile): `{kind, message, hint}` */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unreadable file or no outline in it: `{kind, message, hint}` */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -5227,6 +5581,59 @@ export interface operations {
             };
         };
     };
+    check_watch_api_watches__watch_id__check_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                watch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchDto"];
+                };
+            };
+            /** @description No such watch for this user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The watch has no place (or its place was deleted) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The watched metric cannot be measured, or no clear pass */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The check took longer than the time limit (~150 s) */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_skills_api_skills_get: {
         parameters: {
             query?: {
@@ -5530,6 +5937,208 @@ export interface operations {
             };
         };
     };
+    patch_thread_api_threads__thread_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ThreadProjectUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadSummary"];
+                };
+            };
+            /** @description Invalid thread or project id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Thread or project not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_projects_api_projects_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_project_api_projects_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description Invalid name, or 50 projects already. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_project_api_projects__project_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Project not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_project_api_projects__project_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description Project not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     view_passes_api_views_passes_get: {
         parameters: {
             query?: {
@@ -5679,6 +6288,113 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_installed_api_me_skills_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstalledSkills"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    install_skill_api_me_skills__skill_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstalledSkills"];
+                };
+            };
+            /** @description No such skill (or not visible to this user). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uninstall_skill_api_me_skills__skill_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstalledSkills"];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -312,6 +312,8 @@ export interface Watch {
   thumbnailZoom: number;
   ring: boolean;
   events: WatchEvent[];
+  /** The one-line alert the user would get (from the last check; a "Sample ·" line before). */
+  message: string | null;
   createdAt: Date | null;
 }
 
@@ -359,6 +361,7 @@ export const toWatch = (d: WatchDto): Watch => {
     thumbnailZoom: 14,
     ring: d.ring,
     events: (d.events ?? []).map((e) => ({ at: parseIso(e.at), text: e.text, level: e.level })),
+    message: d.message ?? null,
     createdAt: parseIso(d.created_at),
   };
 };

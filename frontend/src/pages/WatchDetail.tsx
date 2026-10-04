@@ -1,6 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useStore } from '../state/store';
 import { api } from '../api';
+import { toApiError } from '../api/http';
 import { useResource } from '../hooks/useResource';
 import type { Watch } from '../model';
 import { STATUS_STYLE, hasMeasurement, hasSeries, hasStatus, skillRunnable } from '../data/presentation';
@@ -36,6 +37,49 @@ function chartReading(w: Watch) {
   return `${w.metric} is ${now}${base}.`;
 }
 
+/* ---------- check now ---------- */
+
+/**
+ * "Check now": `POST /api/watches/{id}/check` measures the trigger once (real data can take
+ * 30–120 s), then the store is refreshed from the server so every view shows the new values.
+ */
+export function useCheckNow(w: Watch | undefined) {
+  const { updateWatch, notify } = useStore();
+  const [checking, setChecking] = useState(false);
+  const run = useCallback(async () => {
+    if (!w || checking) return;
+    setChecking(true);
+    try {
+      const done = await api.watches.check(w.id);
+      await updateWatch(w.id, {}); // re-reads the watch into the store
+      notify(done.message && done.status !== 'ok' ? done.message : `Checked “${w.name}”`);
+    } catch (err) {
+      const e = toApiError(err);
+      notify(e.detail ?? `Could not check “${w.name}”`, undefined, undefined, 'error');
+    } finally {
+      setChecking(false);
+    }
+  }, [w, checking, updateWatch, notify]);
+  const disabled = checking || !w?.placeId;
+  const title = !w?.placeId ? 'Attach a place to check this trigger' : 'Measure this trigger on the latest clear pass';
+  return { checking, run, disabled, title };
+}
+
+/** The exact alert line the user would receive, from the last check (or a sample before one). */
+export const MessagePreview = ({ w, compact = false }: { w: Watch; compact?: boolean }) => {
+  if (!w.message) return null;
+  const sample = w.message.startsWith('Sample');
+  return (
+    <div className="card col" style={{ padding: compact ? 12 : 20, gap: 8, background: 'var(--s2)' }}>
+      <div className="row" style={{ gap: 6 }}>
+        <Ms n="notifications_active" size={16} className="muted" />
+        <span className="eyebrow">{sample ? 'You’d get a message like this' : 'You’d get this message'}</span>
+      </div>
+      <div className={compact ? 'tiny ink' : 'body-sm ink'} style={{ overflowWrap: 'anywhere' }}>{w.message}</div>
+    </div>
+  );
+};
+
 /* ---------- detail page ---------- */
 
 const LEVEL_COLOR = { info: 'var(--subtle)', warn: 'var(--yellow)', alert: 'var(--red)' } as const;
@@ -44,7 +88,9 @@ export function WatchDetail({ id }: { id: string }) {
   const { watches, places, skills, category, go, notify, updateWatch, removeWatch } = useStore();
   const w = watches.find((x) => x.id === id);
   // Hooks run before any early return, so the order stays the same when the trigger disappears.
-  const proof = useResource(useCallback((signal) => api.watches.proof(id, signal), [id]), [id]);
+  const lastRun = w?.lastRunAt?.getTime() ?? 0;
+  const proof = useResource(useCallback((signal) => api.watches.proof(id, signal), [id]), [id, lastRun]);
+  const check = useCheckNow(w);
 
   if (!w) {
     return (
@@ -115,7 +161,11 @@ export function WatchDetail({ id }: { id: string }) {
           {measured && w.confidence && <ConfidenceBadge level={w.confidence} />}
         </div>
         <div className="row wrap">
-          <Btn variant="primary" icon="forum" onClick={runNow}>Ask it now</Btn>
+          <Btn variant="primary" icon={check.checking ? undefined : 'refresh'} onClick={() => void check.run()} disabled={check.disabled} title={check.title}>
+            {check.checking && <span className="spinner" />}
+            {check.checking ? 'Checking…' : 'Check now'}
+          </Btn>
+          <Btn icon="forum" onClick={runNow}>Ask it now</Btn>
           <Btn
             icon={w.enabled ? 'pause' : 'play_arrow'}
             onClick={() => {
@@ -155,11 +205,13 @@ export function WatchDetail({ id }: { id: string }) {
           <div className="col" style={{ gap: 4 }}>
             <div className="subhead" style={{ fontSize: 17 }}>Not checked yet</div>
             <div className="body-sm">
-              Automatic re-checks are not running yet, so there is no measurement for this trigger. Use “Ask it now” to run the question on the latest imagery.
+              Automatic re-checks are not running yet, so there is no measurement for this trigger. Use “Check now” to measure it on the latest clear pass (this can take a minute), or “Ask it now” for a full answer.
             </div>
           </div>
         </div>
       )}
+
+      <MessagePreview w={w} />
 
       {hasSeries(w) && (
         <div className="card col" style={{ padding: 24, gap: 14 }}>

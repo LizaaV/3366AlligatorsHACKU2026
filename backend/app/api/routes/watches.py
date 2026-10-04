@@ -89,3 +89,21 @@ def get_proof(watch_id: WatchId, user_id: UserId) -> WatchProofDto:
     if proof is None:
         raise _missing()
     return proof
+
+
+@router.post(
+    "/watches/{watch_id}/check",
+    response_model=WatchDto,
+    responses={
+        **_NOT_FOUND,
+        409: {"description": "The watch has no place (or its place was deleted)"},
+        422: {"description": "The watched metric cannot be measured, or no clear pass"},
+        504: {"description": "The check took longer than the time limit (~150 s)"},
+    },
+)
+async def check_watch(watch_id: WatchId, user_id: UserId) -> WatchDto:
+    """Check now: measure the watch once (no LLM) and store value, status, event and proof."""
+    try:
+        return await svc.check_watch(user_id, watch_id)
+    except svc.CheckError as exc:
+        raise HTTPException(exc.status, exc.message) from exc

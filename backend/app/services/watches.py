@@ -33,6 +33,10 @@ from earth import settings as earth_settings
 
 __all__ = [
     "MAX_WATCHES_PER_USER",
+    "CheckError",
+    "check_watch",
+    "parse_condition",
+    "watch_message",
     "LimitReached",
     "NotWatchable",
     "create_watch",
@@ -367,7 +371,8 @@ def _now() -> str:
 
 
 def _dto(row: dict) -> WatchDto:
-    return WatchDto.model_validate({k: v for k, v in row.items() if k != "proof"})
+    data = {k: v for k, v in row.items() if k not in ("proof", "last_check")}
+    return WatchDto.model_validate({**data, "message": watch_message(row)})
 
 
 def _event(text: str, level: str = "info") -> dict:
@@ -492,3 +497,442 @@ def detach_place(user_id: str, place_id: str) -> int:
             r["updated_at"] = _now()
         _save(path, rows)
     return len(hit)
+
+
+# --- check now (build-plan A5) -----------------------------------------------------------------
+#
+# Runs a watch once, without the LLM: the watch's skill (if it is in the skill registry) in the
+# sandbox, plus a direct `earth.series` of the watched measure for the normal band and history.
+# Status comes from the watch's condition (see `parse_condition`).
+
+#: Upper bound for one check (the request is synchronous): skill run + series read.
+CHECK_TIMEOUT_S = 150
+SKILL_TIMEOUT_S = 140
+SERIES_TIMEOUT_S = 90
+#: Noise margin around the normal band before a reading counts as clearly outside it.
+BAND_PAD = 0.05
+
+#: Words in a watch's skill id / metric / question → the earth measure it watches. First wins.
+_MEASURE_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("water", ("pond", "flood", "water", "inundat", "wetland")),
+    ("moisture", ("dry", "moisture", "drought", "irrigat")),
+    ("heat", ("heat", "temperature")),
+    ("greenness", ("green", "crop", "ndvi", "tree", "forest", "vegetation", "health", "stress")),
+    ("bare", ("build", "built", "land-use", "land use", "construct", "urban", "bare", "clear")),
+)
+#: Direction that is bad news for each measure, when the condition does not say.
+_BAD_DIRECTION = {"water": "below", "greenness": "below", "moisture": "below", "bare": "above"}
+_BAD_DIRECTION["heat"] = "above"
+_LABEL = {
+    "water": "open water",
+    "greenness": "greenness",
+    "moisture": "moisture",
+    "bare": "bare ground",
+    "heat": "surface heat",
+}
+_INDEX = {
+    "water": "water index",
+    "greenness": "greenness (NDVI)",
+    "moisture": "moisture index",
+    "bare": "bare-ground index",
+    "heat": "surface heat",
+}
+
+
+class CheckError(Exception):
+    """A check that cannot run. `status` is the HTTP status the route returns."""
+
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+        self.message = message
+
+
+@dataclass(frozen=True)
+class Condition:
+    """What a watch's condition text asks for.
+
+    kind "band": alert when the reading leaves the normal band in `direction`.
+    kind "drop": alert when the reading moves more than `threshold` in `direction` between
+    the last two passes. kind "area": alert when the changed area exceeds `threshold`
+    (`unit` "ha" or "%"), when the skill reports a changed area; else falls back to "band".
+    """
+
+    kind: str
+    direction: str
+    threshold: float | None = None
+    unit: str = ""
+
+
+_NUM = r"(\d+(?:\.\d+)?)"
+_DROP_RX = re.compile(
+    r"(drops?|falls?|rises?|increases?|decreases?|changes?)\s+(?:by\s+)?(?:more than|over|above)\s+"
+    + _NUM
+    + r"(?!\s*(?:ha|%))",
+    re.IGNORECASE,
+)
+_AREA_RX = re.compile(r"(?:above|more than|larger than|over|exceeds?)\s+" + _NUM + r"\s*(ha|%)")
+
+
+def parse_condition(text: str, measure: str) -> Condition:
+    """Parse the condition texts the feasibility rules write (and simple user variants)."""
+    t = (text or "").lower()
+    bad = _BAD_DIRECTION.get(measure, "below")
+    if re.search(r"\b(above|higher|rises?|increases?|more than usual|hotter)\b", t) and not (
+        _AREA_RX.search(t)
+    ):
+        direction = "above"
+    elif re.search(r"\b(below|lower|drops?|falls?|decreases?|loses?|less)\b", t):
+        direction = "below"
+    else:
+        direction = bad
+    if m := _DROP_RX.search(t):
+        verb = m.group(1)
+        d = "above" if verb.startswith(("rise", "increase")) else direction
+        if verb.startswith("change"):
+            d = "either"
+        return Condition("drop", d, float(m.group(2)))
+    if m := _AREA_RX.search(t):
+        return Condition("area", bad, float(m.group(1)), m.group(2))
+    return Condition("band", direction)
+
+
+#: Watched things that are not an index series (fires, algae): a check cannot measure them yet.
+_UNMEASURABLE = ("fire", "hotspot", "algae", "algal", "bloom", "chlorophyll")
+
+
+def _measure_for(row: dict) -> str | None:
+    hay = " ".join(str(row.get(k) or "") for k in ("skill_id", "metric", "question")).lower()
+    if any(w in hay for w in _UNMEASURABLE):
+        return None
+    for measure, words in _MEASURE_WORDS:
+        if any(w in hay for w in words):
+            return measure
+    return None
+
+
+def _band_status(value: float, lo: float, hi: float, direction: str) -> tuple[str, str]:
+    """(status, relation) of a reading against the normal band."""
+    below, above = value < lo, value > hi
+    relation = (
+        "below the usual range"
+        if below
+        else "above the usual range"
+        if above
+        else "within the usual range"
+    )
+    bad = (direction in ("below", "either") and below) or (
+        direction in ("above", "either") and above
+    )
+    if not bad:
+        return ("warn" if (below or above) else "ok"), relation
+    far = value < lo - BAND_PAD if below else value > hi + BAND_PAD
+    return ("alert" if far else "warn"), relation
+
+
+def _fmt(x: float) -> str:
+    return f"{x:.2f}".replace("-0.00", "0.00")
+
+
+def _day_label(iso: str) -> str:
+    try:
+        d = datetime.fromisoformat(iso)
+    except ValueError:
+        return iso
+    return f"{d.day} {d:%b %Y}"
+
+
+def _usual_range(series, value: float) -> tuple[float, float, float]:
+    """(lo, hi, mean) usual for the latest pass's season, from EARLIER passes only.
+
+    Same calendar month ±1 in earlier passes (≥3 of them), else every earlier pass; the
+    10th–90th percentile. Falls back to the series' own monthly band.
+    """
+    import statistics
+
+    last = series.points[-1]
+    earlier = series.points[:-1]
+    near = [
+        p.value
+        for p in earlier
+        if min(abs(p.date.month - last.date.month), 12 - abs(p.date.month - last.date.month)) <= 1
+    ]
+    vals = near if len(near) >= 3 else [p.value for p in earlier]
+    if len(vals) >= 3:
+        q = statistics.quantiles(vals, n=10, method="inclusive")
+        return q[0], q[-1], statistics.fmean(vals)
+    band = {b.month: b for b in series.band}.get(last.date.month)
+    return (band.lo, band.hi, band.mean) if band else (value, value, value)
+
+
+def _skill(skill_id: str):  # -> Skill | None
+    from app.services.agent import skills as reg
+
+    if not skill_id or not reg.SKILL_ID_RE.fullmatch(skill_id):
+        return None
+    try:
+        if skill_id not in reg.skill_ids():
+            return None
+        return reg.get_skill(skill_id)
+    except reg.SkillError:
+        log.warning("skill %s is in the registry but does not load", skill_id)
+        return None
+
+
+async def _run_skill(skill, place, run_id: str) -> tuple[dict | None, list[dict], str | None]:
+    """(findings, evidence, failure note). Never raises for a script failure."""
+    from app.services.agent import skills as reg
+
+    try:
+        params = reg.prepare_params(skill, {}, area=place.geometry, name=place.name)
+    except reg.SkillError as exc:
+        return None, [], f"{skill.id} could not run here: {exc}"
+    timeout = min(skill.timeout_s or SKILL_TIMEOUT_S, SKILL_TIMEOUT_S)
+    outcome = await reg.run_skill_script(skill.id, params, run_id, timeout_s=timeout)
+    if not outcome.ok or outcome.result is None:
+        msg = outcome.error.message if outcome.error else "no result"
+        return None, [], f"{skill.id} failed ({msg}); measured directly instead."
+    return outcome.result.findings, outcome.result.evidence, None
+
+
+def _read_series(place, measure: str):  # -> earth.Series
+    import earth
+
+    area = earth.Area.from_geojson(place.geometry)
+    return earth.series(area, measure, years=3)
+
+
+def _changed_area(findings: dict | None) -> float | None:
+    if not findings:
+        return None
+    v = findings.get("changed_ha")
+    return float(v) if isinstance(v, int | float) else None
+
+
+def _proof_from(evidence: list[dict], series) -> dict:
+    scenes: dict[str, dict] = {}
+    for e in evidence:
+        prov = e.get("provenance") or {}
+        sid = str(e.get("scene") or prov.get("scene") or "")
+        if not sid or sid in scenes or " scenes" in sid:
+            continue
+        scenes[sid] = {
+            "id": sid,
+            "date": str(e.get("date") or prov.get("date") or ""),
+            "sat": str(prov.get("satellite") or ""),
+            "cloud": 0.0,
+            "used": True,
+            "why": None,
+        }
+    if not scenes and series is not None:
+        for p in series.points[-4:]:
+            scenes[p.scene] = {
+                "id": p.scene,
+                "date": str(p.date),
+                "sat": series.provenance.satellite,
+                "cloud": 0.0,
+                "used": True,
+                "why": None,
+            }
+    ids = sorted(scenes)
+    import hashlib
+
+    digest = hashlib.sha256(json.dumps(ids).encode()).hexdigest()[:16] if ids else ""
+    return {"scenes": list(scenes.values())[:12], "hash": digest}
+
+
+async def check_watch(user_id: str, watch_id: str) -> WatchDto:
+    """Run the watch now and store the result. Raises `CheckError` (404/409/422/504)."""
+    import asyncio
+
+    from app.services import places
+
+    if not ID_RE.fullmatch(watch_id):
+        raise CheckError(404, "watch not found")
+    path = _path(user_id)
+    with _lock(path):
+        row = next((r for r in _load(path) if r["id"] == watch_id), None)
+    if row is None:
+        raise CheckError(404, "watch not found")
+    if not row.get("place_id"):
+        raise CheckError(409, "This watch has no place to measure; attach a place first.")
+    place = await asyncio.to_thread(places.get_place, user_id, row["place_id"])
+    if place is None:
+        raise CheckError(409, "The watch's place no longer exists.")
+    measure = _measure_for(row)
+    if measure is None:
+        raise CheckError(
+            422, f"“{row.get('metric') or row['name']}” cannot be measured by a check yet."
+        )
+
+    async def work():
+        skill = _skill(row.get("skill_id", ""))
+        series_task = asyncio.wait_for(
+            asyncio.to_thread(_read_series, place, measure), SERIES_TIMEOUT_S
+        )
+        if skill is None:
+            return None, None, [], None, await series_task
+        (findings, evidence, note), series = await asyncio.gather(
+            _run_skill(skill, place, f"w_{watch_id}"), series_task
+        )
+        return skill, findings, evidence, note, series
+
+    import earth
+
+    try:
+        skill, findings, evidence, note, series = await asyncio.wait_for(work(), CHECK_TIMEOUT_S)
+    except TimeoutError as exc:
+        raise CheckError(504, f"The check took longer than {CHECK_TIMEOUT_S} s.") from exc
+    except earth.EarthError as exc:
+        raise CheckError(422, f"Could not measure this place: {exc.message}") from exc
+    if not series.points:
+        raise CheckError(422, "No clear satellite pass over this place yet.")
+
+    last = series.points[-1]
+    observed = ((findings or {}).get("observed") or {}).get(measure) or {}
+    value = observed.get("value")
+    value = float(value) if isinstance(value, int | float) else float(last.value)
+    after = (findings or {}).get("after") if observed.get("value") is not None else None
+    when = after if isinstance(after, str) and after else str(last.date)
+    lo, hi, mean = _usual_range(series, value)
+
+    cond = parse_condition(row.get("condition", ""), measure)
+    status, relation = _band_status(value, lo, hi, cond.direction)
+    met = status == "alert"
+    change = ""
+    if len(series.points) >= 2:
+        prev = series.points[-2]
+        move = last.value - prev.value
+        change = f"{move:+.2f} since the pass of {_day_label(str(prev.date))}"
+    if cond.kind == "drop" and len(series.points) >= 2:
+        bad = (
+            abs(move)
+            if cond.direction == "either"
+            else (-move if cond.direction == "below" else move)
+        )
+        status = "alert" if bad > cond.threshold else "warn" if bad > cond.threshold / 2 else "ok"
+        met = bad > cond.threshold
+        change += f" (limit {cond.threshold:g})"
+    changed = _changed_area(findings)
+    if changed is not None:
+        before = (findings or {}).get("before")
+        since = f" since {_day_label(before)}" if isinstance(before, str) else ""
+        change = f"{changed:.1f} ha changed{since}" + (f"; {change}" if change else "")
+        if cond.kind == "area":
+            amount = changed if cond.unit == "ha" else 100 * changed / max(place.area_ha, 1e-9)
+            thr = cond.threshold
+            met = amount > thr
+            status = "alert" if met else "warn" if amount > thr / 2 else status
+            change += f" (limit {thr:g} {cond.unit})"
+    change = change or "no earlier pass to compare"
+
+    level = {"ok": "info", "warn": "warn", "alert": "alert"}[status]
+    verdict = "Condition met" if met else "Condition not met"
+    text = (
+        f"Checked the pass of {_day_label(when)}: {_INDEX[measure]} {_fmt(value)} "
+        f"(usual {_fmt(lo)} to {_fmt(hi)}, {relation.replace(' the usual range', '')}), "
+        f"{change}. {verdict} → {status}."
+    )
+    if skill is not None and note is None:
+        text += f" Skill {skill.id} ran."
+    elif note:
+        text += f" {note}"
+
+    pts = series.points[-24:]
+    months = {b.month: b for b in series.band}
+    series_dto = {
+        "unit": "index",
+        "labels": [str(p.date) for p in pts],
+        "current": [round(p.value, 4) for p in pts],
+        "band_low": [
+            round(months[p.date.month].lo, 4) if p.date.month in months else None for p in pts
+        ],
+        "band_high": [
+            round(months[p.date.month].hi, 4) if p.date.month in months else None for p in pts
+        ],
+        "mean": [
+            round(months[p.date.month].mean, 4) if p.date.month in months else None for p in pts
+        ],
+    }
+    if any(v is None for k in ("band_low", "band_high", "mean") for v in series_dto[k]):
+        fill = {"band_low": lo, "band_high": hi, "mean": mean}
+        for k, d in fill.items():
+            series_dto[k] = [round(d, 4) if v is None else v for v in series_dto[k]]
+
+    check = {
+        "measure": measure,
+        "value": round(value, 4),
+        "lo": round(lo, 4),
+        "hi": round(hi, 4),
+        "relation": relation,
+        "change": change,
+        "met": met,
+        "date": when,
+        "place_name": place.name,
+        "status": status,
+    }
+    with _lock(path):
+        rows = _load(path)
+        stored = next((r for r in rows if r["id"] == watch_id), None)
+        if stored is None:
+            raise CheckError(404, "watch not found")
+        stored.update(
+            value=round(value, 4),
+            unit="index",
+            baseline=round(mean, 4),
+            baseline_label=f"Usual around {_month(when)}: {_fmt(lo)} to {_fmt(hi)}",
+            delta=f"{value - mean:+.2f} vs usual",
+            status=status,
+            last_run_at=_now(),
+            series=series_dto,
+            last_check=check,
+            proof=_proof_from(evidence, series),
+            updated_at=_now(),
+        )
+        stored["events"].insert(0, _event(text, level))
+        del stored["events"][50:]
+        _save(path, rows)
+    return _dto(stored)
+
+
+def _month(iso: str) -> str:
+    try:
+        return f"{datetime.fromisoformat(iso):%B}"
+    except ValueError:
+        return "this month"
+
+
+def _sent_when(cond: Condition, measure: str) -> str:
+    what = _INDEX.get(measure, "the reading")
+    if cond.kind == "drop":
+        verb = {"below": "falls", "above": "rises", "either": "moves"}[cond.direction]
+        return f"{what} {verb} more than {cond.threshold:g} between passes"
+    if cond.kind == "area":
+        return f"more than {cond.threshold:g} {cond.unit} of the place changes"
+    side = "above" if cond.direction == "above" else "below"
+    return f"{what} goes {side} its usual range for the season"
+
+
+def watch_message(row: dict) -> str:
+    """The one-line alert the user would receive, built from the last check (or a sample).
+
+    Always carries the numbers: value, usual range, change, pass date, and the verdict.
+    """
+    measure = _measure_for(row) or ""
+    chk = row.get("last_check")
+    if isinstance(chk, dict) and chk.get("value") is not None:
+        what = _INDEX.get(chk.get("measure", ""), "reading")
+        place = chk.get("place_name") or row.get("name", "")
+        verdict = "Condition met" if chk.get("met") else "Condition not met"
+        tail = " Tap to see the evidence." if chk.get("status") != "ok" else ""
+        return (
+            f"{place} · {_day_label(str(chk.get('date', '')))}: {what} {_fmt(chk['value'])} "
+            f"(usual {_fmt(chk['lo'])} to {_fmt(chk['hi'])}), {chk.get('change') or 'no change'}. "
+            f"{verdict}.{tail}"
+        )
+    cond = parse_condition(row.get("condition", ""), measure)
+    what = _INDEX.get(measure, "the reading")
+    return (
+        f"Sample · {row.get('name', '')} · <pass date>: {what} <value> (usual <low> to <high>), "
+        f"<change since the last pass>. Sent when {_sent_when(cond, measure)}."
+    )

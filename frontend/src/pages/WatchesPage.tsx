@@ -6,7 +6,7 @@ import { STATUS_STYLE, hasMeasurement, hasSeries, hasStatus } from '../data/pres
 import { ciLabel, fmtDate, fmtVal } from '../lib/format';
 import { Btn, Empty, HistoryChart, Ms, RingOverlay, Toggle } from '../components/ui';
 import { ErrorState, SkeletonCard } from '../components/async';
-import { WatchDetail } from './WatchDetail';
+import { MessagePreview, WatchDetail, useCheckNow } from './WatchDetail';
 
 export function WatchesPage() {
   const { route } = useStore();
@@ -54,7 +54,7 @@ function Overview() {
           <div className="eyebrow">Triggers</div>
           <div className="h1" style={{ marginTop: 10 }}>{t('watches.title')}</div>
           <div className="body" style={{ marginTop: 6, maxWidth: 640 }}>Saved questions about your places, each with the condition you care about.</div>
-          <div className="caption" style={{ marginTop: 6, maxWidth: 640 }}>Automatic re-checks and alerts are not running yet: a trigger shows numbers once a run has measured it.</div>
+          <div className="caption" style={{ marginTop: 6, maxWidth: 640 }}>Automatic re-checks and alerts are not running yet: use “Check now” on a trigger to measure it on the latest clear pass.</div>
         </div>
         <Btn variant="primary" icon="add" onClick={() => open({ kind: 'watchBuilder' })}>New trigger</Btn>
       </div>
@@ -208,6 +208,7 @@ function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; plac
   const cat = category(w.categoryKey);
   const accent = w.enabled && hasStatus(w) && w.status !== 'ok' ? STATUS_STYLE[w.status].color : null;
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  const check = useCheckNow(w);
 
   return (
     <div
@@ -264,6 +265,8 @@ function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; plac
           </div>
         )}
 
+        <MessagePreview w={w} compact />
+
         {hasSeries(w) && (
           <div style={{ marginTop: 4 }}>
             <HistoryChart series={w.series.current} band={w.series.bandLow?.length ? [w.series.bandLow, w.series.bandHigh] : undefined} mean={w.series.mean?.length ? w.series.mean : undefined} color={cat.color} height={70} compact />
@@ -272,6 +275,12 @@ function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; plac
 
         <div className="row" style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--hair-soft)', gap: 10 }}>
           <span className="tiny grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.lastRunAt ? `Checked ${fmtDate(w.lastRunAt)}` : 'Not checked yet'}</span>
+          <span onClick={stop} onKeyDown={stop}>
+            <Btn size="sm" variant="text" icon={check.checking ? undefined : 'refresh'} onClick={() => void check.run()} disabled={check.disabled} title={check.title}>
+              {check.checking && <span className="spinner" />}
+              {check.checking ? 'Checking…' : 'Check now'}
+            </Btn>
+          </span>
           <span onClick={stop} onKeyDown={stop}>
             <Toggle
               on={w.enabled}

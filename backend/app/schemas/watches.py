@@ -97,6 +97,11 @@ class WatchDto(BaseModel):
     last_run_at: datetime | None = None
     next_run_at: datetime | None = None
     events: list[WatchEvent] = Field(default_factory=list, description="Newest first.")
+    message: str | None = Field(
+        None,
+        description="The one-line alert the user would receive, built from the last check; "
+        "a sample based on the condition (starting 'Sample ·') before the first check.",
+    )
     created_at: datetime
     updated_at: datetime
 
