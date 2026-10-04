@@ -1156,6 +1156,7 @@ function TurnView({
   const stages = stagesFrom(steps, running);
   const now = [...stages].reverse().find((st) => !st.done);
   const [raw, setRaw] = useState(false);
+  const [openSteps, setOpenSteps] = useState<Set<number>>(() => new Set());
 
   const label =
     turn.phase === 'clarify'
@@ -1219,13 +1220,21 @@ function TurnView({
               </button>
             )}
             {raw && (
-              <div className="col" style={{ gap: 2, marginTop: 4, padding: 10, borderRadius: 8, background: 'var(--s1)', border: '1px solid var(--hair-soft)', maxHeight: 220, overflowY: 'auto' }}>
-                {steps.map((st) => (
-                  <div key={st.index} className="tiny" style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 8 }}>
-                    <code style={{ color: 'var(--muted)' }}>{st.tool}</code>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={st.result ?? st.error ?? st.title}>{st.error ?? st.result ?? (st.done ? st.title : `${st.title}…`)}</span>
-                  </div>
-                ))}
+              // One grid for every row: the name column is as wide as the longest tool name in
+              // this run, so names never run into the text. Click a row to read it in full.
+              <div className="tiny" style={{ display: 'grid', gridTemplateColumns: 'max-content minmax(0, 1fr)', columnGap: 12, rowGap: 2, marginTop: 4, padding: 10, borderRadius: 8, background: 'var(--s1)', border: '1px solid var(--hair-soft)', maxHeight: 220, overflowY: 'auto' }}>
+                {steps.map((st) => {
+                  const open = openSteps.has(st.index);
+                  const toggle = () => setOpenSteps((cur) => { const n = new Set(cur); if (open) n.delete(st.index); else n.add(st.index); return n; });
+                  return (
+                    <div key={st.index} role="button" tabIndex={0} aria-expanded={open} onClick={toggle} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggle())} style={{ display: 'contents', cursor: 'pointer' }}>
+                      <code style={{ color: 'var(--muted)' }}>{st.tool}</code>
+                      <span style={open ? { whiteSpace: 'normal', overflowWrap: 'anywhere' } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={open ? undefined : st.result ?? st.error ?? st.title}>
+                        {st.error ?? st.result ?? (st.done ? st.title : `${st.title}…`)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
