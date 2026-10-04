@@ -238,10 +238,10 @@ export function ArtifactsPill({ count, onOpen }: { count: number; onOpen: () => 
 export function ArtifactChips({ list, selectedId, onSelect }: { list: Artifact[]; selectedId: string | null; onSelect: (id: string) => void }) {
   if (!list.length) return null;
   return (
-    <div className="row wrap" style={{ gap: 6, alignItems: 'center' }}>
-      <span className="tiny muted">See on the right:</span>
+    <div className="col" style={{ gap: 6, alignItems: 'flex-start' }}>
+      <span className="tiny muted">See on the right</span>
       {list.map((a) => (
-        <button key={a.id} className={`chip artifact-chip ${a.id === selectedId ? 'on' : ''}`} onClick={() => onSelect(a.id)} title={`Show “${a.name}”`}>
+        <button key={a.id} className={`chip artifact-chip ${a.id === selectedId ? 'on' : ''}`} onClick={() => onSelect(a.id)} title={`Show “${a.name}”`} style={{ maxWidth: '100%', justifyContent: 'flex-start' }}>
           <Ms n={a.icon} size={14} />{a.name}
         </button>
       ))}

@@ -66,14 +66,23 @@ export const GENERAL: Suggestion[] = QUESTIONS.mixed;
 
 const has = (tags: string[], ...words: string[]) => tags.some((t) => words.some((w) => t.toLowerCase().includes(w)));
 
-/** The best-fitting kind: the person's own words first, then the measured land cover. */
+/** What the words say the place is, if anything. */
+function kindFromWords(words: string[]): Kind | null {
+  if (has(words, 'pond', 'fishpond', 'wetland')) return 'ponds';
+  if (has(words, 'building site', 'construction')) return 'built';
+  if (has(words, 'park', 'garden', 'common')) return 'park';
+  if (has(words, 'forest', 'wood')) return 'forest';
+  if (has(words, 'field', 'farm', 'crop', 'plot', 'pivot')) return 'farm';
+  if (has(words, 'site')) return 'built';
+  return null;
+}
+
+/** The best-fitting kind: the person's own tags first, then the name (a tag says what the place
+ * is, while a name can mislead: "Kai Tak Sports Park" is a building site), then the measured
+ * land cover. */
 export function kindOf(input: { name?: string; categoryKey?: string; tags?: string[]; landCover?: Record<string, number> | null }): Kind {
-  const tags = [...(input.tags ?? []), input.name ?? ''];
-  if (has(tags, 'pond', 'fishpond', 'wetland')) return 'ponds';
-  if (has(tags, 'park', 'garden', 'common')) return 'park';
-  if (has(tags, 'forest', 'wood')) return 'forest';
-  if (has(tags, 'field', 'farm', 'crop', 'plot', 'pivot')) return 'farm';
-  if (has(tags, 'building site', 'site', 'construction')) return 'built';
+  const worded = kindFromWords(input.tags ?? []) ?? kindFromWords([input.name ?? '']);
+  if (worded) return worded;
 
   const lc = input.landCover ?? {};
   const v = (k: string) => lc[k] ?? 0;

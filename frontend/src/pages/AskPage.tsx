@@ -7,11 +7,10 @@ import { MapView } from '../components/MapView';
 import { Btn, CatPill, IconBtn, Ms, hideBroken } from '../components/ui';
 import { ErrorState } from '../components/async';
 import { api, toApiError } from '../api';
-import { useResource } from '../hooks/useResource';
 import type { MapImage, MapLayer, Place } from '../model';
-import { mapImagesFrom, toSearchHits } from '../model';
+import { mapImagesFrom } from '../model';
 import { skillRunnable, sourceLabel } from '../data/presentation';
-import { DEFAULT_CENTER, DEFAULT_ZOOM, circleRing, distanceM, parseLocation, thumb } from '../lib/geo';
+import { DEFAULT_CENTER, DEFAULT_ZOOM, circleRing, distanceM, thumb } from '../lib/geo';
 import { useAskRun, type AskTurn } from '../ask/useAskRun';
 import { AnswerCard } from './AnswerCard';
 import { stagesFrom } from '../ask/stages';
@@ -28,15 +27,6 @@ import '../components/chat/chat.css';
 import { BANDS, type Band } from '../lib/scenes';
 import { parseHash } from '../router';
 import type { PlaceContext, ViewImage, ViewPass, ViewPeriod, ViewTarget } from '../api';
-
-/** An icon for what a search hit is. */
-const kindIcon = (kind: string | null) =>
-  !kind ? 'location_on'
-  : /park|garden|forest|wood|nature/.test(kind) ? 'park'
-  : /water|lake|river|reservoir|pond|bay|sea/.test(kind) ? 'water'
-  : /city|town|village|administrative|suburb|quarter|county|state|region/.test(kind) ? 'location_city'
-  : /farm|field|meadow/.test(kind) ? 'agriculture'
-  : 'location_on';
 
 /** What a drawn outline is, and the catalog category it is filed under. */
 // Drawn places get no type: suggestions come from the land cover measured inside them.
@@ -97,7 +87,6 @@ export function AskPage({ active }: { active: boolean }) {
   const [layers, setLayers] = useState<MapLayer[]>([]);
   const [q, setQ] = useState('');
   const [pop, setPop] = useState<string | null>(null);
-  const [searchQ, setSearchQ] = useState('');
   const [drawing, setDrawing] = useState(false);
   // Corners of an outline being drawn, on the live map (pan and zoom keep working).
   const [draft, setDraft] = useState<{ lat: number; lon: number }[]>([]);
@@ -375,7 +364,7 @@ export function AskPage({ active }: { active: boolean }) {
         project: 'My places',
         tags: [],
         source: 'pin',
-        details: [{ label: 'Added via', value: 'Picked on the map' }],
+        
       });
       setSpot(null);
       skipFly.current = true;
@@ -450,8 +439,7 @@ export function AskPage({ active }: { active: boolean }) {
       const pid = placeId !== undefined ? placeId : askPlaceId;
       if (!pid) {
         setSheet(false);
-        setPop('contours');
-        notify('Pick a place to run this skill on', undefined, undefined, 'pentagon');
+        notify('Pick a place in the chat box first, then run the skill', undefined, undefined, 'pentagon');
         return;
       }
       const p = places.find((x) => x.id === pid);
@@ -533,7 +521,7 @@ export function AskPage({ active }: { active: boolean }) {
         project: 'My places',
         tags: [],
         source: 'pin',
-        details: [{ label: 'Added via', value: `Circle of ${circ.radiusM} m on the map` }],
+        
       });
       cancelDraw();
       setSpot(null);
@@ -560,7 +548,7 @@ export function AskPage({ active }: { active: boolean }) {
         project: 'My places',
         tags: [],
         source: 'drawn',
-        details: [{ label: 'Added via', value: 'Drawn on the map' }],
+        
       });
       setDrawing(false);
       setDraft([]);
@@ -675,67 +663,9 @@ export function AskPage({ active }: { active: boolean }) {
         { icon: 'public', text: 'Tap the globe to look at any place', go: () => notify('Tap anywhere on the globe to fly there', undefined, undefined, 'public') },
       ];
 
-  const sq = searchQ.trim().toLowerCase();
-  // Wait for a pause in typing before asking the geocoder (it allows about one request a
-  // second, and half-typed words only return noise like "Par" for "Paris").
-  const [dq, setDq] = useState('');
-  useEffect(() => {
-    const t = window.setTimeout(() => setDq(sq), 350);
-    return () => window.clearTimeout(t);
-  }, [sq]);
-
-  // Geocoder results come from the API; the user's own places are matched locally since they
-  // are already loaded. Too-short queries are not sent (the backend rejects them with a 422).
-  const geo = useResource(
-    useCallback(
-      (signal: AbortSignal) => (dq.length >= 2 && !parseLocation(dq) ? api.areas.resolve({ query: dq }, signal).then(toSearchHits) : Promise.resolve([])),
-      [dq],
-    ),
-    [dq],
-  );
-  const searching = sq.length >= 2 && !parseLocation(sq) && (sq !== dq || geo.isFetching);
-
-  // A pasted map link or "lat, lon" goes straight to that spot.
-  const pasted = parseLocation(searchQ);
-  type SearchRow = { key: string; n: string; d: string; icon: string; go: () => void };
-  const searchSections = useMemo(() => {
-    const mine: SearchRow[] = places
-      // Only when typing: an empty box is for looking somewhere new, not a list of everything.
-      .filter((p) => sq.length > 0 && `${p.name} ${p.project}`.toLowerCase().includes(sq))
-      .slice(0, 3)
-      .map((p) => ({
-        key: `place:${p.id}`,
-        n: p.name,
-        d: `${p.areaHa} ha${p.project ? ` · ${p.project}` : ''}`,
-        icon: p.circle ? 'radio_button_unchecked' : 'pentagon',
-        go: () => { setAskPlace(p.id); flyTo(p); setPop(null); setSearchQ(''); },
-      }));
-    const found: SearchRow[] = (sq === dq ? geo.data ?? [] : []).slice(0, 6).map((r, i) => ({
-      key: `geo:${i}:${r.lat.toFixed(3)},${r.lon.toFixed(3)}`,
-      n: r.name,
-      d: r.description,
-      icon: kindIcon(r.kind),
-      go: () => {
-        lookAt(r.lat, r.lon, r.zoom);
-        setPop(null);
-        setSearchQ('');
-      },
-    }));
-    const link: SearchRow[] = pasted
-      ? [{ key: 'pasted', n: 'Location from your link', d: 'Drop a pin there', icon: 'my_location', go: () => { lookAt(pasted.lat, pasted.lon); setPop(null); setSearchQ(''); } }]
-      : [];
-    return [
-      { title: 'From your link', rows: link },
-      { title: 'My places', rows: mine },
-      { title: 'Places', rows: found },
-    ].filter((sec) => sec.rows.length);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places, sq, dq, geo.data, setAskPlace, flyTo, lookAt, pasted?.lat, pasted?.lon]);
-  const firstResult = searchSections[0]?.rows[0];
 
   const tools: { k: string; icon?: string; title?: string; caret?: boolean }[] = [
     { k: 'draw', icon: 'polyline', title: 'Draw an outline', caret: true },
-    { k: 'contours', icon: 'pentagon', title: 'My places', caret: true },
   ];
 
   return (
@@ -950,7 +880,7 @@ export function AskPage({ active }: { active: boolean }) {
               onChange={setQ}
               onSubmit={submit}
               busy={run.isBusy}
-              placeholder={place ? `Ask about ${place.name}…` : spot ? `Ask about ${spotName}…` : t('chat.placeholder')}
+              placeholder={last?.phase === 'done' ? 'Ask a follow-up, or anything else…' : place ? `Ask about ${place.name}…` : spot ? `Ask about ${spotName}…` : t('chat.placeholder')}
               leading={
                 <div className="row" style={{ gap: 6, rowGap: 6, flexWrap: 'wrap', position: 'relative', minWidth: 0 }}>
                   <button
@@ -1072,11 +1002,18 @@ export function AskPage({ active }: { active: boolean }) {
             <IconBtn icon="close" className="sm" style={{ position: 'absolute', top: 8, right: 40 }} onClick={() => setAskPlace(null)} aria-label="Stop asking about this place" title="General question instead" />
             {placeOpen && (
               <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div className="stats" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                  {place.details.slice(0, 4).map((d) => (
-                    <div key={d.label}><div className="l">{d.label}</div><div className="v" style={{ fontSize: 14 }}>{d.value}</div></div>
-                  ))}
-                </div>
+                {/* What the person told us about the place. "Added via" is left out: the source
+                    chip below says it. An odd last fact spans both columns, so no empty cell. */}
+                {(() => {
+                  const facts = place.details.filter((d) => d.label !== 'Added via').slice(0, 4);
+                  return facts.length > 0 && (
+                    <div className="stats" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                      {facts.map((d, i) => (
+                        <div key={d.label} style={facts.length % 2 && i === facts.length - 1 ? { gridColumn: '1 / -1' } : undefined}><div className="l">{d.label}</div><div className="v" style={{ fontSize: 14 }}>{d.value}</div></div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 <div className="col" style={{ gap: 6 }}>
                   <div className="row" style={{ justifyContent: 'space-between' }}>
                     <span className="eyebrow">Triggers here · {placeWatches.length}</span>
@@ -1104,35 +1041,7 @@ export function AskPage({ active }: { active: boolean }) {
       {/* TOOLBAR (Google Earth style) */}
       {!mobile && (
         <div className="panel row" style={{ position: 'absolute', left: chatW + 36, top: 20, height: 54, gap: 2, padding: '6px 8px', zIndex: 22 }}>
-          <div style={{ position: 'relative' }}>
-            <div className="row" style={{ gap: 8, width: compact ? 150 : 250, height: 40, padding: '0 12px', borderRadius: 8, background: '#000', border: '1px solid var(--hair-soft)' }}>
-              <Ms n="search" size={20} className="muted" />
-              <input value={searchQ} onChange={(e) => { setSearchQ(e.target.value); setPop('search'); }} onFocus={() => setPop('search')} onKeyDown={(e) => e.key === 'Enter' && firstResult?.go()} placeholder="Search a place" title="Search a town or place, or paste a Google Maps link" aria-label="Search a place" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 14px/1.5 var(--font)' }} />
-            </div>
-            {pop === 'search' && (
-              <div className="menu" style={{ left: -8, top: 52, width: 340, maxHeight: 440, overflowY: 'auto' }}>
-                {searchSections.map((sec) => (
-                  <div key={sec.title}>
-                    <div className="menu-label eyebrow">{sec.title}</div>
-                    {sec.rows.map((r) => (
-                      <button key={r.key} className="menu-item" onClick={r.go} style={{ alignItems: 'flex-start' }}>
-                        <Ms n={r.icon} style={{ marginTop: 2 }} />
-                        <span className="col" style={{ minWidth: 0 }}>
-                          <span style={{ font: '600 14px/1.4 var(--font)' }}>{r.n}</span>
-                          {r.d && <span className="tiny" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.d}</span>}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ))}
-                {searching && <div className="caption muted row" style={{ padding: '8px 12px', gap: 8 }}><span className="spinner" />Searching…</div>}
-                {!searching && sq.length >= 2 && !searchSections.length && (
-                  <div className="caption" style={{ padding: 12 }}>Nothing found for "{searchQ.trim()}". Try a nearby town, or paste a Google Maps link.</div>
-                )}
-                {!sq && !searchSections.length && <div className="caption muted" style={{ padding: 12 }}>Type a town, a park or a lake, or paste a Google Maps link. Your own places are under the shape button.</div>}
-              </div>
-            )}
-          </div>
+          {/* Searching for a place lives in the chat box's place picker, so there is one place search. */}
           {tools.map((tl, i) =>
             tl.k === '|' ? <div key={i} style={{ width: 1, height: 26, background: 'var(--hair)', margin: '0 6px' }} /> : (
               <div key={tl.k} style={{ position: 'relative' }}>
@@ -1146,20 +1055,6 @@ export function AskPage({ active }: { active: boolean }) {
                     <button className="menu-item on" onClick={() => startDraw('polygon')}><Ms n="polyline" />Draw an outline<span className="tiny" style={{ marginLeft: 'auto' }}>field, pond, plot…</span></button>
                     <button className="menu-item" onClick={() => startDraw('circle')}><Ms n="radio_button_unchecked" />Draw a circle<span className="tiny" style={{ marginLeft: 'auto' }}>centre + size</span></button>
                     <button className="menu-item" onClick={() => { setPop(null); open({ kind: 'addPlace' }); }}><Ms n="upload_file" /><span className="col">Upload outline<span className="tiny">KML, GeoJSON or Shapefile</span></span></button>
-                  </div>
-                )}
-                {pop === 'contours' && tl.k === 'contours' && (
-                  <div className="menu" style={{ left: -40, top: 52, width: 280 }}>
-                    <div className="menu-label eyebrow">My places</div>
-                    {places.map((c) => (
-                      <button key={c.id} className={`menu-item ${c.id === askPlaceId ? 'on' : ''}`} onClick={() => { setAskPlace(c.id); flyTo(c); setPop(null); }}>
-                        <Ms n={c.circle ? 'radio_button_unchecked' : 'pentagon'} />
-                        <span className="col grow"><span style={{ font: '600 14px/1.4 var(--font)' }}>{c.name}</span><span className="tiny">{c.areaHa} ha</span></span>
-                        {c.id === askPlaceId && <Ms n="check" size={18} />}
-                      </button>
-                    ))}
-                    <div className="divider" style={{ margin: '6px 4px' }} />
-                    <button className="menu-item" style={{ color: 'var(--muted)' }} onClick={() => { setPop(null); open({ kind: 'addPlace' }); }}><Ms n="add" />Add a new place</button>
                   </div>
                 )}
               </div>

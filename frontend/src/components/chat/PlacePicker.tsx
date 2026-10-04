@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../api';
+import { parseLocation } from '../../lib/geo';
 import { useResource } from '../../hooks/useResource';
 import { toSearchHits } from '../../model';
 import { useStore } from '../../state/store';
@@ -85,12 +86,14 @@ export function PlacePicker({
   // matched locally since they are already loaded.
   const geo = useResource(
     useCallback(
-      (signal) => (sq.length >= 2 ? api.areas.resolve({ query: sq }, signal).then(toSearchHits) : Promise.resolve([])),
+      (signal) => (sq.length >= 2 && !parseLocation(sq) ? api.areas.resolve({ query: sq }, signal).then(toSearchHits) : Promise.resolve([])),
       [sq],
     ),
     [sq],
   );
 
+  // A pasted Google Maps link or "lat, lon" goes straight to that spot.
+  const pasted = parseLocation(q);
   const lq = q.trim().toLowerCase();
   const mine = useMemo(
     () => places.filter((p) => !lq || `${p.name} ${p.project}`.toLowerCase().includes(lq)),
@@ -166,11 +169,12 @@ export function PlacePicker({
                   onChange={(e) => setQ(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter') return;
+                    if (pasted) { onSpot({ name: 'Location from your link', lat: pasted.lat, lon: pasted.lon, zoom: 15 }); close(); return; }
                     const first = mine[0];
                     if (first) { onPlace(first.id); close(); }
                     else if (geo.data?.[0]) { const r = geo.data[0]; onSpot({ name: r.name, lat: r.lat, lon: r.lon, zoom: r.zoom }); close(); }
                   }}
-                  placeholder="Search a place or address"
+                  placeholder="Search a place, or paste a map link"
                   aria-label="Search a place"
                   style={{ flex: 1, minWidth: 0, height: 38, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 14px/1.4 var(--font)' }}
                 />
@@ -181,6 +185,12 @@ export function PlacePicker({
                     <Ms n="public" />
                     <span className="col grow"><span>No place</span><span className="tiny">General question, not tied to a place</span></span>
                     {!place && !spot && <Ms n="check" size={18} />}
+                  </button>
+                )}
+                {pasted && (
+                  <button className="menu-item" onClick={pick(() => onSpot({ name: 'Location from your link', lat: pasted.lat, lon: pasted.lon, zoom: 15 }))}>
+                    <Ms n="my_location" />
+                    <span className="col grow"><span>Location from your link</span><span className="tiny">{pasted.lat.toFixed(5)}, {pasted.lon.toFixed(5)}</span></span>
                   </button>
                 )}
                 {mine.length > 0 && <div className="menu-label eyebrow">My places</div>}
@@ -199,7 +209,7 @@ export function PlacePicker({
                   </button>
                 ))}
                 {sq.length >= 2 && geo.isFetching && !geo.data?.length && <div className="caption" style={{ padding: '8px 10px' }}>Searching…</div>}
-                {lq && !mine.length && !geo.isFetching && !geo.data?.length && <div className="caption" style={{ padding: '8px 10px' }}>No matches. Try coordinates instead.</div>}
+                {lq && !pasted && !mine.length && !geo.isFetching && !geo.data?.length && <div className="caption" style={{ padding: '8px 10px' }}>No matches. Try coordinates instead.</div>}
                 <div className="divider" style={{ margin: '6px 4px' }} />
                 <button className="menu-item" onClick={pick(() => open({ kind: 'addPlace' }))}><Ms n="add_location_alt" />{t('cta.addPlace')}</button>
                 {onDraw && <button className="menu-item" onClick={pick(onDraw)}><Ms n="polyline" />Draw an area</button>}
