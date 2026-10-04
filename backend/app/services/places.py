@@ -69,17 +69,25 @@ def _seed_marker(path: Path) -> Path:
 
 
 def _seed_once(path: Path, rows: list[dict]) -> list[dict]:
-    """Every user's first visit gets the demo place (Hoo Hok Wai), so the Places page is not
-    empty. A marker file records that it was offered: once deleted, it never comes back.
+    """Every user gets the example places once (Hoo Hok Wai plus a few from around the world),
+    so the Places page is never empty and each kind of question has somewhere to try it. The
+    marker file lists the ids already offered: a deleted example never comes back, and an
+    example added later is still offered once to existing users.
     Callers must hold `_lock(path)`."""
     marker = _seed_marker(path)
+    offered: set[str] = set()
     if marker.exists():
-        return rows
-    if not any(r.get("id") == DEMO_PLACE_ID for r in rows):
-        rows = [*rows, *_seed()]
+        # Older markers are empty files written when only the demo place existed.
+        offered = {line.strip() for line in marker.read_text().splitlines() if line.strip()}
+        offered = offered or {DEMO_PLACE_ID}
+    have = {r.get("id") for r in rows}
+    new = [r for r in _seed() if r["id"] not in offered and r["id"] not in have]
+    if new:
+        rows = [*rows, *new]
         _save(path, rows)
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.touch()
+    if new or not marker.exists():
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("\n".join(sorted(offered | {r["id"] for r in _seed()})) + "\n")
     return rows
 
 
@@ -140,10 +148,37 @@ def _dto(row: dict, user_id: str) -> PlaceDto:
     return PlaceDto(**row, details=details)
 
 
+# Example places offered to every user, beside the Hoo Hok Wai demo: one per kind of question.
+_HYDE_PARK = earth.Area.from_geojson(
+    {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [-0.1874, 51.5083],
+                [-0.1868, 51.5112],
+                [-0.1588, 51.5135],
+                [-0.1528, 51.5103],
+                [-0.1569, 51.5046],
+                [-0.1772, 51.5027],
+                [-0.1874, 51.5083],
+            ]
+        ],
+    },
+    name="Hyde Park",
+)
+_KAI_TAK = earth.Area.from_point(22.3236, 114.2004, radius_m=450, name="Kai Tak Sports Park")
+_NAROK = earth.Area.from_point(-1.0, 35.75, radius_m=500, name="Wheat fields, Narok")
+_EXAMPLES: list[tuple[str, earth.Area, str, list[str], bool]] = [
+    ("pl_example_hyde_park", _HYDE_PARK, "forests", ["Park", "Example"], False),
+    ("pl_example_kai_tak", _KAI_TAK, "urban", ["Building site", "Example"], True),
+    ("pl_example_narok", _NAROK, "agriculture", ["Farm", "Example"], True),
+]
+
+
 def _seed() -> list[dict]:
-    """The demo place: the Hoo Hok Wai preset."""
+    """The demo place (the Hoo Hok Wai preset) and the example places."""
     now = _now()
-    return [
+    rows = [
         {
             "id": DEMO_PLACE_ID,
             "name": "Hoo Hok Wai ponds",
@@ -159,6 +194,24 @@ def _seed() -> list[dict]:
             "updated_at": now,
         }
     ]
+    for pid, area, category, tags, circle in _EXAMPLES:
+        rows.append(
+            {
+                "id": pid,
+                "name": area.name,
+                "category_key": category,
+                "center": _center(area),
+                "geometry": area.geojson,
+                "area_ha": area.area_ha,
+                "is_circle": circle,
+                "project": "Examples",
+                "tags": tags,
+                "source": "search",
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
+    return rows
 
 
 def list_places(user_id: str) -> list[PlaceDto]:
@@ -244,8 +297,8 @@ def update_place(user_id: str, place_id: str, req: PatchPlaceRequest) -> PlaceDt
 
 
 def delete_place(user_id: str, place_id: str) -> bool:
-    """Removes the record and detaches its watches. Ids are never reused, so the orphaned
-    memory file is unreachable."""
+    """Removes the record and its memory file, and detaches its watches (they become general
+    ones, not deleted). Nothing of the place is left on disk."""
     if not ID_RE.fullmatch(place_id):
         return False
     path = _path(user_id)
@@ -256,4 +309,5 @@ def delete_place(user_id: str, place_id: str) -> bool:
             return False
         _save(path, kept)
     watches.detach_place(user_id, place_id)  # its watches become general ones, not deleted
+    memory.forget_place(user_id, place_id)
     return True

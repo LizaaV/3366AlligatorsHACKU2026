@@ -130,6 +130,14 @@ def _place_path(user_id: str, place_id: str) -> Path:
     return _data_dir() / "memory" / user_id / "places" / f"{place_id}.md"
 
 
+def forget_place(user_id: str, place_id: str) -> None:
+    """Delete a place's memory file (its profile, notes and saved insights), if any."""
+    try:
+        _place_path(user_id, place_id).unlink(missing_ok=True)
+    except (OSError, ValueError):
+        pass  # a bad id or an unreadable folder: there is nothing of ours to remove
+
+
 def _place_header(place_id: str) -> str:
     return f"# {place_id} ({place_id})"
 
