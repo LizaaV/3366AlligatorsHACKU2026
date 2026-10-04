@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from app.schemas.projects import ThreadProjectUpdate
 from app.schemas.runs import ID_PATTERN
@@ -69,3 +69,19 @@ async def patch_thread(
     if summary is None:
         raise HTTPException(status_code=404, detail="Thread not found.")
     return summary
+
+
+@router.delete(
+    "/threads/{thread_id}",
+    status_code=204,
+    summary="Delete a conversation",
+    responses={400: {"description": "Invalid thread id."}, 404: {"description": "Not found."}},
+)
+async def delete_thread(thread_id: str, user_id: str = Depends(current_user)) -> Response:
+    """Remove the conversation from the user's chats and its project, for good. Share links
+    already sent keep working, and its runs still count towards the daily spend limit."""
+    if not _ID_RE.fullmatch(thread_id):
+        raise HTTPException(status_code=400, detail=f"Invalid thread id: use {ID_PATTERN}.")
+    if not await asyncio.to_thread(threads.delete_thread, user_id, thread_id):
+        raise HTTPException(status_code=404, detail="Thread not found.")
+    return Response(status_code=204)

@@ -106,6 +106,32 @@ def test_threads_are_private_and_ids_checked(client: TestClient) -> None:
     assert client.get("/api/threads?limit=0", headers={"X-User-Id": USER}).status_code == 422
 
 
+def test_delete_a_conversation(client: TestClient) -> None:
+    from app.services import projects as project_store
+
+    me = {"X-User-Id": USER}
+    thread_id = _first_run(client)["thread_id"]
+    project = project_store.create_project(USER, "Ponds")
+    project_store.assign_thread(USER, thread_id, project.id)
+
+    # Someone else cannot delete it; bad and unknown ids are refused.
+    assert client.delete(f"/api/threads/{thread_id}", headers={"X-User-Id": "x"}).status_code == 404
+    assert client.delete("/api/threads/BAD..ID", headers=me).status_code == 400
+    assert client.delete("/api/threads/t_missing", headers=me).status_code == 404
+
+    assert client.delete(f"/api/threads/{thread_id}", headers=me).status_code == 204
+    assert client.get("/api/threads", headers=me).json() == []  # gone from the list
+    assert client.get(f"/api/threads/{thread_id}", headers=me).status_code == 404  # and reload
+    assert project_store.project_ids_by_thread(USER) == {}  # and its project
+    assert (
+        client.patch(
+            f"/api/threads/{thread_id}", json={"project_id": project.id}, headers=me
+        ).status_code
+        == 404
+    )  # cannot be filed again
+    assert client.delete(f"/api/threads/{thread_id}", headers=me).status_code == 404  # once only
+
+
 # --- Follow-ups reuse the earlier run ------------------------------------------------------------
 
 

@@ -796,7 +796,12 @@ export interface paths {
         get: operations["get_thread_api_threads__thread_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a conversation
+         * @description Remove the conversation from the user's chats and its project, for good. Share links
+         *     already sent keep working, and its runs still count towards the daily spend limit.
+         */
+        delete: operations["delete_thread_api_threads__thread_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -5912,6 +5917,52 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ThreadDetail"];
                 };
+            };
+            /** @description Invalid thread id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_thread_api_threads__thread_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Invalid thread id. */
             400: {
