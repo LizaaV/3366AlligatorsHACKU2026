@@ -79,8 +79,10 @@ CAUSE_MAX = 300
 TODO_MAX = 300
 #: Same cap as `agent.answer.MAX_STATS` (more would be dropped from the answer).
 STATS_MAX = 4
-STAT_LABEL_MAX = 40
-STAT_VALUE_MAX = 40
+#: Stat labels and values longer than these are cut at a word (never rejected: a rejected draft
+#: costs a whole model turn).
+STAT_LABEL_MAX = 60
+STAT_VALUE_MAX = 60
 CAVEATS_MAX = 6
 CAVEAT_MAX = 300
 FOLLOWUPS_MAX = 3
@@ -92,12 +94,31 @@ MAX_NUMBER_PROBLEMS = 8
 #: numbers come only from the quotable card fields (`card_numbers`), not the whole card view.
 DATA_TOOLS = frozenset({"run_code", "run_skill"})
 
+#: Standard sensor facts the model may state without a tool result: pixel sizes in metres
+#: (Sentinel-2 10/20/60, Landsat 30 and thermal 100, VIIRS 375) and revisit times in days
+#: (Sentinel-2 5, Landsat 8 combined / 16 single, Sentinel-1 6/12).
+SENSOR_FACTS: tuple[float, ...] = (5, 6, 8, 10, 12, 16, 20, 30, 60, 100, 375)
+
 
 #: A literal JSON escape left in model text ("\\u2192" for an arrow): seen on Claude's
 #: re-drafts after a rejected `finish`. Decoded to the character it names.
 _LITERAL_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
 #: Line breaks, tabs and other control characters: every answer text is one plain line.
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+#: Line breaks and arrows in a stat: normalised to one plain line instead of rejected.
+_LINE_BREAK_RE = re.compile(r"\s*[\r\n\t\v\f]+\s*")
+_ARROW_RE = re.compile(r"\s*(?:→|->|⟶|➔|=>)\s*")
+
+
+def _cut_words(text: str, limit: int) -> str:
+    """`text` cut to at most `limit` characters, at a word boundary when there is one."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    space = cut.rfind(" ")
+    return (cut[:space] if space > limit // 2 else cut).rstrip(" ,;:-")
 
 
 def _unescape(text: str) -> str:
@@ -123,6 +144,18 @@ class StatArg(BaseModel):
     @classmethod
     def _decode(cls, v: str) -> str:
         return _unescape(v)
+
+    @field_validator("label")
+    @classmethod
+    def _tidy_label(cls, v: str) -> str:
+        return _cut_words(" ".join(_LINE_BREAK_RE.sub(" ", v).split()), STAT_LABEL_MAX)
+
+    @field_validator("value")
+    @classmethod
+    def _tidy_value(cls, v: str) -> str:
+        """One plain line: a line break or arrow between two values reads as 'to'."""
+        v = _ARROW_RE.sub(" to ", _LINE_BREAK_RE.sub(" to ", v))
+        return _cut_words(" ".join(v.split()), STAT_VALUE_MAX)
 
 
 class FinishArgs(BaseModel):
@@ -427,7 +460,7 @@ def number_sources(
     facts, the quotable numbers of the cards in play (read or registered, `card_numbers`),
     the guard rule's policy note, script results, scoring, `extra_sources`
     (e.g. full blocks, earth call summaries). Never the model's own text or the question."""
-    out: list[float] = []
+    out: list[float] = list(SENSOR_FACTS)
     parts = (state.findings, state.evidence, state.notes, state.place, data_results(state))
     for part in (*parts, state.carried_results):
         _collect(part, out)

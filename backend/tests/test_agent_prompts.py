@@ -342,3 +342,16 @@ def test_card_text_is_the_full_card(kb: KnowledgeBase) -> None:
 
 def test_module_exports() -> None:
     assert set(prompts.__all__) >= {"build_system", "build_first_message", "earth_reference"}
+
+
+def test_core_rules_ask_for_plain_sentences_few_caveats_and_descriptions() -> None:
+    """Live runs: raw index values in the sentence, six caveats, describe questions answered
+    as 'cause unknown'."""
+    rules = prompts.core_rules()
+    flat0 = " ".join(rules.split())
+    assert "at most 2 sentences" in flat0 and "89% of the area is built-up" in flat0
+    assert "indices to 2 decimals" in flat0 and 'never "0.886 of it"' in flat0
+    assert "At most \n3 caveats" in rules or "At most 3 caveats" in " ".join(rules.split())
+    flat = " ".join(rules.split())
+    assert "# Describing a place" in rules
+    assert "do NOT add a caveat that the cause is unknown" in flat

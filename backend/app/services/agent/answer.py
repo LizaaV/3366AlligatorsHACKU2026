@@ -76,7 +76,7 @@ CATEGORY_COLORS: dict[str, str] = {
 }
 DEFAULT_COLOR = "#3b82f6"
 
-MAX_CAVEATS = 6
+MAX_CAVEATS = 4
 MAX_FOLLOWUPS = 3
 MAX_STATS = 4
 MAX_PROOF = 8
@@ -376,24 +376,78 @@ def _stats(stats: Iterable[FinishStat]) -> list[StatItem]:
     return [s for s in out if s.l and s.v][:MAX_STATS]
 
 
-def _measure_only_confidence(state: AgentState, score: ScoreResult | None) -> Confidence:
-    """Confidence of a measure-only answer: never above code scoring's own confidence (Low
-    when no cause fits or two causes tie), and Low when no data or no reading came back."""
+#: A pass counts as clear when at most this share of the area is cloud.
+CLEAR_CLOUD = 0.2
+_MEASURE_PCT: dict[str, int] = {"High": 80, "Medium": 60, "Low": 35}
+_LEVEL_ORDER = ("Low", "Medium", "High")
+
+
+def _clear_passes(
+    provenance: Sequence[earth.Provenance],
+) -> tuple[int, int, int, str, list[float]]:
+    """(clear passes, cloudy passes, passes in clear series summaries, main satellite, cloud
+    share of each clear pass)."""
+    clear: dict[str, float] = {}
+    cloudy: set[str] = set()
+    series = 0
+    for p in provenance:
+        scene = p.scene.strip()
+        if not scene:
+            continue
+        if _SUMMARY_SCENE.match(scene):
+            if p.cloud_over_area <= CLEAR_CLOUD:
+                series = max(series, int(scene.split()[0]))
+            continue
+        if p.cloud_over_area <= CLEAR_CLOUD:
+            clear[scene] = max(clear.get(scene, 0.0), p.cloud_over_area)
+        else:
+            cloudy.add(scene)
+    cloudy -= set(clear)
+    families = Counter(_family(p.satellite) for p in provenance if p.satellite.strip())
+    sat = families.most_common(1)[0][0] if families else "satellite"
+    return len(clear), len(cloudy), series, sat, list(clear.values())
+
+
+def _cloud_range(clouds: Sequence[float]) -> str:
+    lo, hi = (round(100 * min(clouds)), round(100 * max(clouds)))
+    return f"{lo}% cloud" if lo == hi else f"{lo} to {hi}% cloud"
+
+
+def _measure_only_confidence(
+    state: AgentState,
+    score: ScoreResult | None,
+    provenance: Sequence[earth.Provenance] = (),
+) -> Confidence:
+    """Confidence of a measure-only answer: how solid the measurements are, not a cause.
+
+    High with at least three clear passes (or a clear series), Medium with one or two, Low
+    with none; one level down when cloudy passes outnumber clear ones and for each data
+    quality warning (few clear pixels, a single image, a small area)."""
     if not state.data_read:
         return Confidence(level="Low", pct=20, note="No satellite data was read for this answer.")
     if not observed_readings(state.findings) and not state.evidence:
         return Confidence(level="Low", pct=20, note="No measurement finished in this run.")
-    note = "These are measurements only; no cause is named."
-    if score is None:
-        return Confidence(level="Low", pct=30, note=note)
-    if score.cannot_distinguish is not None:
-        return score.confidence.model_copy(update={"note": f"{note} {score.confidence.note}"})
-    quality = score.quality[:1]
-    return Confidence(
-        level=score.confidence.level,
-        pct=score.confidence.pct,
-        note=" ".join([note, *quality]),
-    )
+    clear, cloudy, series, sat, clouds = _clear_passes(provenance)
+    passes = max(clear, series)
+    idx = 2 if passes >= 3 else (1 if passes >= 1 else 0)
+    if cloudy > clear and not series:
+        idx -= 1
+    quality = list(score.quality) if score is not None else []
+    idx = max(0, idx - len(quality))
+    level = _LEVEL_ORDER[idx]
+    if series and series > clear:
+        measured = f"Measured on a series of {series} {sat} passes"
+    elif clear:
+        measured = (
+            f"Measured on {clear} clear {sat} pass{'es' if clear != 1 else ''} "
+            f"({_cloud_range(clouds)})"
+        )
+    else:
+        measured = "Measured without a clear pass"
+    if cloudy:
+        measured += f", plus {cloudy} cloudy pass{'es' if cloudy != 1 else ''}"
+    note = " ".join([f"{measured}; no cause is named.", *quality[:1]])
+    return Confidence(level=level, pct=_MEASURE_PCT[level], note=note)
 
 
 def _cause_card(f: FinishArgs, score: ScoreResult, kb: KnowledgeBase) -> EventCard | None:
@@ -450,6 +504,10 @@ def _tie_caveat(score: ScoreResult, kb: KnowledgeBase) -> str | None:
     return f"{text} What would settle it: {plain_words(score.settle, kb)}"
 
 
+#: A caveat that already says no cause is named (the code then adds no second one).
+_NAMES_NO_CAUSE = re.compile(r"\bcauses?\b|\bno (?:knowledge )?card\b", re.IGNORECASE)
+
+
 def _unknown_cause_caveat(score: ScoreResult) -> str:
     """Why no cause is named, in the words that match the scoring."""
     supported = sum(c.verdict == "supported" for c in score.cards)
@@ -484,11 +542,19 @@ def build_answer(
     method = build_method(state, kb, record, model=state.model or record.model)
 
     system = [_tie_caveat(score, kb)]
-    if card is None and state.data_read and score.cannot_distinguish is None:
+    # Why no cause is named: only when the model tried to name one (not for a deliberate
+    # measure-only answer or a description) and its own caveats do not already say so.
+    if (
+        card is None
+        and state.data_read
+        and score.cannot_distinguish is None
+        and not f.measure_only
+        and not any(_NAMES_NO_CAUSE.search(c) for c in f.caveats)
+    ):
         system.append(_unknown_cause_caveat(score))
     card_lines = list(card.cannot_tell) if card else []
-    # Model caveats first, but the card's own limits always get a place among the six.
-    caveats = [*f.caveats[:4], *system, *card_lines[:2], *f.caveats[4:], *card_lines[2:]]
+    # Model caveats first, but the card's own limits always get a place among the four.
+    caveats = [*f.caveats[:2], *system, *card_lines[:1], *f.caveats[2:], *card_lines[1:]]
     sentence = _clean(f.sentence)
     title = _clean(f.title) or sentence or "What the satellite data shows"
     place = _has_place(state, record)
@@ -501,7 +567,9 @@ def build_answer(
         cause=_cause_text(f, card) if card else None,
         todo=_clean(f.todo) or None,
         stats=_stats(f.stats),
-        confidence=score.confidence if card else _measure_only_confidence(state, score),
+        confidence=(
+            score.confidence if card else _measure_only_confidence(state, score, provenance)
+        ),
         caveats=_dedupe(caveats, MAX_CAVEATS),
         route=route_from(provenance),
         proof=proof,
