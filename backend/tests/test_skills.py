@@ -129,7 +129,8 @@ def test_run_py_passes_the_sandbox_scan(pond: Skill) -> None:
 
 def test_skills_index_text_is_compact_and_stable(pond: Skill) -> None:
     text = skills_index_text([pond])
-    assert text == skills_index_text()  # one skill on disk today
+    # The full index has one line per skill on disk; the pond skill's line is among them.
+    assert text in skills_index_text()
     assert text.startswith(f"- {POND} (Pond filling check) [draft v1]: ")
     assert "years (int, default 4, 3..5)" in text
     assert "before (date YYYY-MM-DD, default null)" in text

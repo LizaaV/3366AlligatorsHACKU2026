@@ -151,7 +151,11 @@ def test_listing_follows_the_registry(
     registry.clear_cache()
     try:
         ids = [s["id"] for s in client.get("/api/skills").json()]
-        assert ids == ["extra-skill", "pond-filling-check"]
+        # Every skill on disk is listed, the new one included, in the registry's order.
+        on_disk = sorted(
+            d.name for d in registry.SKILLS_DIR.iterdir() if (d / "SKILL.md").is_file()
+        )
+        assert sorted(ids) == on_disk and "extra-skill" in ids
         extra = client.get("/api/skills/extra-skill").json()
         assert extra["name"] == "Extra skill" and extra["status"] == "available"
     finally:

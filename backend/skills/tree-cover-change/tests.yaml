@@ -1,0 +1,54 @@
+# Test cases for the tree-cover-change skill.
+# kind: preset  runs offline under EARTH_IMPL=stub (tests/test_skill_library.py); same format as
+#               pond-filling-check/tests.yaml. The stub tells the Hoo Hok Wai story (ponds filled
+#               since 2025: greenness falls, bare ground rises, inside ~5 C warmer than the ring).
+# expect.findings / expect.observed: dotted path -> value or {lt|le|gt|ge|not: value}.
+version: 1
+skill: tree-cover-change
+cases:
+  - id: hoo_hok_wai_preset
+    kind: preset
+    note: "Default 2022 vs now: green cover lost locally on most of the area (not dense trees before)."
+    earth_impl: stub
+    area: HOO_HOK_WAI
+    params: {}
+    expect:
+      ok: true
+      findings:
+        before: "2022-09-30"
+        verdict: green cover lost
+        tree_cover_before: false
+        lost_ha: {gt: 5}
+      observed:
+        greenness.delta: {lt: -0.2}
+        greenness.local: true
+        moisture.delta: {lt: -0.15}
+        bare.value: {gt: 0}
+      blocks: [then_now, highlight, stat]
+      primary: then_now
+
+  - id: hoo_hok_wai_before_filling
+    kind: preset
+    note: "Two dates before the filling started: no clear loss."
+    earth_impl: stub
+    area: HOO_HOK_WAI
+    params: {before: "2023-06-15", after: "2024-06-15"}
+    expect:
+      ok: true
+      findings:
+        verdict: no clear loss
+        lost_ha: {lt: 5}
+      blocks: [then_now, highlight, stat]
+
+  - id: tiny_area_limits
+    kind: preset
+    note: "A 15 m circle is under the 10 m pixel floor: one limits block."
+    earth_impl: stub
+    area: {lat: 22.534, lon: 114.09, radius_m: 15}
+    params: {}
+    expect:
+      ok: true
+      findings:
+        limited: true
+        reason: area_too_small
+      blocks: [limits]

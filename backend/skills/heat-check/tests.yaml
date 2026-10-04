@@ -1,0 +1,38 @@
+# Test cases for the heat-check skill.
+# kind: preset  runs offline under EARTH_IMPL=stub (tests/test_skill_library.py); same format as
+#               pond-filling-check/tests.yaml. The stub tells the Hoo Hok Wai story (ponds filled
+#               since 2025: greenness falls, bare ground rises, inside ~5 C warmer than the ring).
+# expect.findings / expect.observed: dotted path -> value or {lt|le|gt|ge|not: value}.
+version: 1
+skill: heat-check
+cases:
+  - id: hoo_hok_wai_preset
+    kind: preset
+    note: "Filled ponds: several degrees warmer than the ring in every recent pass."
+    earth_impl: stub
+    area: HOO_HOK_WAI
+    params: {}
+    expect:
+      ok: true
+      findings:
+        verdict: hotter than the surroundings
+        gap_c: {gt: 2}
+        passes: 6
+        warmer_passes: 6
+      observed:
+        heat.value: {gt: 35}
+      blocks: [stat, timeline]
+      primary: stat
+
+  - id: tiny_area_limits
+    kind: preset
+    note: "A 15 m circle is under the 10 m pixel floor: one limits block."
+    earth_impl: stub
+    area: {lat: 22.534, lon: 114.09, radius_m: 15}
+    params: {}
+    expect:
+      ok: true
+      findings:
+        limited: true
+        reason: area_too_small
+      blocks: [limits]
