@@ -322,3 +322,17 @@ def test_delete_removes_the_record_and_its_memory_file(client: TestClient, tmp_p
     assert not memo.exists()  # nothing of the place is left on disk
     places_file = next(tmp_path.rglob("u_cleanup.json"))
     assert pid not in places_file.read_text()
+
+
+def test_an_example_is_skipped_when_the_user_has_a_place_of_that_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    c = TestClient(app)
+    a = {"X-User-Id": "u_mine"}
+    with monkeypatch.context() as m:  # before the examples existed, they drew their own
+        m.setattr(places_svc, "_EXAMPLES", [])
+        c.post("/api/places", json={"name": "hyde park", "geometry": SQUARE}, headers=a)
+    names = [p["name"].lower() for p in c.get("/api/places", headers=a).json()]
+    assert names.count("hyde park") == 1
+    assert "kai tak sports park" in names and "wheat fields, narok" in names

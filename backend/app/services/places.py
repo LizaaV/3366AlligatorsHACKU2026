@@ -72,7 +72,8 @@ def _seed_once(path: Path, rows: list[dict]) -> list[dict]:
     """Every user gets the example places once (Hoo Hok Wai plus a few from around the world),
     so the Places page is never empty and each kind of question has somewhere to try it. The
     marker file lists the ids already offered: a deleted example never comes back, and an
-    example added later is still offered once to existing users.
+    example added later is still offered once to existing users. An example is skipped when
+    the user already has a place of that name (their own Hyde Park, say), so none is doubled.
     Callers must hold `_lock(path)`."""
     marker = _seed_marker(path)
     offered: set[str] = set()
@@ -81,7 +82,12 @@ def _seed_once(path: Path, rows: list[dict]) -> list[dict]:
         offered = {line.strip() for line in marker.read_text().splitlines() if line.strip()}
         offered = offered or {DEMO_PLACE_ID}
     have = {r.get("id") for r in rows}
-    new = [r for r in _seed() if r["id"] not in offered and r["id"] not in have]
+    names = {str(r.get("name", "")).strip().casefold() for r in rows}
+    new = [
+        r
+        for r in _seed()
+        if r["id"] not in offered and r["id"] not in have and r["name"].casefold() not in names
+    ]
     if new:
         rows = [*rows, *new]
         _save(path, rows)
