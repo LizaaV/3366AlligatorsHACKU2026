@@ -748,7 +748,7 @@ export interface paths {
         };
         /**
          * Recent clear passes over a place or spot
-         * @description The latest clear Sentinel-2 passes over the place (or the square around the pin).
+         * @description Clear Sentinel-2 passes over the place (or the square around the pin) in the period.
          */
         get: operations["view_passes_api_views_passes_get"];
         put?: never;
@@ -775,6 +775,28 @@ export interface paths {
         get: operations["view_image_api_views_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/prefetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Render every band of every pass ahead of time
+         * @description Queue rendering of photo, greenness, water and bare ground for every clear pass in the
+         *     period, so flicking through dates is instant. Runs in the background; a place's recent
+         *     window is already queued when it is saved.
+         */
+        post: operations["view_prefetch_api_views_prefetch_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2170,6 +2192,27 @@ export interface components {
              * @default 400
              */
             radius_m: number;
+        };
+        /**
+         * PrefetchResult
+         * @description What a prefetch will render in the background.
+         */
+        PrefetchResult: {
+            /**
+             * Passes
+             * @description Clear passes in the period.
+             */
+            passes: number;
+            /**
+             * Images
+             * @description Images that will be cached: passes times bands.
+             */
+            images: number;
+            /**
+             * Queued
+             * @description False when the same prefetch is already running.
+             */
+            queued: boolean;
         };
         /** Prefill */
         Prefill: {
@@ -5489,6 +5532,8 @@ export interface operations {
     view_passes_api_views_passes_get: {
         parameters: {
             query?: {
+                /** @description How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month). */
+                period?: "4m" | "1y" | "2y" | "5y";
                 lat?: number | null;
                 lon?: number | null;
                 /** @description A saved place: its outline. */
@@ -5542,6 +5587,8 @@ export interface operations {
             query: {
                 band: "photo" | "greenness" | "water" | "bare";
                 scene?: string | null;
+                /** @description How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month). */
+                period?: "4m" | "1y" | "2y" | "5y";
                 lat?: number | null;
                 lon?: number | null;
                 /** @description A saved place: its outline. */
@@ -5563,6 +5610,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ViewImage"];
+                };
+            };
+            /** @description Give either `place_id`, or both `lat` and `lon`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown place, or no imagery here (offline data or no clear pass). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    view_prefetch_api_views_prefetch_post: {
+        parameters: {
+            query?: {
+                /** @description How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month). */
+                period?: "4m" | "1y" | "2y" | "5y";
+                lat?: number | null;
+                lon?: number | null;
+                /** @description A saved place: its outline. */
+                place_id?: string | null;
+            };
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrefetchResult"];
                 };
             };
             /** @description Give either `place_id`, or both `lat` and `lon`. */

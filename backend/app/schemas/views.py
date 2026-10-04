@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Band = Literal["photo", "greenness", "water", "bare"]
+Period = Literal["4m", "1y", "2y", "5y"]
 
 
 class ViewPass(BaseModel):
@@ -29,3 +30,11 @@ class ViewImage(BaseModel):
     date: date
     satellite: str
     cloud: int
+
+
+class PrefetchResult(BaseModel):
+    """What a prefetch will render in the background."""
+
+    passes: int = Field(description="Clear passes in the period.")
+    images: int = Field(description="Images that will be cached: passes times bands.")
+    queued: bool = Field(description="False when the same prefetch is already running.")

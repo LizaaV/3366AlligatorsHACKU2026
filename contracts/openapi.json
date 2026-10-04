@@ -3067,9 +3067,27 @@
           "views"
         ],
         "summary": "Recent clear passes over a place or spot",
-        "description": "The latest clear Sentinel-2 passes over the place (or the square around the pin).",
+        "description": "Clear Sentinel-2 passes over the place (or the square around the pin) in the period.",
         "operationId": "view_passes_api_views_passes_get",
         "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "4m",
+                "1y",
+                "2y",
+                "5y"
+              ],
+              "type": "string",
+              "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month).",
+              "default": "4m",
+              "title": "Period"
+            },
+            "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month)."
+          },
           {
             "name": "lat",
             "in": "query",
@@ -3220,6 +3238,24 @@
             }
           },
           {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "4m",
+                "1y",
+                "2y",
+                "5y"
+              ],
+              "type": "string",
+              "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month).",
+              "default": "4m",
+              "title": "Period"
+            },
+            "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month)."
+          },
+          {
             "name": "lat",
             "in": "query",
             "required": false,
@@ -3300,6 +3336,137 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ViewImage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Give either `place_id`, or both `lat` and `lon`."
+          },
+          "404": {
+            "description": "Unknown place, or no imagery here (offline data or no clear pass)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/views/prefetch": {
+      "post": {
+        "tags": [
+          "views"
+        ],
+        "summary": "Render every band of every pass ahead of time",
+        "description": "Queue rendering of photo, greenness, water and bare ground for every clear pass in the\nperiod, so flicking through dates is instant. Runs in the background; a place's recent\nwindow is already queued when it is saved.",
+        "operationId": "view_prefetch_api_views_prefetch_post",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "4m",
+                "1y",
+                "2y",
+                "5y"
+              ],
+              "type": "string",
+              "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month).",
+              "default": "4m",
+              "title": "Period"
+            },
+            "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month)."
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 85,
+                  "minimum": -85
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 180,
+                  "minimum": -180
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "place_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A saved place: its outline.",
+              "title": "Place Id"
+            },
+            "description": "A saved place: its outline."
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrefetchResult"
                 }
               }
             }
@@ -6424,6 +6591,33 @@
         ],
         "title": "PointInput",
         "description": "A point plus a radius; the area is the circle around it."
+      },
+      "PrefetchResult": {
+        "properties": {
+          "passes": {
+            "type": "integer",
+            "title": "Passes",
+            "description": "Clear passes in the period."
+          },
+          "images": {
+            "type": "integer",
+            "title": "Images",
+            "description": "Images that will be cached: passes times bands."
+          },
+          "queued": {
+            "type": "boolean",
+            "title": "Queued",
+            "description": "False when the same prefetch is already running."
+          }
+        },
+        "type": "object",
+        "required": [
+          "passes",
+          "images",
+          "queued"
+        ],
+        "title": "PrefetchResult",
+        "description": "What a prefetch will render in the background."
       },
       "Prefill": {
         "properties": {

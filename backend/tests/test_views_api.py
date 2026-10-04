@@ -122,3 +122,76 @@ def test_place_target_errors(client: TestClient) -> None:
     assert both.status_code == 400
     neither = client.get("/api/views", params={"band": "photo"}, headers=USER)
     assert neither.status_code == 400
+
+
+@pytest.mark.parametrize("period", ["1y", "5y"])
+def test_long_periods_keep_one_clear_pass_per_month(client: TestClient, period: str) -> None:
+    res = client.get("/api/views/passes", params={**HHW, "period": period})
+    assert res.status_code == 200, res.text
+    months = [p["date"][:7] for p in res.json()]
+    assert len(months) == len(set(months)) > 8
+    assert months == sorted(months, reverse=True)
+
+
+def test_an_old_pass_renders_with_its_period(client: TestClient) -> None:
+    oldest = client.get("/api/views/passes", params={**HHW, "period": "2y"}).json()[-1]
+    res = client.get("/api/views", params={**HHW, "band": "greenness", "scene": oldest["scene"]})
+    assert res.status_code == 404  # not one of the recent passes
+    res = client.get(
+        "/api/views",
+        params={**HHW, "band": "greenness", "scene": oldest["scene"], "period": "2y"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["date"] == oldest["date"]
+
+
+def test_unknown_period_is_a_422(client: TestClient) -> None:
+    assert client.get("/api/views/passes", params={**HHW, "period": "10y"}).status_code == 422
+
+
+def test_prefetch_caches_every_band_of_every_pass(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queued: list[tuple[views.Target, str]] = []
+    monkeypatch.setattr(views, "prefetch", lambda t, p="4m": queued.append((t, p)) or True)
+    res = client.post("/api/views/prefetch", params=HHW)
+    assert res.status_code == 202, res.text
+    body = res.json()
+    assert body["queued"] and body["images"] == body["passes"] * 4
+    # Run the queued job inline: afterwards no band of any pass needs rendering again.
+    target, period = queued[0]
+    assert views.prefetch_now(target, period) == body["images"]
+
+    def boom(*_args: object) -> None:
+        raise AssertionError("rendered twice")
+
+    monkeypatch.setattr(views, "_render", boom)
+    for p in client.get("/api/views/passes", params=HHW).json():
+        for band in views.BANDS:
+            got = client.get("/api/views", params={**HHW, "band": band, "scene": p["scene"]})
+            assert got.status_code == 200, got.text
+
+
+def test_saving_a_place_queues_its_views_with_real_imagery(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    queued: list[views.Target] = []
+    monkeypatch.setattr(views, "impl", lambda: "real")
+    monkeypatch.setattr(views, "prefetch", lambda t, p="4m": queued.append(t) or True)
+    ring = [
+        [114.09, 22.533],
+        [114.092, 22.533],
+        [114.092, 22.535],
+        [114.09, 22.535],
+        [114.09, 22.533],
+    ]
+    res = client.post(
+        "/api/places",
+        json={
+            "name": "Pond",
+            "category_key": "water",
+            "geometry": {"type": "Polygon", "coordinates": [ring]},
+        },
+    )
+    assert res.status_code == 201, res.text
+    assert [t.key.split(":")[1] for t in queued] == [res.json()["id"]]

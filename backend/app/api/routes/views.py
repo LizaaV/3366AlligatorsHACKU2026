@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.schemas.views import Band, ViewImage, ViewPass
+from app.schemas.views import Band, Period, PrefetchResult, ViewImage, ViewPass
 from app.services import places, views
 from app.services.user import current_user
 
@@ -40,6 +40,13 @@ def _target(
 
 
 ViewTarget = Annotated[views.Target, Depends(_target)]
+PeriodQ = Annotated[
+    Period,
+    Query(
+        description="How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` "
+        "(the clearest pass of each month)."
+    ),
+]
 
 
 def _unavailable(exc: views.ViewUnavailable) -> HTTPException:
@@ -52,10 +59,10 @@ def _unavailable(exc: views.ViewUnavailable) -> HTTPException:
     summary="Recent clear passes over a place or spot",
     responses=_ERRORS,
 )
-def view_passes(target: ViewTarget) -> list[ViewPass]:
-    """The latest clear Sentinel-2 passes over the place (or the square around the pin)."""
+def view_passes(target: ViewTarget, period: PeriodQ = "4m") -> list[ViewPass]:
+    """Clear Sentinel-2 passes over the place (or the square around the pin) in the period."""
     try:
-        found = views.recent_scenes(target)
+        found = views.recent_scenes(target, period)
     except views.ViewUnavailable as exc:
         raise _unavailable(exc) from exc
     return [
@@ -76,11 +83,31 @@ def view_image(
     band: Band,
     target: ViewTarget,
     scene: str | None = Query(None, max_length=80),
+    period: PeriodQ = "4m",
 ) -> ViewImage:
     """One band (photo, greenness, water, bare) from the given pass or the latest clear one.
     A place is drawn inside its own outline (transparent outside); a pin gets a 2 km square.
     Rendered once, then cached. No agent, no cost."""
     try:
-        return ViewImage(**views.render_view(target, band, scene))
+        return ViewImage(**views.render_view(target, band, scene, period))
     except views.ViewUnavailable as exc:
         raise _unavailable(exc) from exc
+
+
+@router.post(
+    "/views/prefetch",
+    response_model=PrefetchResult,
+    status_code=202,
+    summary="Render every band of every pass ahead of time",
+    responses=_ERRORS,
+)
+def view_prefetch(target: ViewTarget, period: PeriodQ = "4m") -> PrefetchResult:
+    """Queue rendering of photo, greenness, water and bare ground for every clear pass in the
+    period, so flicking through dates is instant. Runs in the background; a place's recent
+    window is already queued when it is saved."""
+    try:
+        passes = len(views.recent_scenes(target, period))
+    except views.ViewUnavailable as exc:
+        raise _unavailable(exc) from exc
+    queued = views.prefetch(target, period)
+    return PrefetchResult(passes=passes, images=passes * len(views.BANDS), queued=queued)
