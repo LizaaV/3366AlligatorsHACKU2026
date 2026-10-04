@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type ThreadSummary } from '../../api';
 import { useResource } from '../../hooks/useResource';
+import { QuestionText, type SkillName } from '../../ask/QuestionText';
 import { Ms } from '../ui';
 import { useChatFolders } from './useChatFolders';
 
@@ -26,6 +27,7 @@ export function ChatSidebar({
   onClose,
   onNew,
   onOpen,
+  skills = [],
 }: {
   open: boolean;
   mobile: boolean;
@@ -38,6 +40,8 @@ export function ChatSidebar({
   refreshKey: unknown;
   onClose: () => void;
   onNew: () => void;
+  /** To show skill runs as their command, "/greenness-check on Hyde Park". */
+  skills?: SkillName[];
   onOpen: (threadId: string) => void;
 }) {
   const threads = useResource(useCallback((signal) => api.threads.list(signal, 50), []), [refreshKey]);
@@ -107,7 +111,7 @@ export function ChatSidebar({
           style={{ background: on ? 'var(--glass-fill-hover)' : undefined, padding: '7px 8px', gap: 8, minWidth: 0 }}
           title={t.title}
         >
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', font: '500 13px/1.4 var(--font)' }}>{t.title}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', font: '500 13px/1.4 var(--font)' }}><QuestionText text={t.title} skills={skills} /></span>
         </button>
         <button
           aria-label={`Options for ${t.title}`}

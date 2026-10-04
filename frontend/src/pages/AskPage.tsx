@@ -20,6 +20,7 @@ import { AnswerBlocks } from '../components/blocks';
 import { ArtifactChips, ArtifactsPanel, ArtifactsPill, MIN_PANEL_W, artifactsOf, usePanelWidth, type Artifact } from '../components/artifacts/ArtifactsPanel';
 import { Splash } from '../components/Splash';
 import { Composer } from '../components/chat/Composer';
+import { QuestionText } from '../ask/QuestionText';
 import { ChatSidebar } from '../components/chat/ChatSidebar';
 import { PlacePicker } from '../components/chat/PlacePicker';
 import { turnsFromThread } from '../components/chat/threadTurns';
@@ -975,6 +976,7 @@ export function AskPage({ active }: { active: boolean }) {
                     onClose={closeChats}
                     onNew={newChat}
                     onOpen={(id) => void openThread(id)}
+                    skills={skills}
                   />
                   <PlacePicker
                     placeId={askPlaceId}
@@ -1432,22 +1434,6 @@ function TurnView({
         />
       )}
     </div>
-  );
-}
-
-/* ---------------- the question as asked ---------------- */
-
-/** A skill run is sent as a plain sentence, `Run “Greenness check” on Hyde Park` (the guard
- * reads it as a normal question), and shown as its command: "/greenness-check" in blue, then
- * "on Hyde Park". Anything else is shown as typed. Old chats restored from the server match too. */
-function QuestionText({ text, skills }: { text: string; skills: { id: string; name: string }[] }) {
-  const m = /^Run \u201c(.+?)\u201d on (.+)$/.exec(text);
-  const skill = m && skills.find((s) => s.name === m[1]);
-  if (!m || !skill) return <>{text}</>;
-  return (
-    <>
-      <span style={{ color: 'var(--blue-hover)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 }}>/{skill.id}</span> on {m[2]}
-    </>
   );
 }
 
