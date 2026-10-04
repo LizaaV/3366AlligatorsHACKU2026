@@ -154,13 +154,15 @@ def test_prefetch_caches_every_band_of_every_pass(
 ) -> None:
     queued: list[tuple[views.Target, str]] = []
     monkeypatch.setattr(views, "prefetch", lambda t, p="4m": queued.append((t, p)) or True)
+    # Nothing scanned yet: it answers at once, with the counts unknown.
     res = client.post("/api/views/prefetch", params=HHW)
     assert res.status_code == 202, res.text
-    body = res.json()
-    assert body["queued"] and body["images"] == body["passes"] * 4
+    assert res.json() == {"passes": None, "images": None, "queued": True}
     # Run the queued job inline: afterwards no band of any pass needs rendering again.
     target, period = queued[0]
-    assert views.prefetch_now(target, period) == body["images"]
+    done = views.prefetch_now(target, period)
+    again = client.post("/api/views/prefetch", params=HHW).json()
+    assert again["images"] == again["passes"] * 4 == done
 
     def boom(*_args: object) -> None:
         raise AssertionError("rendered twice")

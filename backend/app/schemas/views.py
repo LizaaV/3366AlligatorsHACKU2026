@@ -35,6 +35,10 @@ class ViewImage(BaseModel):
 class PrefetchResult(BaseModel):
     """What a prefetch will render in the background."""
 
-    passes: int = Field(description="Clear passes in the period.")
-    images: int = Field(description="Images that will be cached: passes times bands.")
+    passes: int | None = Field(
+        description="Clear passes in the period; null while the pass list is still being found."
+    )
+    images: int | None = Field(
+        description="Images that will be cached (passes times bands); null while unknown."
+    )
     queued: bool = Field(description="False when the same prefetch is already running.")

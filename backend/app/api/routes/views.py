@@ -103,11 +103,15 @@ def view_image(
 )
 def view_prefetch(target: ViewTarget, period: PeriodQ = "4m") -> PrefetchResult:
     """Queue rendering of photo, greenness, water and bare ground for every clear pass in the
-    period, so flicking through dates is instant. Runs in the background; a place's recent
-    window is already queued when it is saved."""
+    period, so flicking through dates is instant. Returns at once: finding the passes (slow
+    for 5 years) and rendering both run in the background. A place's recent window is already
+    queued when it is saved."""
     try:
-        passes = len(views.recent_scenes(target, period))
+        found = views.cached_scenes(target, period)
     except views.ViewUnavailable as exc:
         raise _unavailable(exc) from exc
     queued = views.prefetch(target, period)
-    return PrefetchResult(passes=passes, images=passes * len(views.BANDS), queued=queued)
+    passes = None if found is None else len(found)
+    return PrefetchResult(
+        passes=passes, images=None if passes is None else passes * len(views.BANDS), queued=queued
+    )

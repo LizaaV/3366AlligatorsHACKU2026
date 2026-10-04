@@ -129,6 +129,15 @@ def recent_scenes(target: Target, period: Period = "4m") -> list[Scene]:
     return clear
 
 
+def cached_scenes(target: Target, period: Period = "4m") -> list[Scene] | None:
+    """The period's pass list if it is already cached (no scan), else None."""
+    _check_offline(target.lat, target.lon)
+    ttl = _SCENE_TTL_S if period == "4m" else _LONG_TTL_S
+    with _lock:
+        hit = _scene_cache.get(f"{target.key}|{period}")
+    return hit[1] if hit and time.monotonic() - hit[0] < ttl else None
+
+
 def _clearest_per_month(scenes: list[Scene]) -> list[Scene]:
     """The least cloudy pass of each calendar month, newest month first."""
     best: dict[tuple[int, int], Scene] = {}

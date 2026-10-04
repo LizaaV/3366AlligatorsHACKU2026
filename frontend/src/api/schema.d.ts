@@ -793,8 +793,9 @@ export interface paths {
         /**
          * Render every band of every pass ahead of time
          * @description Queue rendering of photo, greenness, water and bare ground for every clear pass in the
-         *     period, so flicking through dates is instant. Runs in the background; a place's recent
-         *     window is already queued when it is saved.
+         *     period, so flicking through dates is instant. Returns at once: finding the passes (slow
+         *     for 5 years) and rendering both run in the background. A place's recent window is already
+         *     queued when it is saved.
          */
         post: operations["view_prefetch_api_views_prefetch_post"];
         delete?: never;
@@ -2200,14 +2201,14 @@ export interface components {
         PrefetchResult: {
             /**
              * Passes
-             * @description Clear passes in the period.
+             * @description Clear passes in the period; null while the pass list is still being found.
              */
-            passes: number;
+            passes: number | null;
             /**
              * Images
-             * @description Images that will be cached: passes times bands.
+             * @description Images that will be cached (passes times bands); null while unknown.
              */
-            images: number;
+            images: number | null;
             /**
              * Queued
              * @description False when the same prefetch is already running.

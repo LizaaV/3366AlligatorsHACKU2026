@@ -3365,7 +3365,7 @@
           "views"
         ],
         "summary": "Render every band of every pass ahead of time",
-        "description": "Queue rendering of photo, greenness, water and bare ground for every clear pass in the\nperiod, so flicking through dates is instant. Runs in the background; a place's recent\nwindow is already queued when it is saved.",
+        "description": "Queue rendering of photo, greenness, water and bare ground for every clear pass in the\nperiod, so flicking through dates is instant. Returns at once: finding the passes (slow\nfor 5 years) and rendering both run in the background. A place's recent window is already\nqueued when it is saved.",
         "operationId": "view_prefetch_api_views_prefetch_post",
         "parameters": [
           {
@@ -6595,14 +6595,28 @@
       "PrefetchResult": {
         "properties": {
           "passes": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Passes",
-            "description": "Clear passes in the period."
+            "description": "Clear passes in the period; null while the pass list is still being found."
           },
           "images": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Images",
-            "description": "Images that will be cached: passes times bands."
+            "description": "Images that will be cached (passes times bands); null while unknown."
           },
           "queued": {
             "type": "boolean",
