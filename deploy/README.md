@@ -2,6 +2,8 @@
 
 Brings up the whole app (React SPA + FastAPI) on any Linux VM with Docker. No cloud-specific tooling.
 
+**On AWS:** see [`aws/README.md`](aws/README.md) for the EC2 plan and the `launch.sh` / `ship.sh` scripts.
+
 ```
 browser ──:80──> nginx (frontend container) ──/api/*──> backend:8000 (FastAPI, internal only)
                        └── serves the built SPA, history fallback to index.html
