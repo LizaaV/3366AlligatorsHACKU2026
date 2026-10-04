@@ -44,6 +44,15 @@ export const threadsApi = {
         : {}),
     }),
 
+  /** DELETE /api/threads/{thread_id}: delete a chat (it leaves the list and its project). */
+  remove: (threadId: string, signal?: AbortSignal): Promise<void> =>
+    request<void>({
+      method: 'DELETE',
+      path: `/threads/${encodeURIComponent(threadId)}`,
+      signal,
+      ...(usingFixtures() ? { fixture: (): void => undefined } : {}),
+    }),
+
   /** PATCH /api/threads/{thread_id}: move a chat into a project, or out with `null`. */
   setProject: (threadId: string, projectId: string | null, signal?: AbortSignal): Promise<ThreadSummary> =>
     request<ThreadSummary>({
