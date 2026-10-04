@@ -375,6 +375,22 @@ export function AskPage({ active }: { active: boolean }) {
   const submit = () => {
     const text = q.trim();
     if (!text) return;
+    // "/greenness-check" (optionally "on <place>") runs that skill, like the skills sheet does.
+    const cmd = /^\/([a-z0-9-]+)(?:\s+on\s+(.+))?$/i.exec(text);
+    if (cmd) {
+      const skill = skills.find((x) => x.id === cmd[1].toLowerCase());
+      if (!skill) {
+        notify(`No skill called /${cmd[1]}`, undefined, undefined, 'info');
+        return;
+      }
+      const named = cmd[2] && places.find((p) => p.name.toLowerCase() === cmd[2].trim().toLowerCase());
+      if (cmd[2] && !named) {
+        notify(`No saved place called “${cmd[2].trim()}”`, undefined, undefined, 'info');
+        return;
+      }
+      runSkill(skill.id, named ? named.id : undefined);
+      return;
+    }
     setQ('');
     setPop(null);
     setSheet(false);
@@ -904,7 +920,7 @@ export function AskPage({ active }: { active: boolean }) {
           {!!turns.length && (
             <div ref={thread} style={{ borderTop: '1px solid var(--hair-soft)', padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18, minHeight: 0 }}>
               {turns.map((turn) => (
-                <TurnView key={turn.id} turn={turn} isLast={turn === last} places={places}
+                <TurnView key={turn.id} turn={turn} isLast={turn === last} places={places} skills={skills}
                   artifacts={sidePanel ? artifacts.filter((a) => a.turnId === turn.id) : null}
                   selectedArtifact={artOpen ? artSel : null}
                   onSelectArtifact={selectArtifact}
@@ -1131,10 +1147,13 @@ function TurnView({
   onRunSkill,
   onAskFollowup,
   onShowOnMap,
+  skills,
 }: {
   turn: AskTurn;
   isLast: boolean;
   places: Place[];
+  /** To show a skill run as its command, "/greenness-check on Hyde Park". */
+  skills: { id: string; name: string }[];
   /** This turn's artifacts when they are shown in the side panel; null shows them inline. */
   artifacts: Artifact[] | null;
   selectedArtifact: string | null;
@@ -1170,7 +1189,7 @@ function TurnView({
   return (
     <div className="col" style={{ gap: 14 }}>
       <div className="col" style={{ alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '85%', gap: 4 }}>
-        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--s2)', font: '500 14px/1.5 var(--font)' }}>{turn.text}</div>
+        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--s2)', font: '500 14px/1.5 var(--font)' }}><QuestionText text={turn.text} skills={skills} /></div>
         <span className="tiny">{place ? <>about <span className="muted">{place.name}</span></> : 'general question'}</span>
       </div>
 
@@ -1329,6 +1348,22 @@ function TurnView({
         />
       )}
     </div>
+  );
+}
+
+/* ---------------- the question as asked ---------------- */
+
+/** A skill run is sent as a plain sentence, `Run “Greenness check” on Hyde Park` (the guard
+ * reads it as a normal question), and shown as its command: "/greenness-check" in blue, then
+ * "on Hyde Park". Anything else is shown as typed. Old chats restored from the server match too. */
+function QuestionText({ text, skills }: { text: string; skills: { id: string; name: string }[] }) {
+  const m = /^Run \u201c(.+?)\u201d on (.+)$/.exec(text);
+  const skill = m && skills.find((s) => s.name === m[1]);
+  if (!m || !skill) return <>{text}</>;
+  return (
+    <>
+      <span style={{ color: 'var(--blue-hover)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 }}>/{skill.id}</span> on {m[2]}
+    </>
   );
 }
 
