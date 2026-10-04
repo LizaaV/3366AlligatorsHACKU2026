@@ -151,6 +151,12 @@ input[type='range'] { accent-color: #fff; }
 .icon-btn.boxed:hover { background: var(--glass-fill-hover); }
 
 /* tier tag inside CTAs — "separation of free vs paid in every CTA" */
+.tier { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; padding: 1px 6px; border-radius: 9999px; font: 600 10.5px/1.5 var(--font); letter-spacing: 0.3px; text-transform: uppercase; }
+.tier .ms { font-size: 12px !important; }
+.tier-free { background: rgba(0, 202, 142, 0.14); color: var(--green); }
+.tier-paid { background: rgba(255, 207, 37, 0.16); color: var(--yellow); }
+.btn-primary .tier-free { background: rgba(0, 150, 105, 0.14); color: #007a56; }
+.btn-primary .tier-paid { background: #000; color: var(--yellow); }
 
 /* ---------- Chips / pills ---------- */
 .chip {
@@ -199,7 +205,9 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .stats .ci { font: 500 12px/1.38 var(--font); color: var(--muted); margin-top: 1px; }
 
 /* ---------- Menus / popovers ---------- */
-.menu { position: absolute; z-index: 80; min-width: 240px; padding: 6px; background: var(--glass-bg-strong); border: 1px solid var(--glass-border); border-radius: var(--r-lg); animation: fadeUp 0.2s ease both; box-shadow: var(--glass-shadow); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+/* Solid, not glass: a menu opens inside the blurred chat box, where a second blur does not
+   apply, so a see-through menu let the text under it show through. */
+.menu { position: absolute; z-index: 80; min-width: 240px; padding: 6px; background: rgb(24, 27, 33); border: 1px solid var(--glass-border); border-radius: var(--r-lg); animation: fadeUp 0.2s ease both; box-shadow: var(--glass-shadow); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
 .menu-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: var(--r); background: transparent; border: 0; color: #fff; text-align: left; font: 500 14px/1.4 var(--font); }
 .menu-item:hover, .menu-item.on { background: var(--glass-fill-hover); }
 .menu-item .ms { font-size: 20px; color: var(--muted); }
@@ -254,3 +262,4 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
   .spinner { animation: spin 1.2s linear infinite !important; }
   .shimmer-text { animation: none; background: none; color: var(--muted); -webkit-text-fill-color: currentColor; }
 }
+button.chip.on:hover { color: #000; }

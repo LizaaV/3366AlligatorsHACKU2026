@@ -6,7 +6,6 @@ from app.api.routes import (
     health,
     knowledge,
     layers,
-    me_skills,
     memory,
     places,
     projects,
@@ -17,7 +16,6 @@ from app.api.routes import (
     watches,
 )
 from app.api.routes import catalog as catalog_routes
-from app.api.routes import satellites as satellites_routes
 from app.api.routes import skills as skills_routes
 
 # One line per feature module. Add yours at the end of the list to avoid merge conflicts.
@@ -36,6 +34,10 @@ api_router.include_router(watches.router)
 api_router.include_router(skills_routes.router)
 api_router.include_router(catalog_routes.router)
 api_router.include_router(threads.router)
-api_router.include_router(satellites_routes.router)
 api_router.include_router(projects.router)
-api_router.include_router(me_skills.router)
+
+from app.api.routes import me_skills as me_skills_routes  # noqa: E402
+from app.api.routes import views as views_routes  # noqa: E402
+
+api_router.include_router(views_routes.router)
+api_router.include_router(me_skills_routes.router)

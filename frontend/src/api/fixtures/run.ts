@@ -49,7 +49,7 @@ const THEN_NOW_BLOCK: S['ThenNowBlock'] = {
   id: 'b1',
   primary: true,
   title: 'Water, 5 Oct 2024 vs 30 Sep 2026',
-  caption: 'Drag to compare the two passes.',
+  caption: 'The last clear pass before the change, and the newest one.',
   links: { time: 'cursor' },
   provenance: [PROVENANCE],
   measure: 'water',

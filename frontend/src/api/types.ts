@@ -1,21 +1,22 @@
 /**
- * API contract types — the shapes the frontend expects from the backend.
+ * API types the frontend uses at the network boundary.
  *
- * HAND-WRITTEN FOR NOW, and a *proposal*: the backend team is building the real endpoints,
- * and `docs/data/README.md` documents these shapes for them along with the preserved data.
+ * Wire shapes (`*Dto`) come from the generated contract (`./schema.d.ts`, regenerated with
+ * `npm run gen:api` from `contracts/openapi.json`) and are snake_case, exactly as the backend
+ * sends them. The mappers in `../model.ts` turn them into camelCase view models, so no
+ * component sees a wire name.
  *
- * When `contracts/openapi.json` carries the real endpoints, replace this file with generated
- * types (`npx openapi-typescript ../contracts/openapi.json -o src/api/types.gen.ts`) and the
- * compiler will point at every place the real contract differs. Do not hand-edit
- * `contracts/openapi.json` — it is generated from the backend's Pydantic models.
- *
- * Naming convention: types here are wire shapes (DTOs). The view models the components
- * actually render live in `../model.ts`, with mappers between the two. That boundary is what
- * lets the backend return GeoJSON while the map keeps working in screen pixels.
+ * What is still hand-written here:
+ *   - request shapes in the frontend's own vocabulary (camelCase), which the endpoint modules
+ *     map to snake_case before sending
+ *   - helpers for endpoints the backend does not have (detect-boundary, parcel lookup, file
+ *     parsing, "ask your watches", export), which throw `not_available` in http mode
  */
 
 import type { Position } from '../lib/geo';
 import type { components } from './schema';
+
+type S = components['schemas'];
 
 /* ---------------- primitives ---------------- */
 
@@ -39,68 +40,20 @@ export interface GeoJsonPolygon {
 
 /* ---------------- catalog ---------------- */
 
-export interface CategoryDto {
-  key: CategoryKey;
-  name: string;
-  /** Material Symbols glyph name. */
-  icon: string;
-  uses: string;
-  sats: string;
-}
-
-export interface SatelliteDto {
-  id: string;
-  name: string;
-  res: string;
-  revisit: string;
-  tier: Tier;
-  price?: string;
-  kind: 'optical' | 'radar' | 'thermal' | 'atmos' | 'lights';
-  note: string;
-}
-
-export interface SkillModuleDto {
-  id: string;
-  name: string;
-  icon: string;
-  desc: string;
-  group: 'Input' | 'Data' | 'Analysis' | 'Output';
-  params?: Record<string, string | number | boolean | string[]>;
-}
-
-export interface DeliveryChannelDto {
-  id: ChannelId;
-  name: string;
-  icon: string;
-  tier: Tier;
-  note: string;
-}
-
-export type ChannelId = 'email' | 'whatsapp' | 'sms' | 'push' | 'slack';
-
-export interface LanguageDto {
-  code: string;
-  name: string;
-  english: string;
-  region: string;
-  /** Whether the *interface* is translated. Answer prose is expected in every language. */
-  ui: boolean;
-  rtl?: boolean;
-}
-
-export interface CatalogDto {
-  categories: CategoryDto[];
-  satellites: SatelliteDto[];
-  modules: SkillModuleDto[];
-  channels: DeliveryChannelDto[];
-  languages: LanguageDto[];
-}
+export type CategoryDto = S['CategoryDto'];
+export type SatelliteDto = S['SatelliteDto'];
+export type SkillModuleDto = S['SkillModuleDto'];
+export type DeliveryChannelDto = S['DeliveryChannelDto'];
+export type ChannelId = DeliveryChannelDto['id'];
+export type LanguageDto = S['LanguageDto'];
+export type MapLayerDto = S['MapLayerDto'];
+/** `GET /api/catalog`. The map layer list lives here too (`map_layers`). */
+export type CatalogDto = S['CatalogDto'];
 
 /* ---------------- skills ---------------- */
 
-/** Wire shape (snake_case) from the contract; `toSkill()` in `model.ts` maps it to the view model. */
-export type SkillDto = components['schemas']['SkillDto'];
-export type SkillStepDto = components['schemas']['SkillStep'];
+export type SkillDto = S['SkillDto'];
+export type SkillManifestDto = S['SkillManifest'];
 
 /* ---------------- places ---------------- */
 
@@ -111,41 +64,6 @@ export type SkillStepDto = components['schemas']['SkillStep'];
  */
 
 export type PlaceSource = 'drawn' | 'uploaded' | 'search' | 'coords' | 'whatsapp' | 'parcel' | 'pin';
-
-export interface PlaceDto {
-  id: string;
-  name: string;
-  categoryKey: CategoryKey;
-  center: LatLon;
-  geometry: GeoJsonPolygon;
-  /**
-   * AUTHORITATIVE area. The backend computes this (PostGIS) and it is the only value the UI
-   * displays for a saved place — it appears in answers, watch thresholds and $/km² pricing,
-   * so a second client-side calculation would make those disagree.
-   */
-  areaHa: number;
-  /** Render the outline as a pivot circle rather than a polygon. */
-  isCircle: boolean;
-  /** Editorial zoom for "fly to this place". Omitted = frontend derives a fit. */
-  defaultZoom?: number;
-  project: string;
-  tags: string[];
-  source: PlaceSource;
-  createdAt: Iso;
-  details: { label: string; value: string }[];
-}
-
-export interface CreatePlaceRequest {
-  name: string;
-  categoryKey: CategoryKey;
-  center: LatLon;
-  geometry: GeoJsonPolygon;
-  isCircle: boolean;
-  project: string;
-  tags: string[];
-  source: PlaceSource;
-  details?: { label: string; value: string }[];
-}
 
 export interface PlaceSearchResultDto {
   name: string;
@@ -164,10 +82,20 @@ export interface DetectBoundaryResponse {
   geometry: GeoJsonPolygon;
   areaHa: number;
   confidence: ConfidenceLevel;
-  /** `sentinel2_segmentation` when grown from imagery, `fallback_square` when there was none. */
-  method: 'sentinel2_segmentation' | 'fallback_square';
-  /** One plain sentence about how the outline was made. */
-  note: string;
+}
+
+export interface ParcelLookupRequest {
+  /** Registry id from `parcelSystems`, e.g. `br`, `eu`, `in`. */
+  system: string;
+  parcelId: string;
+}
+
+export interface ParcelLookupResponse {
+  geometry: GeoJsonPolygon;
+  center: LatLon;
+  areaHa: number;
+  registryLabel: string;
+  categoryKey?: CategoryKey;
 }
 
 export interface ParseBoundaryFileResponse {
@@ -183,24 +111,13 @@ export interface ParseBoundaryFileResponse {
 /* ---------------- watches ---------------- */
 
 export type WatchStatus = 'ok' | 'warn' | 'alert';
-/** `once` triggers disable themselves after their first alert-level event. From the contract. */
-export type WatchRecurrence = components['schemas']['CreateWatchRequest']['recurrence'];
 export type WatchEventLevel = 'info' | 'warn' | 'alert';
 
-/*
- * Wire shapes (snake_case) straight from the contract. `toWatch()` / `toFeasibility()` in
- * `model.ts` and the request mappers in `endpoints/watches.ts` own every rename, so components
- * never see a wire name.
- */
-export type WatchWireDto = components['schemas']['WatchDto'];
-export type WatchSeriesDto = components['schemas']['WatchSeries'];
-export type WatchEventDto = components['schemas']['WatchEvent'];
-export type WatchProofDto = components['schemas']['WatchProofDto'];
-/** One scene behind a run: `id`, `sat`, `cloud` (percent), `used`, `why`. */
-export type ProofSceneDto = components['schemas']['ProofScene'];
-export type FeasibilityWireDto = components['schemas']['FeasibilityDto'];
+export type WatchDto = S['WatchDto'];
+export type WatchSeriesDto = S['WatchSeries'];
+export type WatchEventDto = S['WatchEvent'];
 
-/** What the trigger builder collects, in the frontend's vocabulary. Only fields the backend accepts. */
+/** What the watch builder produces. Mapped to `CreateWatchRequest` (snake_case) on send. */
 export interface CreateWatchRequest {
   name: string;
   categoryKey: CategoryKey;
@@ -210,21 +127,26 @@ export interface CreateWatchRequest {
   condition: string;
   channels: ChannelId[];
   cadence: string;
-  /** Defaults to `recurring` server-side. */
-  recurrence?: WatchRecurrence;
-  /** 404 if it is not the user's dashboard. */
-  dashboardId?: string | null;
 }
 
-/** Fields `PATCH /api/watches/{id}` accepts. `dashboardId: null` unlinks the dashboard. */
-export interface WatchPatch {
-  enabled?: boolean;
-  name?: string;
-  condition?: string;
-  channels?: ChannelId[];
-  cadence?: string;
-  recurrence?: WatchRecurrence;
-  dashboardId?: string | null;
+/** `GET /api/watches/{id}/proof`, as sent. */
+export type WatchProofWireDto = S['WatchProofDto'];
+
+/** Scenes behind a watch's most recent run, plus the hash that makes it re-runnable (view shape). */
+export interface WatchProofDto {
+  scenes: ProofSceneDto[];
+  hash: string;
+}
+
+/** One satellite pass behind a watch's result, in view vocabulary. Mapped from `ProofScene`. */
+export interface ProofSceneDto {
+  sceneId: string;
+  date: string;
+  satellite: string;
+  cloudPct: number;
+  used: boolean;
+  /** Why it was rejected. Present when `used` is false. */
+  why?: string;
 }
 
 export interface FeasibilityRequest {
@@ -232,22 +154,37 @@ export interface FeasibilityRequest {
   placeId?: string | null;
 }
 
-/**
- * @deprecated Compatibility alias for `state/store.tsx`, which still does
- * `Pick<WatchDto, 'enabled' | ... | 'dashboardId'>` with camelCase names. This is the view
- * model, not the wire type (that is `WatchWireDto`). Switch the store to `WatchPatch`, then
- * delete this.
- */
-export type WatchDto = import('../model').Watch;
+/** `POST /api/watches/feasibility`, as sent (snake_case). The view model is `model.Feasibility`. */
+export type FeasibilityDto = S['FeasibilityDto'];
 
-/* ---------------- map layers ---------------- */
+/* ---------------- insights ("ask your watches") ---------------- */
 
-export interface MapLayerDto {
-  id: string;
-  name: string;
-  source: string;
-  color: string;
-  /** Produced by the agent (as opposed to user-drawn), so it carries an "AI" badge. */
-  isAgentMade: boolean;
+export interface InsightRequest {
+  question: string;
+  /** `watches` asks across all of them; `watch` asks about one. */
+  scope: 'watches' | 'watch';
+  watchId?: string;
+  lang: string;
 }
 
+export interface InsightDto {
+  title: string;
+  body: string;
+  /** What the answer was derived from, shown as chips: "Compared the last 3 passes". */
+  basis: string[];
+}
+
+/* ---------------- export ---------------- */
+
+export interface ExportRequest {
+  targetKind: 'answer' | 'watch' | 'place' | 'skill';
+  targetId?: string;
+  title: string;
+  format: 'link' | 'pdf' | 'data';
+  lang: string;
+}
+
+export interface ExportResponse {
+  url: string;
+  expiresAt: Iso | null;
+}

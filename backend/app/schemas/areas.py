@@ -106,6 +106,11 @@ class AreaMatch(BaseModel):
     name: str
     lat: float
     lon: float
+    description: str | None = Field(
+        None,
+        description="Where it is, to tell same-named places apart, e.g. 'Texas, United States'.",
+    )
+    kind: str | None = Field(None, description="What it is, e.g. 'city', 'park', 'lake'.")
 
 
 class AreaResolveResponse(BaseModel):
@@ -117,4 +122,7 @@ class AreaResolveResponse(BaseModel):
     )
     matches: list[AreaMatch] = Field(
         default_factory=list, description="Other search candidates (search only)."
+    )
+    best: AreaMatch | None = Field(
+        None, description="The candidate `area` was built from, with its description (search only)."
     )

@@ -5,8 +5,8 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
   /**
    * Where endpoint data comes from.
-   * - `http` (default): real network calls to the backend.
-   * - `fixture`: local stand-ins in `src/api/fixtures/`, for UI work without the backend.
+   * - `fixture` (default while the backend is being built): local stand-ins in `src/api/fixtures/`
+   * - `http`: real network calls. Endpoints with no live backend will fail loudly.
    */
   readonly VITE_API_SOURCE?: 'fixture' | 'http';
   /** Artificial delay for fixture responses, in ms, so loading states are exercised. Default 500. */

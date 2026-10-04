@@ -65,7 +65,7 @@ def test_pond_filling_check_comes_from_its_skill_md(client: TestClient) -> None:
     # presentation-only fields come from the overlay
     assert s["category_key"] == "water"
     assert s["sat"] == "Sentinel-2"
-    assert s["publisher"]["name"] == "Earth Agent"
+    assert s["publisher"]["name"] == "Constellation"
     assert s["steps"][0] == "area.mark"
     assert s["updated_at"].endswith("Z")
 
@@ -151,7 +151,11 @@ def test_listing_follows_the_registry(
     registry.clear_cache()
     try:
         ids = [s["id"] for s in client.get("/api/skills").json()]
-        assert ids == ["extra-skill", "pond-filling-check"]
+        # Every skill on disk is listed, the new one included, in the registry's order.
+        on_disk = sorted(
+            d.name for d in registry.SKILLS_DIR.iterdir() if (d / "SKILL.md").is_file()
+        )
+        assert sorted(ids) == on_disk and "extra-skill" in ids
         extra = client.get("/api/skills/extra-skill").json()
         assert extra["name"] == "Extra skill" and extra["status"] == "available"
     finally:

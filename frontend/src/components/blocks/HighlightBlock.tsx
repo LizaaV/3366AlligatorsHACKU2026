@@ -9,7 +9,7 @@
 
 import { BlockFrame } from './BlockFrame';
 import { hideBroken } from '../ui';
-import { fmtC, outerRing } from '../../lib/geo';
+import { outerRing } from '../../lib/geo';
 import type { components } from '../../api/schema';
 
 type S = components['schemas'];
@@ -44,7 +44,6 @@ export function HighlightBlock({ block }: { block: S['HighlightBlock'] }) {
         {block.patches.map((p, i) => (
           <li key={i} className="row tiny" style={{ gap: 8, padding: '4px 6px', borderRadius: 6, background: 'var(--s2)' }}>
             <span className="ink" style={{ width: 62, flex: 'none' }}>{p.ha.toFixed(2)} ha</span>
-            <span className="muted">{fmtC(p.centroid[1], p.centroid[0])}</span>
           </li>
         ))}
       </ul>

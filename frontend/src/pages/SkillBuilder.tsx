@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { toApiError } from '../api';
 import type { SkillModule } from '../model';
+import { slug } from '../lib/format';
 import { Btn, IconBtn, Ms, Toggle } from '../components/ui';
 import { ErrorState } from '../components/async';
 import { CopyBtn, JsonCode, StorageExplainer } from './libraryParts';
@@ -78,14 +79,15 @@ export function SkillBuilder() {
   }, [steps, satellites]);
 
   const version = '0.1.0';
+  const skillSlug = slug(name) || 'untitled-skill';
   const manifest = {
+    id: `you.${categoryKey}.${skillSlug}`,
     version,
     name: name.trim() || 'Untitled skill',
     category: categoryKey,
     satellites: sats,
     publisher: { name: 'You', official: false, verified: false },
     visibility: vis,
-    pricing: { tier: 'free', price: null },
     inputs: [
       { key: 'area', type: 'geometry', required: true, accepts: ['place', 'polygon', 'geojson', 'kml'] },
       ...(steps.some((s) => s.module === 'ask.clarify') ? [{ key: 'context', type: 'answers', required: false }] : []),
@@ -97,6 +99,7 @@ export function SkillBuilder() {
       { key: 'metrics', type: 'metric[]', with_confidence: true },
       { key: 'proof', type: 'proof_pack' },
     ],
+    accuracy: { resolution: '10 m', revisit: '5 days', statement: 'Not yet validated', known_limits: [] as string[] },
   };
   const json = JSON.stringify(manifest, null, 2);
 
@@ -118,9 +121,7 @@ export function SkillBuilder() {
       });
       go('library', created.id);
       notify(
-        vis === 'public'
-          ? `Published \u201c${created.name}\u201d to the community library`
-          : `Saved \u201c${created.name}\u201d to your ${vis === 'team' ? 'team' : 'private'} library`,
+        `Saved \u201c${created.name}\u201d as a draft`,
         undefined,
         undefined,
         'publish',
@@ -268,7 +269,7 @@ export function SkillBuilder() {
 
           <div className="col" style={{ gap: 10 }}>
             <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span className="eyebrow">Preview — the server assigns the final id</span>
+              <span className="eyebrow">Skill file · live</span>
               <CopyBtn text={json} />
             </div>
             <JsonCode value={manifest} />
@@ -278,15 +279,13 @@ export function SkillBuilder() {
       </div>
 
       {publishError && (
-        <ErrorState error={publishError} onRetry={publish} title="Could not publish the skill" compact />
+        <ErrorState error={publishError} onRetry={publish} title="Could not save the skill" compact />
       )}
 
       <div className="lib-foot">
-        <Btn icon="science" disabled title="Test runs are not available yet">
-          Test run · Coming soon
-        </Btn>
-        <Btn variant="primary" icon="publish" onClick={publish} disabled={errors > 0 || publishing} title={errors ? 'Fix the checks above first' : undefined}>
-          Publish to library
+        <span className="tiny" style={{ marginRight: 'auto', alignSelf: 'center' }}>Saved skills are drafts: they appear in the library, but cannot run until a tested script backs them.</span>
+        <Btn variant="primary" icon="save" onClick={publish} disabled={errors > 0 || publishing} title={errors ? 'Fix the checks above first' : undefined}>
+          {publishing ? 'Saving…' : 'Save draft'}
         </Btn>
       </div>
     </>

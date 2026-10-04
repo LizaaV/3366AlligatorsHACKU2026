@@ -633,6 +633,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/watches/{watch_id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Watch
+         * @description Check now: measure the watch once (no LLM) and store value, status, event and proof.
+         */
+        post: operations["check_watch_api_watches__watch_id__check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/skills": {
         parameters: {
             query?: never;
@@ -776,7 +796,12 @@ export interface paths {
         get: operations["get_thread_api_threads__thread_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a conversation
+         * @description Remove the conversation from the user's chats and its project, for good. Share links
+         *     already sent keep working, and its runs still count towards the daily spend limit.
+         */
+        delete: operations["delete_thread_api_threads__thread_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -784,27 +809,6 @@ export interface paths {
          * @description Move the conversation into a project, or out of it with `project_id: null`.
          */
         patch: operations["patch_thread_api_threads__thread_id__patch"];
-        trace?: never;
-    };
-    "/api/satellites": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Satellites
-         * @description Current positions of the free Earth-observation satellites, each with a ~90 min
-         *     ground track (2-min steps) starting at `at`.
-         */
-        get: operations["list_satellites_api_satellites_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/projects": {
@@ -844,6 +848,72 @@ export interface paths {
         head?: never;
         /** Rename a chat project */
         patch: operations["rename_project_api_projects__project_id__patch"];
+        trace?: never;
+    };
+    "/api/views/passes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recent clear passes over a place or spot
+         * @description Clear Sentinel-2 passes over the place (or the square around the pin) in the period.
+         */
+        get: operations["view_passes_api_views_passes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Render one band of a place or spot
+         * @description One band (photo, greenness, water, bare) from the given pass or the latest clear one.
+         *     A place is drawn inside its own outline (transparent outside); a pin gets a 2 km square.
+         *     Rendered once, then cached. No agent, no cost.
+         */
+        get: operations["view_image_api_views_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/prefetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Warm a period ahead of time
+         * @description Queue warming the period in the background and return at once. For the recent window
+         *     (`4m`) every band of every pass is rendered. For 1 to 5 years only the pass list (slow to
+         *     find) and the newest 3 photos are: the rest render one at a time as the person steps
+         *     through them, with the passes either side drawn ahead. A place's recent window is already
+         *     queued when it is saved.
+         */
+        post: operations["view_prefetch_api_views_prefetch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/me/skills": {
@@ -1047,6 +1117,16 @@ export interface components {
             lat: number;
             /** Lon */
             lon: number;
+            /**
+             * Description
+             * @description Where it is, to tell same-named places apart, e.g. 'Texas, United States'.
+             */
+            description?: string | null;
+            /**
+             * Kind
+             * @description What it is, e.g. 'city', 'park', 'lake'.
+             */
+            kind?: string | null;
         };
         /**
          * AreaResolveRequest
@@ -1086,6 +1166,8 @@ export interface components {
              * @description Other search candidates (search only).
              */
             matches?: components["schemas"]["AreaMatch"][];
+            /** @description The candidate `area` was built from, with its description (search only). */
+            best?: components["schemas"]["AreaMatch"] | null;
         };
         /**
          * BlockReady
@@ -1198,7 +1280,7 @@ export interface components {
             /** Categories */
             categories: components["schemas"]["CategoryDto"][];
             /** Satellites */
-            satellites: components["schemas"]["app__schemas__catalog__SatelliteDto"][];
+            satellites: components["schemas"]["SatelliteDto"][];
             /** Modules */
             modules: components["schemas"]["SkillModuleDto"][];
             /** Channels */
@@ -1428,14 +1510,6 @@ export interface components {
              * @default
              */
             cadence: string;
-            /**
-             * Recurrence
-             * @default recurring
-             * @enum {string}
-             */
-            recurrence: "recurring" | "once";
-            /** Dashboard Id */
-            dashboard_id?: string | null;
         };
         /**
          * DashboardBlockOut
@@ -2235,10 +2309,6 @@ export interface components {
             channels?: ("email" | "whatsapp" | "sms" | "push" | "slack")[] | null;
             /** Cadence */
             cadence?: string | null;
-            /** Recurrence */
-            recurrence?: ("recurring" | "once") | null;
-            /** Dashboard Id */
-            dashboard_id?: string | null;
         };
         /**
          * PlaceContext
@@ -2347,6 +2417,27 @@ export interface components {
              * @default 400
              */
             radius_m: number;
+        };
+        /**
+         * PrefetchResult
+         * @description What a prefetch will render in the background.
+         */
+        PrefetchResult: {
+            /**
+             * Passes
+             * @description Clear passes in the period; null while the pass list is still being found.
+             */
+            passes: number | null;
+            /**
+             * Images
+             * @description Images that will be cached (passes times bands); null while unknown.
+             */
+            images: number | null;
+            /**
+             * Queued
+             * @description False when the same prefetch is already running.
+             */
+            queued: boolean;
         };
         /** Prefill */
         Prefill: {
@@ -2617,6 +2708,36 @@ export interface components {
             run_id: string;
             /** Thread Id */
             thread_id: string;
+        };
+        /** SatelliteDto */
+        SatelliteDto: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Res */
+            res: string;
+            /** Revisit */
+            revisit: string;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /** Price */
+            price?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "optical" | "radar" | "thermal" | "atmos" | "lights";
+            /** Note */
+            note: string;
+            /**
+             * Connected
+             * @description True when the backend actually fetches scenes from this source today (Sentinel-2 via Earth Search, Sentinel-1 and Landsat via Planetary Computer, VIIRS fire hotspots via NASA FIRMS). The rest are listed for routing and pricing but are not wired up yet.
+             */
+            connected: boolean;
         };
         /**
          * SaveBlockRequest
@@ -3377,19 +3498,6 @@ export interface components {
             /** Data */
             data: components["schemas"]["TimelinePoint"][];
         };
-        /** TrackPoint */
-        TrackPoint: {
-            /**
-             * Lat
-             * @description Geodetic latitude, degrees.
-             */
-            lat: number;
-            /**
-             * Lon
-             * @description Longitude, degrees east, -180..180.
-             */
-            lon: number;
-        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -3418,6 +3526,63 @@ export interface components {
              * @description When the remembered value was saved.
              */
             saved?: string | null;
+        };
+        /**
+         * ViewImage
+         * @description One band of one pass, rendered as a PNG pinned to WGS84 bounds.
+         */
+        ViewImage: {
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "photo" | "greenness" | "water" | "bare";
+            /**
+             * Url
+             * @description Served by GET /api/layers/...; relative to the API origin.
+             */
+            url: string;
+            /**
+             * Bounds
+             * @description [west, south, east, north]
+             */
+            bounds: [
+                number,
+                number,
+                number,
+                number
+            ];
+            /** Scene */
+            scene: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Satellite */
+            satellite: string;
+            /** Cloud */
+            cloud: number;
+        };
+        /**
+         * ViewPass
+         * @description A recent clear Sentinel-2 pass over the spot.
+         */
+        ViewPass: {
+            /** Scene */
+            scene: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Satellite */
+            satellite: string;
+            /**
+             * Cloud
+             * @description Cloud over the square, percent.
+             */
+            cloud: number;
         };
         /**
          * WatchDto
@@ -3503,18 +3668,6 @@ export interface components {
              * @default true
              */
             enabled: boolean;
-            /**
-             * Recurrence
-             * @description 'once' triggers disable themselves (`enabled: false`) after their first alert-level event; 'recurring' keeps firing.
-             * @default recurring
-             * @enum {string}
-             */
-            recurrence: "recurring" | "once";
-            /**
-             * Dashboard Id
-             * @description Optional linked dashboard.
-             */
-            dashboard_id?: string | null;
             series?: components["schemas"]["WatchSeries"];
             /** Channels */
             channels?: ("email" | "whatsapp" | "sms" | "push" | "slack")[];
@@ -3548,6 +3701,11 @@ export interface components {
              * @description Newest first.
              */
             events?: components["schemas"]["WatchEvent"][];
+            /**
+             * Message
+             * @description The one-line alert the user would receive, built from the last check; a sample based on the condition (starting 'Sample ·') before the first check.
+             */
+            message?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -3627,78 +3785,6 @@ export interface components {
              * @description Baseline mean per pass.
              */
             mean?: number[];
-        };
-        /** SatelliteDto */
-        app__schemas__catalog__SatelliteDto: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /** Res */
-            res: string;
-            /** Revisit */
-            revisit: string;
-            /**
-             * Tier
-             * @enum {string}
-             */
-            tier: "free" | "paid";
-            /** Price */
-            price?: string | null;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "optical" | "radar" | "thermal" | "atmos" | "lights";
-            /** Note */
-            note: string;
-            /**
-             * Connected
-             * @description True when the backend actually fetches scenes from this source today (Sentinel-2 via Earth Search, Sentinel-1 and Landsat via Planetary Computer, VIIRS fire hotspots via NASA FIRMS). The rest are listed for routing and pricing but are not wired up yet.
-             */
-            connected: boolean;
-        };
-        /** SatelliteDto */
-        app__schemas__satellites__SatelliteDto: {
-            /**
-             * Id
-             * @description Stable slug, e.g. 'sentinel-2a'.
-             */
-            id: string;
-            /** Name */
-            name: string;
-            /** Norad Id */
-            norad_id: number;
-            /**
-             * Mission
-             * @description Programme, e.g. 'Sentinel-2'.
-             */
-            mission: string;
-            /** Lat */
-            lat: number;
-            /** Lon */
-            lon: number;
-            /**
-             * Alt Km
-             * @description Height above the WGS84 ellipsoid.
-             */
-            alt_km: number;
-            /**
-             * Velocity Kms
-             * @description Speed in km/s.
-             */
-            velocity_kms: number;
-            /**
-             * At
-             * Format: date-time
-             * @description Instant (UTC) the position is for.
-             */
-            at: string;
-            /**
-             * Track
-             * @description Sub-satellite points for the next ~90 min at 2-min steps (45 points).
-             */
-            track: components["schemas"]["TrackPoint"][];
         };
     };
     responses: never;
@@ -3815,6 +3901,20 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RunRecord"];
                 };
+            };
+            /** @description Invalid run id or X-User-Id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Run not found for this user. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -5303,7 +5403,7 @@ export interface operations {
                     "application/json": components["schemas"]["WatchDto"];
                 };
             };
-            /** @description `place_id` or `dashboard_id` is not one of this user's */
+            /** @description `place_id` is not one of this user's places */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5344,7 +5444,7 @@ export interface operations {
                     "application/json": components["schemas"]["FeasibilityDto"];
                 };
             };
-            /** @description `place_id` or `dashboard_id` is not one of this user's */
+            /** @description `place_id` is not one of this user's places */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5428,7 +5528,7 @@ export interface operations {
                     "application/json": components["schemas"]["WatchDto"];
                 };
             };
-            /** @description `place_id` or `dashboard_id` is not one of this user's */
+            /** @description No such watch for this user */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5484,6 +5584,59 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    check_watch_api_watches__watch_id__check_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                watch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchDto"];
+                };
+            };
+            /** @description No such watch for this user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The watch has no place (or its place was deleted) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The watched metric cannot be measured, or no clear pass */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The check took longer than the time limit (~150 s) */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -5790,6 +5943,52 @@ export interface operations {
             };
         };
     };
+    delete_thread_api_threads__thread_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid thread id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     patch_thread_api_threads__thread_id__patch: {
         parameters: {
             query?: never;
@@ -5830,38 +6029,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_satellites_api_satellites_get: {
-        parameters: {
-            query?: {
-                /** @description ISO instant to propagate to; default now. */
-                at?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["app__schemas__satellites__SatelliteDto"][];
-                };
             };
             /** @description Validation Error */
             422: {
@@ -6007,6 +6174,167 @@ export interface operations {
                 };
             };
             /** @description Project not found (or not yours). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    view_passes_api_views_passes_get: {
+        parameters: {
+            query?: {
+                /** @description How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month). */
+                period?: "4m" | "1y" | "2y" | "5y";
+                lat?: number | null;
+                lon?: number | null;
+                /** @description A saved place: its outline. */
+                place_id?: string | null;
+            };
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewPass"][];
+                };
+            };
+            /** @description Give either `place_id`, or both `lat` and `lon`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown place, or no imagery here (offline data or no clear pass). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    view_image_api_views_get: {
+        parameters: {
+            query: {
+                band: "photo" | "greenness" | "water" | "bare";
+                scene?: string | null;
+                /** @description How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month). */
+                period?: "4m" | "1y" | "2y" | "5y";
+                lat?: number | null;
+                lon?: number | null;
+                /** @description A saved place: its outline. */
+                place_id?: string | null;
+            };
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewImage"];
+                };
+            };
+            /** @description Give either `place_id`, or both `lat` and `lon`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown place, or no imagery here (offline data or no clear pass). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    view_prefetch_api_views_prefetch_post: {
+        parameters: {
+            query?: {
+                /** @description How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month). */
+                period?: "4m" | "1y" | "2y" | "5y";
+                lat?: number | null;
+                lon?: number | null;
+                /** @description A saved place: its outline. */
+                place_id?: string | null;
+            };
+            header?: {
+                /** @description Optional demo user id (default "demo"), ^[a-z0-9][a-z0-9_-]{0,31}$. */
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrefetchResult"];
+                };
+            };
+            /** @description Give either `place_id`, or both `lat` and `lon`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown place, or no imagery here (offline data or no clear pass). */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -100,6 +100,8 @@ class PlaceHit(BaseModel):
     bbox: tuple[float, float, float, float]  # (west, south, east, north)
     kind: str  # OSM "class/type", e.g. "place/suburb"
     country: str | None = None
+    # The town or region it is in (city, else county, else state), to tell same names apart.
+    region: str | None = None
     geojson: dict | None = None  # Polygon / MultiPolygon if Nominatim returned one
 
     def area(self, radius_m: float = 400) -> Area:
@@ -125,6 +127,17 @@ def _country(address: dict) -> str | None:
     return address.get("country")
 
 
+_REGION_KEYS = ("city", "town", "village", "municipality", "county", "state_district", "state")
+
+
+def _region(address: dict, name: str) -> str | None:
+    for key in _REGION_KEYS:
+        value = address.get(key)
+        if value and value != name:
+            return value
+    return None
+
+
 def _hit(raw: dict) -> PlaceHit:
     south, north, west, east = (float(v) for v in raw["boundingbox"])
     geo = raw.get("geojson")
@@ -138,6 +151,7 @@ def _hit(raw: dict) -> PlaceHit:
         bbox=(west, south, east, north),
         kind=f"{raw.get('category', '')}/{raw.get('type', '')}",
         country=_country(raw.get("address") or {}),
+        region=_region(raw.get("address") or {}, name),
         geojson=geo
         if isinstance(geo, dict) and geo.get("type") in ("Polygon", "MultiPolygon")
         else None,

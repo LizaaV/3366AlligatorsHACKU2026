@@ -305,7 +305,10 @@ TOOL_SPECS: list[ToolSpec] = [
         input_schema=_obj(
             {
                 "title": _s("Headline in plain words, under 120 characters."),
-                "sentence": _s("The one-sentence answer with the key measured numbers."),
+                "sentence": _s(
+                    "The answer in at most 2 sentences with the key measured numbers, each with "
+                    "its unit or comparison (ha, %, dates, before and after), sensibly rounded."
+                ),
                 "cause_card_id": _nullable(
                     "Event card id behind the cause; null for measure-only or no-data answers."
                 ),
@@ -326,15 +329,16 @@ TOOL_SPECS: list[ToolSpec] = [
                 "caveats": _list(
                     _STR,
                     "What the images cannot tell (see the cards' cannot_tell) and the data's "
-                    "limits; required when data was read.",
+                    "limits; required when data was read. At most 3, none repeating another.",
                 ),
                 "primary_block_id": _nullable("Id of the block to show first, or null."),
                 "followups": _list(_STR, "Up to 3 short follow-up questions."),
                 "measure_only": {
                     "type": "boolean",
                     "description": (
-                        "true when no registered card is supported by the data: report what was "
-                        "measured and say the cause is unknown."
+                        "true when no registered card is supported by the data (report what was "
+                        "measured and say once that the cause is unknown), or when the question "
+                        "only asks to describe the place (then no 'cause unknown' caveat)."
                     ),
                 },
             }

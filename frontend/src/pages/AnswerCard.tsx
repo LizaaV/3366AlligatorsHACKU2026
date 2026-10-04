@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
-import { api, toApiError } from '../api';
 import { Btn, ConfidenceBadge, Ms } from '../components/ui';
 import type { Answer } from '../model';
 import { cloudFromPercent } from '../lib/format';
-import { ArtifactRefs, LinkedText } from '../components/artifacts/ArtifactRefs';
+import { api } from '../api';
+import { absoluteUrl, copyText, downloadRunReport, runActionError } from '../modals/runActions';
+import { skillRunnable } from '../data/presentation';
 
 /** The contract's `RouteOption` (`contracts/openapi.json`): `sat`, not `satellite`. */
 type RouteOption = Answer['route'][number];
@@ -63,28 +64,71 @@ function Routing({ route }: { route: RouteOption[] }) {
   );
 }
 
-export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunSkill, onAskFollowup }: { answer: Answer; turnId: string; question: string; placeId: string | null; runId?: string | null; onRunSkill: (id: string) => void; onAskFollowup?: (q: string) => void }) {
-  const { open, go, places, skills, notify } = useStore();
-  const [remembered, setRemembered] = useState(false);
-  const [remembering, setRemembering] = useState(false);
+export function AnswerCard({ answer: a, question, placeId, runId, onRunSkill, onAskFollowup }: {
+  answer: Answer;
+  question: string;
+  placeId: string | null;
+  /** The run behind this answer (`AskTurn.runId`). Without it there is nothing to export or save. */
+  runId?: string | null;
+  onRunSkill: (id: string) => void;
+  onAskFollowup?: (q: string) => void;
+}) {
+  const { open, notify, go, places, skills } = useStore();
+  const [busy, setBusy] = useState<'pdf' | 'share' | 'save' | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  // Report, link and "save to place" all hang off the stored run; no run id, no buttons.
+  const realRun = !!runId;
+
+  const downloadPdf = async () => {
+    if (!runId) return;
+    setBusy('pdf');
+    const msg = await downloadRunReport(runId);
+    setBusy(null);
+    notify(msg ?? 'PDF report downloaded', undefined, undefined, msg ? 'error' : 'download');
+  };
+
+  const share = async () => {
+    if (!runId) return;
+    if (shareUrl) {
+      const ok = await copyText(shareUrl);
+      notify(ok ? 'Link copied' : `Share link: ${shareUrl}`, undefined, undefined, 'link');
+      return;
+    }
+    setBusy('share');
+    try {
+      const res = await api.runs.share(runId);
+      const url = absoluteUrl(res.url);
+      setShareUrl(url);
+      const ok = await copyText(url);
+      notify(ok ? 'Share link copied to the clipboard' : 'Share link created', undefined, undefined, 'link');
+    } catch (err) {
+      notify(runActionError(err, 'share'), undefined, undefined, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const saveToPlace = async () => {
+    if (!runId || !placeId) return;
+    setBusy('save');
+    try {
+      const text = [a.title, a.sentence].filter(Boolean).join(' ').slice(0, 1000);
+      await api.runs.saveInsight(runId, { place_id: placeId, text, confidence: a.confidence.level });
+      setSaved(true);
+      notify(`Saved to ${place?.name ?? 'the place'}`, undefined, undefined, 'bookmark_added');
+    } catch (err) {
+      notify(runActionError(err, 'insight'), undefined, undefined, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
   const used = a.proof.filter((p) => p.used).length;
   const place = places.find((p) => p.id === placeId);
   // The backend sends the accent colour; it has no notion of our category list.
   const color = a.color ?? 'var(--subtle)';
-  const canRemember = a.kind === 'place' && !!place && !!runId && !!a.sentence;
-  const remember = () => {
-    if (!canRemember || !place || !runId) return;
-    setRemembering(true);
-    api.memory.saveInsight(runId, { place_id: place.id, text: a.sentence, confidence: a.confidence.level }).then(
-      () => {
-        setRemembered(true);
-        notify(`Saved to ${place.name}'s memory`, 'View', () => open({ kind: 'editPlace', placeId: place.id, tab: 'memory' }), 'psychology');
-      },
-      (err: unknown) => notify(`Could not save: ${toApiError(err).userMessage}`, undefined, undefined, 'error'),
-    ).finally(() => setRemembering(false));
-  };
   return (
-    <div className="col" style={{ padding: 18, borderRadius: 12, background: 'var(--s2)', border: '1px solid var(--hair)', gap: 14, animation: 'fadeUp .4s ease both' }}>
+    <div className="col" style={{ padding: 16, borderRadius: 12, background: 'var(--s2)', border: '1px solid var(--hair)', gap: 12, animation: 'fadeUp .4s ease both' }}>
       <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div className="row">
           <span className="sq" style={{ background: color }} />
@@ -94,26 +138,27 @@ export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunS
         </div>
         <ConfidenceBadge level={a.confidence.level} pct={a.confidence.pct} />
       </div>
-      <div style={{ font: '600 22px/1.18 var(--font)', letterSpacing: -0.4, textWrap: 'balance' }}>{a.title}</div>
+      <div style={{ font: '600 19px/1.22 var(--font)', letterSpacing: -0.3, textWrap: 'balance' }}>{a.title}</div>
       {a.sentence && (
-        <div className="body-sm" style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-dim, inherit)' }}><LinkedText text={a.sentence} turnId={turnId} /></div>
+        <div className="body-sm" style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--ink-dim, inherit)' }}>{a.sentence}</div>
       )}
-      <ArtifactRefs turnId={turnId} />
       {a.stats.length > 0 && (
         <div className="stats" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
-          {a.stats.map((s) => (
+          {a.stats.slice(0, 3).map((s) => (
             <div key={s.label}><div className="l">{s.label}</div><div className="v">{s.value}</div>{s.ci && <div className="ci">{s.ci}</div>}</div>
           ))}
         </div>
       )}
+      {a.finding && (
       <div>
         <div style={{ font: '600 13px/1.38 var(--font)' }}>{a.findingLabel}</div>
         {/* A measure-only answer has a measurement but no matching knowledge card, so there is
             genuinely no cause to state. Saying so is better than implying one. */}
         <div className="body-sm" style={{ marginTop: 2, fontSize: 14, lineHeight: 1.6, color: a.finding ? undefined : 'var(--subtle)' }}>
-          {a.finding ?? 'Cause unknown — this is a measurement only, with no matching knowledge card.'}
+          {a.finding}
         </div>
       </div>
+      )}
       {a.action && (
         <div>
           <div style={{ font: '600 13px/1.38 var(--font)' }}>{a.actionLabel}</div>
@@ -125,7 +170,7 @@ export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunS
         <div className="col" style={{ gap: 6 }}>
           <div className="eyebrow">Ask next</div>
           <div className="row wrap" style={{ gap: 6 }}>
-            {a.followups.map((q) => (
+            {a.followups.slice(0, 3).map((q) => (
               <button key={q} className="chip" onClick={() => onAskFollowup(q)} style={{ textAlign: 'left' }}>{q}</button>
             ))}
           </div>
@@ -142,15 +187,23 @@ export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunS
               <div key={id} className="row" style={{ gap: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--s1)', border: '1px solid var(--hair-soft)' }}>
                 <div className="col grow"><span style={{ font: '600 13px/1.38 var(--font)' }}>{s.name}</span><span className="tiny">{s.sat} · by {s.publisherName}</span></div>
                 <Btn size="sm" variant="text" onClick={() => go('library', id)}>Open</Btn>
-                <Btn size="sm" icon="play_arrow" onClick={() => onRunSkill(id)}>Run</Btn>
+                {skillRunnable(s) ? (
+                  <Btn size="sm" icon="play_arrow" onClick={() => onRunSkill(id)}>Run</Btn>
+                ) : (
+                  <span className="tiny" style={{ padding: '1px 6px', borderRadius: 4, background: 'var(--s3)' }}>Concept</span>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
+      {/* Everything behind the answer sits in one closed section, so the answer itself stays
+          short: accuracy notes, method, satellite routing and the scenes used. */}
+      <Section icon="fact_check" title="How we know this" meta={`${a.confidence.level} confidence · ${a.caveats.length} notes`}>
+      <div className="col" style={{ gap: 10 }}>
       {/* honesty: what could be wrong */}
-      <Section icon="report" title="Accuracy & known issues" meta={`${a.caveats.length} notes`} defaultOpen={a.kind === 'place'}>
+      <Section icon="report" title="Accuracy & known issues" meta={`${a.caveats.length} notes`} defaultOpen>
         <div className="caption muted" style={{ marginBottom: 8 }}>{a.confidence.note}</div>
         <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }} className="body-sm">
           {a.caveats.map((c) => <li key={c} style={{ fontSize: 13 }}>{c}</li>)}
@@ -216,29 +269,40 @@ export function AnswerCard({ answer: a, turnId, question, placeId, runId, onRunS
               </div>
             ))}
           </div>
-          <div className="row wrap" style={{ marginTop: 10, gap: 8, justifyContent: 'space-between' }}>
-            <span className="tiny">Processing hash <span className="muted" style={{ fontFamily: 'ui-monospace, monospace' }}>{a.hash}</span> · re-runnable</span>
-            {runId && <a className="btn btn-secondary btn-sm" href={api.shares.reportPdfUrl(runId)} download><Ms n="download" />Proof pack (PDF)</a>}
-          </div>
+          {a.hash && (
+            <div className="row wrap" style={{ marginTop: 10, gap: 8 }}>
+              <span className="tiny">Processing hash <span className="muted" style={{ fontFamily: 'ui-monospace, monospace' }}>{a.hash}</span></span>
+            </div>
+          )}
         </Section>
       )}
+      </div>
+      </Section>
 
       <div className="row wrap" style={{ gap: 8, borderTop: '1px solid var(--hair)', paddingTop: 14 }}>
         {a.kind === 'place' ? (
-          <Btn variant="primary" icon="visibility" onClick={() => open({ kind: 'watchBuilder', prefill: watchPrefill(question), placeId, skillId: a.skillId ?? undefined, fromAnswer: true })}>Keep watching</Btn>
+          <Btn variant="primary" icon="notifications" onClick={() => open({ kind: 'watchBuilder', prefill: watchPrefill(question, a, place?.name), placeId, skillId: a.skillId ?? undefined, fromAnswer: true })}>Set a trigger</Btn>
         ) : (
           <Btn variant="primary" icon="pentagon" onClick={() => go('places')}>Pick a place</Btn>
         )}
-        <Btn variant="secondary" icon="ios_share" onClick={() => open({ kind: 'export', target: { kind: 'answer', title: a.title, subtitle: a.eyebrow, id: runId ?? undefined } })}>Export</Btn>
-        <Btn icon="support_agent" onClick={() => open({ kind: 'expert', context: a.title, placeId })}>Ask an expert</Btn>
-        {canRemember && place && (
-          <Btn variant="text" icon={remembered ? 'check' : 'psychology'} disabled={remembered || remembering} onClick={remember}>
-            {remembered ? `Saved to ${place.name}` : `Remember this for ${place.name}`}
-          </Btn>
+        {realRun && (
+          <>
+            <Btn variant="secondary" icon="picture_as_pdf" disabled={busy !== null} onClick={() => void downloadPdf()}>{busy === 'pdf' ? 'Preparing PDF…' : 'PDF report'}</Btn>
+            <Btn variant="secondary" icon={shareUrl ? 'content_copy' : 'link'} disabled={busy !== null} onClick={() => void share()}>{busy === 'share' ? 'Creating link…' : shareUrl ? 'Copy link' : 'Share link'}</Btn>
+            {a.kind === 'place' && placeId && (
+              <Btn icon={saved ? 'bookmark_added' : 'bookmark_add'} disabled={busy !== null || saved} onClick={() => void saveToPlace()}>{saved ? 'Saved to place' : busy === 'save' ? 'Saving…' : 'Save to place'}</Btn>
+            )}
+          </>
         )}
       </div>
+      {shareUrl && (
+        <div className="row" style={{ gap: 8 }}>
+          <input className="input" readOnly value={shareUrl} onFocus={(e) => e.target.select()} aria-label="Share link" style={{ fontSize: 13 }} />
+        </div>
+      )}
     </div>
   );
 }
 
-const watchPrefill = (q: string) => `Tell me when anything changes: ${q}`;
+const watchPrefill = (q: string, a: Answer, place?: string) =>
+  a.skillId === 'dry-patch-finder' ? `Tell me when the dry patch on ${place ?? 'my field'} passes 5 ha` : `Tell me when anything changes: ${q}`;

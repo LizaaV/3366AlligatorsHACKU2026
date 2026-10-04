@@ -10,7 +10,9 @@ import asyncio
 import importlib
 import json
 import re
+from collections.abc import Iterator
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -50,16 +52,16 @@ from earth.blocks import (
 )
 from earth.presets import HOO_HOK_WAI
 from knowledge import KnowledgeBase, load_knowledge
-from tests.test_agent_loop import (
+from tests.agent_helpers import (
     AREA,
     PLACE,
     POND_RUN,
     REGISTER,
     USAGE,
     USER,
+    agent_client,
     answer_of,
     assert_closed,
-    client,  # noqa: F401 — pytest fixture
     explain,
     finish,
     first,
@@ -77,7 +79,6 @@ from tests.test_agent_tools import (
     register,
     run,
     run_code,
-    stub_earth,  # noqa: F401 — pytest fixture (autouse)
 )
 from tests.test_agent_validate import _args, _score, _state
 
@@ -140,6 +141,19 @@ STUB_SKILL_OBSERVED: dict[str, Any] = {
 @pytest.fixture(scope="module")
 def kb() -> KnowledgeBase:
     return load_knowledge()
+
+
+@pytest.fixture(autouse=True)
+def stub_earth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    monkeypatch.setenv("EARTH_IMPL", "stub")
+    monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    yield tmp_path
+
+
+@pytest.fixture
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    with agent_client(tmp_path, monkeypatch) as c:
+        yield c
 
 
 def _pond_state(kb: KnowledgeBase, observed: dict[str, Any], *ids: str) -> AgentState:
@@ -714,3 +728,39 @@ def test_measure_only_confidence_follows_scoring(
 def test_earth_reference_explains_the_circle_fallback() -> None:
     ref = prompts.earth_reference()
     assert "CIRCLE" in ref and "25 km²" in ref
+
+
+# --- The supported card's own wording is never another card's claim -------------------------
+
+
+_BARE_TITLE = "Large shift from plants and water to bare or built ground across most of the site"
+
+
+def _bare_run(**kw: Any) -> tuple[dict[str, Any], AgentState, Any]:
+    args = _args(
+        title=_BARE_TITLE,
+        sentence=(
+            "Most of the site changed from plants and water to ground consistent with new bare "
+            "ground or a built surface."
+        ),
+        cause_card_id="new_bare_or_built",
+        cause="consistent with new bare ground or a built surface",
+        **kw,
+    )
+    state = _state(
+        hypotheses=["new_bare_or_built", "construction"], cards_read=["new_bare_or_built"]
+    )
+    return args, state, _score({"new_bare_or_built": "supported", "construction": "unclear"})
+
+
+def test_supported_card_wording_is_not_flagged_as_another_cause(kb: KnowledgeBase) -> None:
+    args, state, scored = _bare_run()
+    problems = validate_finish(args, state, kb, scored)
+    assert not any("construction" in p or "wording" in p for p in problems), problems
+
+
+def test_other_card_words_outside_own_wording_are_still_flagged(kb: KnowledgeBase) -> None:
+    args, state, scored = _bare_run()
+    args["cause"] = "consistent with new bare ground or a built surface, a construction site"
+    problems = validate_finish(args, state, kb, scored)
+    assert any("construction" in p for p in problems), problems

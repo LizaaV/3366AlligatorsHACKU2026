@@ -10,7 +10,7 @@ from app.schemas.places import (
     PatchPlaceRequest,
     PlaceDto,
 )
-from app.services import boundary, place_files
+from app.services import boundary, place_files, views
 from app.services import places as svc
 from app.services.memory import ID_RE
 from app.services.user import current_user
@@ -35,9 +35,13 @@ def list_places(user_id: UserId) -> list[PlaceDto]:
 @router.post("/places", response_model=PlaceDto, status_code=201, responses=_BAD_AREA)
 def create_place(body: CreatePlaceRequest, user_id: UserId) -> PlaceDto:
     try:
-        return svc.create_place(user_id, body)
+        created = svc.create_place(user_id, body)
     except EarthError as exc:
         raise HTTPException(400, detail=exc.to_dict()) from exc
+    # Render its photo, greenness, water and bare-ground views for every recent pass now, in
+    # the background, so looking at the place later is instant.
+    views.prefetch_place(created.id, created.geometry, created.name)
+    return created
 
 
 @router.post("/places/detect-boundary", response_model=DetectBoundaryResponse)
@@ -83,6 +87,8 @@ def patch_place(place_id: PlaceId, body: PatchPlaceRequest, user_id: UserId) -> 
         raise HTTPException(400, detail=exc.to_dict()) from exc
     if place is None:
         raise _missing()
+    if body.geometry is not None or body.center is not None:  # a new outline renders afresh
+        views.prefetch_place(place.id, place.geometry, place.name)
     return place
 
 

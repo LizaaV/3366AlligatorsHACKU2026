@@ -182,7 +182,7 @@ def _ordered_rules(kb: KnowledgeBase) -> list[PolicyRule]:
 # --- Prompt (stable, cacheable) -------------------------------------------------------------
 
 _INSTRUCTIONS = """\
-You are the policy guard of Earth Agent, a service that answers questions about places on \
+You are the policy guard of Constellation, a service that answers questions about places on \
 Earth from free satellite data: Sentinel-2 optical images at 10 m (from mid-2015), \
 Sentinel-1 radar that sees through cloud (from 2014), Landsat surface heat, terrain, \
 rainfall and land cover. You never answer the question. You classify it against the policy \

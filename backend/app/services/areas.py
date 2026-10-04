@@ -126,14 +126,56 @@ def _geocoder() -> Callable[[str], Any] | None:
     return None
 
 
+def _describe(
+    name: str, display_name: str | None, country: str | None, region: str | None
+) -> str | None:
+    """Where it is: 'London, United Kingdom'. Uses the geocoder's region when it has one, else
+    the first non-street part of the full address."""
+    if region and region != country:
+        return f"{region}, {country}" if country else region
+    parts = [p.strip() for p in (display_name or "").split(",") if p.strip()]
+    parts = [p for p in parts if p != name and not any(c.isdigit() for c in p)]
+    if not parts:
+        return country
+    return parts[-1] if len(parts) == 1 else f"{parts[-2]}, {parts[-1]}"
+
+
+def _kind(kind: str | None) -> str | None:
+    """OSM 'class/type' -> the plain type ('place/city' -> 'city', 'leisure/park' -> 'park')."""
+    if not kind:
+        return None
+    return str(kind).split("/")[-1].replace("_", " ") or None
+
+
 def _as_match(item: Any) -> AreaMatch | None:
     """Accept whatever the geocoder returns per hit: a model/object or a dict with name/lat/lon."""
     get = item.get if isinstance(item, dict) else lambda k, d=None: getattr(item, k, d)
     lat, lon = get("lat"), get("lon")
     if lat is None or lon is None:
         return None
-    name = get("name") or get("display_name") or f"{float(lat):.4f}, {float(lon):.4f}"
-    return AreaMatch(name=str(name), lat=float(lat), lon=float(lon))
+    display = get("display_name")
+    name = get("name") or (display.split(",")[0] if display else None)
+    name = name or f"{float(lat):.4f}, {float(lon):.4f}"
+    return AreaMatch(
+        name=str(name),
+        lat=float(lat),
+        lon=float(lon),
+        description=_describe(str(name), display, get("country"), get("region")),
+        kind=_kind(get("kind")),
+    )
+
+
+def _dedupe(matches: list[AreaMatch]) -> list[AreaMatch]:
+    """Drop repeats: the same name in the same region (geocoders often return a city twice,
+    once as the town and once as its boundary, a few km apart)."""
+    seen: set[tuple[str, str]] = set()
+    out = []
+    for m in matches:
+        key = (m.name.lower(), (m.description or f"{m.lat:.2f},{m.lon:.2f}").lower())
+        if key not in seen:
+            seen.add(key)
+            out.append(m)
+    return out
 
 
 def _search(query: str) -> AreaResolveResponse:
@@ -144,7 +186,7 @@ def _search(query: str) -> AreaResolveResponse:
     if isinstance(result, earth.Area):
         return AreaResolveResponse(area=result, source="search")
     hits = result if isinstance(result, list | tuple) else [result]
-    matches = [m for m in (_as_match(h) for h in hits if h is not None) if m is not None]
+    matches = _dedupe([m for m in (_as_match(h) for h in hits if h is not None) if m is not None])
     if not matches:
         raise earth.InvalidArea(
             f"No place found for {query!r}.",
@@ -152,7 +194,10 @@ def _search(query: str) -> AreaResolveResponse:
         )
     best = matches[0]
     return AreaResolveResponse(
-        area=_point(best.lat, best.lon, name=best.name), source="search", matches=matches[1:]
+        area=_point(best.lat, best.lon, name=best.name),
+        source="search",
+        matches=matches[1:],
+        best=best,
     )
 
 

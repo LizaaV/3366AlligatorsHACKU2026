@@ -1,28 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { ApiError, api, toApiError } from '../api';
 import type { ChannelId, Feasibility } from '../model';
-import type { WatchRecurrence } from '../api/types';
-import { useResource } from '../hooks/useResource';
-import { Btn, Check, Modal, ModalHead, Ms } from '../components/ui';
+import { Btn, Modal, ModalHead, Ms } from '../components/ui';
 import { ErrorState } from '../components/async';
 
 const EXAMPLES = [
-  'Tell me when open water at this place drops by 20%',
-  'Alert me if a fire starts within 10 km',
-  'Warn me if trees are cleared here',
+  'Tell me when the dry patch on North Pivot passes 5 ha',
+  'Alert me if a fire starts within 10 km of my farm',
+  'Warn me if forest is cleared on plot 14',
   'Count the cars in my parking lot',
 ];
 
-/** Channels that can be picked today; the rest cannot deliver yet. */
-const SELECTABLE_CHANNELS: ChannelId[] = ['email'];
-
 const CHECK_STEPS = ['Reading your request', 'Matching a skill', 'Checking satellite coverage & revisit', 'Estimating accuracy'];
 
-type Stage = 'ask' | 'check' | 'deliver';
+type Stage = 'ask' | 'check' | 'save';
 
-export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashboardId }: { prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean; dashboardId?: string }) {
-  const { places, skills, channels: catalogChannels, category, close, addWatch, notify, go } = useStore();
+export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer }: { prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean }) {
+  const { places, skills, category, close, addWatch, notify, go } = useStore();
   const presetSkill = skillId ? skills.find((x) => x.id === skillId) : undefined;
   const autoText = presetSkill ? `Tell me when ${presetSkill.name.toLowerCase()} finds something new` : '';
 
@@ -32,12 +27,10 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
   const [checking, setChecking] = useState(0); // steps done; CHECK_STEPS.length = finished
   const [feas, setFeas] = useState<Feasibility | null>(null);
   const [condition, setCondition] = useState('');
-  const [channels, setChannels] = useState<ChannelId[]>(['email']);
+  // No delivery channel is built yet; the API still takes one, so the default is sent as is.
+  const channels: ChannelId[] = ['email'];
   const [error, setError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
-  const [recurrence, setRecurrence] = useState<WatchRecurrence>('recurring');
-  const [dashId, setDashId] = useState<string>(dashboardId ?? '');
-  const dashboards = useResource(useCallback((signal) => api.dashboards.list(signal), []), []);
   const timers = useRef<number[]>([]);
 
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
@@ -57,15 +50,24 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
     timers.current = CHECK_STEPS.map((_, i) => window.setTimeout(() => setChecking(i + 1), (i + 1) * 350));
 
     try {
-      const f = await api.watches.checkFeasibility({ text: query, placeId: place || null });
+      let f = await api.watches.checkFeasibility({ text: query, placeId: place || null });
+      // A watch started from a skill page keeps that skill when the text gives no better match.
+      if (presetSkill && f.ok && f.skillId === 'dry-patch-finder' && presetSkill.id !== f.skillId) {
+        f = {
+          ...f,
+          title: presetSkill.name,
+          skillId: presetSkill.id,
+          categoryKey: presetSkill.categoryKey,
+          satellites: presetSkill.sat,
+          tier: presetSkill.tier,
+          cost: presetSkill.cost,
+          metric: presetSkill.name,
+          condition: 'Any significant change vs the 5-year range',
+        };
+      }
       // Use the threshold the person typed, if there is one.
       const num = query.match(/(\d+(?:\.\d+)?)\s*(ha|km|%|\u00b0C|\u00b5g\/L)/i);
-      // Keep the direction the person asked for: "drops by 20%" is a fall, not "above 20%".
-      const down = /\b(drops?|dropp|falls?|fell|decreas|shrinks?|below|under|less|loses?|lost|declin)/i.test(query);
-      // "by 20%" is a change; "above 30%" is a level.
-      const change = /\bby\s+(?:more than\s+|over\s+)?\d/i.test(query);
-      const rel = change ? (down ? 'falls by more than' : 'rises by more than') : down ? 'below' : 'above';
-      setCondition(num && f.ok ? `${f.metric} ${rel} ${num[1]} ${num[2]}` : f.condition);
+      setCondition(num && f.ok ? `${f.metric} above ${num[1]} ${num[2]}` : f.condition);
       setFeas(f);
     } catch (err) {
       setError(toApiError(err));
@@ -74,8 +76,6 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
       setChecking(CHECK_STEPS.length);
     }
   };
-
-  const toggle = (c: ChannelId) => setChannels((s) => (s.includes(c) ? s.filter((x) => x !== c) : [...s, c]));
 
   const create = async () => {
     if (!feas || saving) return;
@@ -91,11 +91,14 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
         condition: condition || feas.condition,
         channels,
         cadence: feas.cadence,
-        recurrence,
-        dashboardId: dashId || null,
       });
       close();
-      notify('Trigger created', 'Open', () => go('triggers', created.id), 'visibility');
+      notify(
+        feas.partial ? 'Trigger saved (low confidence on free imagery)' : 'Trigger saved',
+        'Open',
+        () => go('triggers', created.id),
+        'notifications',
+      );
     } catch (err) {
       setError(toApiError(err));
     } finally {
@@ -106,11 +109,11 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
   const stepIdx = stage === 'ask' ? 0 : stage === 'check' ? 1 : 2;
 
   return (
-    <Modal onClose={close} size="wide" label="Build a trigger">
+    <Modal onClose={close} size="wide" label="Set a trigger">
       <ModalHead
         eyebrow={fromAnswer ? 'Trigger from this answer' : 'New trigger'}
-        title={stage === 'ask' ? 'What should we look out for?' : stage === 'check' ? 'Can satellites see this?' : 'Where should alerts go?'}
-        sub={stage === 'ask' ? 'Say it in your own words. The agent checks if it can be watched from space before you commit.' : undefined}
+        title={stage === 'ask' ? 'What should the trigger look for?' : stage === 'check' ? 'Can satellites see this?' : 'Save the trigger'}
+        sub={stage === 'ask' ? 'Say it in your own words. The agent checks whether satellites can see it before you save.' : undefined}
         onClose={close}
       />
 
@@ -118,7 +121,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
 
       {/* stage indicator */}
       <div className="row" style={{ gap: 6 }} aria-label={`Step ${stepIdx + 1} of 3`}>
-        {['Describe', 'Check', 'Deliver'].map((l, i) => (
+        {['Describe', 'Check', 'Save'].map((l, i) => (
           <div key={l} className="row grow" style={{ gap: 8, flexDirection: 'column', alignItems: 'stretch' }}>
             <span style={{ height: 3, borderRadius: 2, background: i <= stepIdx ? '#fff' : 'var(--s3)' }} />
             <span className="tiny" style={{ color: i === stepIdx ? '#fff' : undefined }}>{i + 1}. {l}</span>
@@ -137,7 +140,7 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
             placeholder="Tell me when…"
             rows={3}
             style={{ fontSize: 18, lineHeight: 1.5 }}
-            aria-label="What should we look out for?"
+            aria-label="What should the trigger look for?"
           />
           <div className="row wrap">
             {EXAMPLES.map((ex) => (
@@ -151,24 +154,6 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
               <option value="">No specific place / all my places</option>
             </select>
           </label>
-          <div className="row wrap" style={{ gap: 16, alignItems: 'flex-start' }}>
-            <div className="field" style={{ flex: '1 1 220px' }}>
-              Repeat
-              <div className="seg" role="radiogroup" aria-label="Repeat" style={{ alignSelf: 'flex-start' }}>
-                <button type="button" role="radio" aria-checked={recurrence === 'recurring'} className={recurrence === 'recurring' ? 'on' : ''} onClick={() => setRecurrence('recurring')}><Ms n="autorenew" size={16} />Recurring</button>
-                <button type="button" role="radio" aria-checked={recurrence === 'once'} className={recurrence === 'once' ? 'on' : ''} onClick={() => setRecurrence('once')}><Ms n="looks_one" size={16} />One time</button>
-              </div>
-              <span className="tiny">{recurrence === 'once' ? 'Tell me the first time it happens, then stop.' : 'Keep telling me every time it happens.'}</span>
-            </div>
-            <label className="field" style={{ flex: '1 1 260px' }}>
-              Based on a dashboard <span className="tiny">(optional)</span>
-              <select className="input" value={dashId} onChange={(e) => setDashId(e.target.value)}>
-                <option value="">None, just watch the place</option>
-                {dashboards.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-              <span className="tiny">Tell me when this dashboard&rsquo;s state changes.</span>
-            </label>
-          </div>
           <div className="modal-foot">
             <Btn variant="text" onClick={close}>Cancel</Btn>
             <Btn variant="primary" icon="travel_explore" disabled={!text.trim()} onClick={() => runCheck(text)}>Check if it’s possible</Btn>
@@ -198,49 +183,29 @@ export function WatchBuilderModal({ prefill, placeId, skillId, fromAnswer, dashb
 
           <div className="modal-foot">
             <Btn variant="text" icon="arrow_back" onClick={() => { setStage('ask'); setFeas(null); }}>Edit request</Btn>
-            {feas?.ok && <Btn variant="primary" trailing="arrow_forward" onClick={() => setStage('deliver')}>Next: delivery</Btn>}
+            {feas?.ok && <Btn variant="primary" trailing="arrow_forward" onClick={() => setStage('save')}>Next</Btn>}
           </div>
         </>
       )}
 
-      {stage === 'deliver' && feas && (
+      {stage === 'save' && feas && (
         <>
-          <div className="col" style={{ gap: 2 }}>
-            {catalogChannels.map((c) => {
-              const canPick = SELECTABLE_CHANNELS.includes(c.id);
-              const on = canPick && channels.includes(c.id);
-              return (
-                <div key={c.id} className="col" style={{ borderBottom: '1px solid var(--hair-soft)', padding: '10px 0', gap: 10 }}>
-                  <button className="row" onClick={() => toggle(c.id)} aria-pressed={on} disabled={!canPick} style={{ gap: 12, background: 'none', border: 0, padding: 0, textAlign: 'left', width: '100%', opacity: canPick ? 1 : 0.55, cursor: canPick ? 'pointer' : 'not-allowed' }}>
-                    <Check on={on} />
-                    <Ms n={c.icon} size={20} className="muted" />
-                    <span className="grow">
-                      <span className="body-sm ink" style={{ display: 'block' }}>{c.name}</span>
-                      <span className="tiny">{canPick ? c.note : 'Coming soon'}</span>
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="tiny">Triggers are checked and saved, but alerts are not sent yet.</div>
-
           <div className="sunk" style={{ padding: '12px 16px' }}>
             <div className="body-sm">
-              <span className="ink">Checks {feas.cadence.charAt(0).toLowerCase() + feas.cadence.slice(1)}</span> with {feas.satellites}. Once alerts are live, you’ll hear from us when <span className="ink">{condition || feas.condition}</span>
-              {placeObj ? ` on ${placeObj.name}` : ' on any of your places'}.
+              Look for <span className="ink">{condition || feas.condition}</span>
+              {placeObj ? ` on ${placeObj.name}` : ' on any of your places'}, using {feas.satellites}.
             </div>
           </div>
-
+          <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
+            <Ms n="info" size={16} className="subtle" style={{ marginTop: 2 }} />
+            <span className="tiny">
+              Automatic re-checks and alerts are not running yet. The trigger is saved with your question, so you can open it from Triggers and run it on the latest imagery at any time.
+            </span>
+          </div>
           <div className="modal-foot">
             <Btn variant="text" icon="arrow_back" onClick={() => setStage('check')}>Back</Btn>
-            <Btn
-              variant="primary"
-              icon="visibility"
-              onClick={create}
-            >
-              {recurrence === 'once' ? 'Create one-time trigger' : 'Create trigger'}
+            <Btn variant="primary" icon="notifications" disabled={saving} onClick={create}>
+              {saving ? 'Saving…' : 'Save trigger'}
             </Btn>
           </div>
         </>
@@ -257,9 +222,9 @@ function Result({ feas, condition, setCondition, onAlternative }: {
 }) {
   const { skills } = useStore();
   const skill = skills.find((x) => x.id === feas.skillId);
-  const tone = !feas.ok ? { c: 'var(--red)', bg: 'rgba(230,43,30,.1)', icon: 'block', t: 'This can’t be watched from space' }
-    : feas.partial ? { c: 'var(--yellow)', bg: 'rgba(255,207,37,.08)', icon: 'error', t: 'Yes, with a trade-off' }
-    : { c: 'var(--green)', bg: 'rgba(0,202,142,.08)', icon: 'check_circle', t: 'Yes, the agent can watch this' };
+  const tone = !feas.ok ? { c: 'var(--red)', bg: 'rgba(230,43,30,.1)', icon: 'block', t: 'Satellites can’t see this' }
+    : feas.partial ? { c: 'var(--yellow)', bg: 'rgba(255,207,37,.08)', icon: 'error', t: 'Yes, at lower confidence' }
+    : { c: 'var(--green)', bg: 'rgba(0,202,142,.08)', icon: 'check_circle', t: 'Yes, satellites can see this' };
 
   return (
     <div className="col fade-up" style={{ gap: 16 }}>
@@ -271,19 +236,11 @@ function Result({ feas, condition, setCondition, onAlternative }: {
         </div>
       </div>
 
-      {feas.ok && !feas.partial && (
+      {feas.ok && (
         <div className="stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
           <div><div className="l">Skill</div><div className="v" style={{ fontSize: 14 }}>{skill?.name ?? feas.title}</div></div>
           <div><div className="l">Satellite</div><div className="v" style={{ fontSize: 14 }}>{feas.satellites}</div></div>
-          <div><div className="l">How often</div><div className="v" style={{ fontSize: 14 }}>{feas.cadence}</div></div>
-          <div><div className="l">Confidence</div><div className="v" style={{ fontSize: 14 }}>{feas.confidence}</div></div>
-        </div>
-      )}
-
-      {feas.partial && (
-        <div className="stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
-          <div><div className="l">Satellite</div><div className="v" style={{ fontSize: 14 }}>{feas.satellites}</div></div>
-          <div><div className="l">How often</div><div className="v" style={{ fontSize: 14 }}>{feas.cadence}</div></div>
+          <div><div className="l">Satellite revisit</div><div className="v" style={{ fontSize: 14 }}>{feas.cadence}</div></div>
           <div><div className="l">Confidence</div><div className="v" style={{ fontSize: 14 }}>{feas.confidence}</div></div>
         </div>
       )}
@@ -309,7 +266,7 @@ function Result({ feas, condition, setCondition, onAlternative }: {
 
       {!feas.ok && feas.alternative && (
         <div className="col" style={{ gap: 8 }}>
-          <div className="tiny">What the agent can watch instead</div>
+          <div className="tiny">What the agent can check instead</div>
           <button className="chip" style={{ alignSelf: 'flex-start', color: '#fff' }} onClick={() => onAlternative(feas.alternative!)}>
             <Ms n="auto_awesome" />{feas.alternative}<Ms n="arrow_forward" className="ms-flip" />
           </button>

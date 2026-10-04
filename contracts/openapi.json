@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Earth Agent API",
+    "title": "Constellation API",
     "version": "0.1.0"
   },
   "paths": {
@@ -197,6 +197,12 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid run id or X-User-Id."
+          },
+          "404": {
+            "description": "Run not found for this user."
           },
           "422": {
             "description": "Validation Error",
@@ -2341,7 +2347,7 @@
             }
           },
           "404": {
-            "description": "`place_id` or `dashboard_id` is not one of this user's"
+            "description": "`place_id` is not one of this user's places"
           },
           "422": {
             "description": "Invalid body, a refused question (`detail` is a `FeasibilityDto`), or too many watches"
@@ -2398,7 +2404,7 @@
             }
           },
           "404": {
-            "description": "`place_id` or `dashboard_id` is not one of this user's"
+            "description": "`place_id` is not one of this user's places"
           },
           "422": {
             "description": "Validation Error",
@@ -2472,7 +2478,7 @@
             }
           },
           "404": {
-            "description": "`place_id` or `dashboard_id` is not one of this user's"
+            "description": "No such watch for this user"
           },
           "422": {
             "description": "Validation Error",
@@ -2602,6 +2608,70 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/watches/{watch_id}/check": {
+      "post": {
+        "tags": [
+          "watches"
+        ],
+        "summary": "Check Watch",
+        "description": "Check now: measure the watch once (no LLM) and store value, status, event and proof.",
+        "operationId": "check_watch_api_watches__watch_id__check_post",
+        "parameters": [
+          {
+            "name": "watch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "title": "Watch Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such watch for this user"
+          },
+          "409": {
+            "description": "The watch has no place (or its place was deleted)"
+          },
+          "422": {
+            "description": "The watched metric cannot be measured, or no clear pass"
+          },
+          "504": {
+            "description": "The check took longer than the time limit (~150 s)"
           }
         }
       }
@@ -2866,7 +2936,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
               "title": "Skill Id"
             }
           },
@@ -2931,7 +3001,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
               "title": "Skill Id"
             }
           },
@@ -3211,51 +3281,52 @@
             }
           }
         }
-      }
-    },
-    "/api/satellites": {
-      "get": {
+      },
+      "delete": {
         "tags": [
-          "satellites"
+          "threads"
         ],
-        "summary": "List Satellites",
-        "description": "Current positions of the free Earth-observation satellites, each with a ~90 min\nground track (2-min steps) starting at `at`.",
-        "operationId": "list_satellites_api_satellites_get",
+        "summary": "Delete a conversation",
+        "description": "Remove the conversation from the user's chats and its project, for good. Share links\nalready sent keep working, and its runs still count towards the daily spend limit.",
+        "operationId": "delete_thread_api_threads__thread_id__delete",
         "parameters": [
           {
-            "name": "at",
-            "in": "query",
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "string",
-                  "format": "date-time"
+                  "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "ISO instant to propagate to; default now.",
-              "title": "At"
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
             },
-            "description": "ISO instant to propagate to; default now."
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
           }
         ],
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/app__schemas__satellites__SatelliteDto"
-                  },
-                  "title": "Response List Satellites Api Satellites Get"
-                }
-              }
-            }
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Invalid thread id."
+          },
+          "404": {
+            "description": "Not found."
           },
           "422": {
             "description": "Validation Error",
@@ -3505,6 +3576,435 @@
         }
       }
     },
+    "/api/views/passes": {
+      "get": {
+        "tags": [
+          "views"
+        ],
+        "summary": "Recent clear passes over a place or spot",
+        "description": "Clear Sentinel-2 passes over the place (or the square around the pin) in the period.",
+        "operationId": "view_passes_api_views_passes_get",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "4m",
+                "1y",
+                "2y",
+                "5y"
+              ],
+              "type": "string",
+              "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month).",
+              "default": "4m",
+              "title": "Period"
+            },
+            "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month)."
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 85,
+                  "minimum": -85
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 180,
+                  "minimum": -180
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "place_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A saved place: its outline.",
+              "title": "Place Id"
+            },
+            "description": "A saved place: its outline."
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ViewPass"
+                  },
+                  "title": "Response View Passes Api Views Passes Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Give either `place_id`, or both `lat` and `lon`."
+          },
+          "404": {
+            "description": "Unknown place, or no imagery here (offline data or no clear pass)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/views": {
+      "get": {
+        "tags": [
+          "views"
+        ],
+        "summary": "Render one band of a place or spot",
+        "description": "One band (photo, greenness, water, bare) from the given pass or the latest clear one.\nA place is drawn inside its own outline (transparent outside); a pin gets a 2 km square.\nRendered once, then cached. No agent, no cost.",
+        "operationId": "view_image_api_views_get",
+        "parameters": [
+          {
+            "name": "band",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "photo",
+                "greenness",
+                "water",
+                "bare"
+              ],
+              "type": "string",
+              "title": "Band"
+            }
+          },
+          {
+            "name": "scene",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scene"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "4m",
+                "1y",
+                "2y",
+                "5y"
+              ],
+              "type": "string",
+              "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month).",
+              "default": "4m",
+              "title": "Period"
+            },
+            "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month)."
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 85,
+                  "minimum": -85
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 180,
+                  "minimum": -180
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "place_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A saved place: its outline.",
+              "title": "Place Id"
+            },
+            "description": "A saved place: its outline."
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewImage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Give either `place_id`, or both `lat` and `lon`."
+          },
+          "404": {
+            "description": "Unknown place, or no imagery here (offline data or no clear pass)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/views/prefetch": {
+      "post": {
+        "tags": [
+          "views"
+        ],
+        "summary": "Warm a period ahead of time",
+        "description": "Queue warming the period in the background and return at once. For the recent window\n(`4m`) every band of every pass is rendered. For 1 to 5 years only the pass list (slow to\nfind) and the newest 3 photos are: the rest render one at a time as the person steps\nthrough them, with the passes either side drawn ahead. A place's recent window is already\nqueued when it is saved.",
+        "operationId": "view_prefetch_api_views_prefetch_post",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "4m",
+                "1y",
+                "2y",
+                "5y"
+              ],
+              "type": "string",
+              "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month).",
+              "default": "4m",
+              "title": "Period"
+            },
+            "description": "How far back: `4m` (the latest clear passes, default), or `1y`, `2y`, `5y` (the clearest pass of each month)."
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 85,
+                  "minimum": -85
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 180,
+                  "minimum": -180
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "place_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A saved place: its outline.",
+              "title": "Place Id"
+            },
+            "description": "A saved place: its outline."
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$.",
+              "title": "X-User-Id"
+            },
+            "description": "Optional demo user id (default \"demo\"), ^[a-z0-9][a-z0-9_-]{0,31}$."
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrefetchResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Give either `place_id`, or both `lat` and `lon`."
+          },
+          "404": {
+            "description": "Unknown place, or no imagery here (offline data or no clear pass)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me/skills": {
       "get": {
         "tags": [
@@ -3571,7 +4071,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
               "title": "Skill Id"
             }
           },
@@ -3634,7 +4134,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
               "title": "Skill Id"
             }
           },
@@ -4004,6 +4504,30 @@
           "lon": {
             "type": "number",
             "title": "Lon"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Where it is, to tell same-named places apart, e.g. 'Texas, United States'."
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind",
+            "description": "What it is, e.g. 'city', 'park', 'lake'."
           }
         },
         "type": "object",
@@ -4095,6 +4619,17 @@
             "type": "array",
             "title": "Matches",
             "description": "Other search candidates (search only)."
+          },
+          "best": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaMatch"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The candidate `area` was built from, with its description (search only)."
           }
         },
         "type": "object",
@@ -4340,7 +4875,7 @@
           },
           "satellites": {
             "items": {
-              "$ref": "#/components/schemas/app__schemas__catalog__SatelliteDto"
+              "$ref": "#/components/schemas/SatelliteDto"
             },
             "type": "array",
             "title": "Satellites"
@@ -4833,27 +5368,6 @@
             "maxLength": 300,
             "title": "Cadence",
             "default": ""
-          },
-          "recurrence": {
-            "type": "string",
-            "enum": [
-              "recurring",
-              "once"
-            ],
-            "title": "Recurrence",
-            "default": "recurring"
-          },
-          "dashboard_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dashboard Id"
           }
         },
         "additionalProperties": false,
@@ -6640,33 +7154,6 @@
               }
             ],
             "title": "Cadence"
-          },
-          "recurrence": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "recurring",
-                  "once"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Recurrence"
-          },
-          "dashboard_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dashboard Id"
           }
         },
         "additionalProperties": false,
@@ -6934,6 +7421,47 @@
         ],
         "title": "PointInput",
         "description": "A point plus a radius; the area is the circle around it."
+      },
+      "PrefetchResult": {
+        "properties": {
+          "passes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passes",
+            "description": "Clear passes in the period; null while the pass list is still being found."
+          },
+          "images": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Images",
+            "description": "Images that will be cached (passes times bands); null while unknown."
+          },
+          "queued": {
+            "type": "boolean",
+            "title": "Queued",
+            "description": "False when the same prefetch is already running."
+          }
+        },
+        "type": "object",
+        "required": [
+          "passes",
+          "images",
+          "queued"
+        ],
+        "title": "PrefetchResult",
+        "description": "What a prefetch will render in the background."
       },
       "Prefill": {
         "properties": {
@@ -7587,6 +8115,77 @@
         ],
         "title": "RunStarted",
         "description": "The run has been accepted and started."
+      },
+      "SatelliteDto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "res": {
+            "type": "string",
+            "title": "Res"
+          },
+          "revisit": {
+            "type": "string",
+            "title": "Revisit"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "free",
+              "paid"
+            ],
+            "title": "Tier"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "optical",
+              "radar",
+              "thermal",
+              "atmos",
+              "lights"
+            ],
+            "title": "Kind"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected",
+            "description": "True when the backend actually fetches scenes from this source today (Sentinel-2 via Earth Search, Sentinel-1 and Landsat via Planetary Computer, VIIRS fire hotspots via NASA FIRMS). The rest are listed for routing and pricing but are not wired up yet."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "res",
+          "revisit",
+          "tier",
+          "kind",
+          "note",
+          "connected"
+        ],
+        "title": "SatelliteDto"
       },
       "SaveBlockRequest": {
         "properties": {
@@ -9358,26 +9957,6 @@
         "title": "TimelineSeries",
         "description": "An extra line, e.g. the surroundings for local-vs-regional."
       },
-      "TrackPoint": {
-        "properties": {
-          "lat": {
-            "type": "number",
-            "title": "Lat",
-            "description": "Geodetic latitude, degrees."
-          },
-          "lon": {
-            "type": "number",
-            "title": "Lon",
-            "description": "Longitude, degrees east, -180..180."
-          }
-        },
-        "type": "object",
-        "required": [
-          "lat",
-          "lon"
-        ],
-        "title": "TrackPoint"
-      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -9448,6 +10027,106 @@
         ],
         "title": "ValueSource",
         "description": "Where a prefilled clarification value came from."
+      },
+      "ViewImage": {
+        "properties": {
+          "band": {
+            "type": "string",
+            "enum": [
+              "photo",
+              "greenness",
+              "water",
+              "bare"
+            ],
+            "title": "Band"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Served by GET /api/layers/...; relative to the API origin."
+          },
+          "bounds": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bounds",
+            "description": "[west, south, east, north]"
+          },
+          "scene": {
+            "type": "string",
+            "title": "Scene"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "satellite": {
+            "type": "string",
+            "title": "Satellite"
+          },
+          "cloud": {
+            "type": "integer",
+            "title": "Cloud"
+          }
+        },
+        "type": "object",
+        "required": [
+          "band",
+          "url",
+          "bounds",
+          "scene",
+          "date",
+          "satellite",
+          "cloud"
+        ],
+        "title": "ViewImage",
+        "description": "One band of one pass, rendered as a PNG pinned to WGS84 bounds."
+      },
+      "ViewPass": {
+        "properties": {
+          "scene": {
+            "type": "string",
+            "title": "Scene"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "satellite": {
+            "type": "string",
+            "title": "Satellite"
+          },
+          "cloud": {
+            "type": "integer",
+            "title": "Cloud",
+            "description": "Cloud over the square, percent."
+          }
+        },
+        "type": "object",
+        "required": [
+          "scene",
+          "date",
+          "satellite",
+          "cloud"
+        ],
+        "title": "ViewPass",
+        "description": "A recent clear Sentinel-2 pass over the spot."
       },
       "WatchDto": {
         "properties": {
@@ -9586,28 +10265,6 @@
             "title": "Enabled",
             "default": true
           },
-          "recurrence": {
-            "type": "string",
-            "enum": [
-              "recurring",
-              "once"
-            ],
-            "title": "Recurrence",
-            "description": "'once' triggers disable themselves (`enabled: false`) after their first alert-level event; 'recurring' keeps firing.",
-            "default": "recurring"
-          },
-          "dashboard_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dashboard Id",
-            "description": "Optional linked dashboard."
-          },
           "series": {
             "$ref": "#/components/schemas/WatchSeries"
           },
@@ -9680,6 +10337,18 @@
             "type": "array",
             "title": "Events",
             "description": "Newest first."
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "The one-line alert the user would receive, built from the last check; a sample based on the condition (starting 'Sample \u00b7') before the first check."
           },
           "created_at": {
             "type": "string",
@@ -9804,145 +10473,6 @@
         "type": "object",
         "title": "WatchSeries",
         "description": "History of the watched metric, one point per pass, in **real units** (`unit`).\n\nThe chart normalises for drawing; the API never sends 0..1-scaled values. All arrays have\nthe same length as `labels`. Empty until the watch has real runs."
-      },
-      "app__schemas__catalog__SatelliteDto": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "res": {
-            "type": "string",
-            "title": "Res"
-          },
-          "revisit": {
-            "type": "string",
-            "title": "Revisit"
-          },
-          "tier": {
-            "type": "string",
-            "enum": [
-              "free",
-              "paid"
-            ],
-            "title": "Tier"
-          },
-          "price": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Price"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "optical",
-              "radar",
-              "thermal",
-              "atmos",
-              "lights"
-            ],
-            "title": "Kind"
-          },
-          "note": {
-            "type": "string",
-            "title": "Note"
-          },
-          "connected": {
-            "type": "boolean",
-            "title": "Connected",
-            "description": "True when the backend actually fetches scenes from this source today (Sentinel-2 via Earth Search, Sentinel-1 and Landsat via Planetary Computer, VIIRS fire hotspots via NASA FIRMS). The rest are listed for routing and pricing but are not wired up yet."
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "res",
-          "revisit",
-          "tier",
-          "kind",
-          "note",
-          "connected"
-        ],
-        "title": "SatelliteDto"
-      },
-      "app__schemas__satellites__SatelliteDto": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id",
-            "description": "Stable slug, e.g. 'sentinel-2a'."
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "norad_id": {
-            "type": "integer",
-            "title": "Norad Id"
-          },
-          "mission": {
-            "type": "string",
-            "title": "Mission",
-            "description": "Programme, e.g. 'Sentinel-2'."
-          },
-          "lat": {
-            "type": "number",
-            "title": "Lat"
-          },
-          "lon": {
-            "type": "number",
-            "title": "Lon"
-          },
-          "alt_km": {
-            "type": "number",
-            "title": "Alt Km",
-            "description": "Height above the WGS84 ellipsoid."
-          },
-          "velocity_kms": {
-            "type": "number",
-            "title": "Velocity Kms",
-            "description": "Speed in km/s."
-          },
-          "at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "At",
-            "description": "Instant (UTC) the position is for."
-          },
-          "track": {
-            "items": {
-              "$ref": "#/components/schemas/TrackPoint"
-            },
-            "type": "array",
-            "title": "Track",
-            "description": "Sub-satellite points for the next ~90 min at 2-min steps (45 points)."
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "norad_id",
-          "mission",
-          "lat",
-          "lon",
-          "alt_km",
-          "velocity_kms",
-          "at",
-          "track"
-        ],
-        "title": "SatelliteDto"
       }
     }
   }

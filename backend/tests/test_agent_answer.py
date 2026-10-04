@@ -187,12 +187,12 @@ def test_build_answer_with_a_supported_cause(kb: KnowledgeBase) -> None:
     assert answer.measure_only is False and answer.preset is False
     assert answer.followups == ["Since when?", "Is it the same nearby?", "Show passes"]
 
-    # caveats: model first, the card's limits always present, deduplicated, at most six
+    # caveats: model first, the card's limits always present, deduplicated, at most four
     assert answer.caveats[0] == "Radar was not used."
     assert answer.caveats[1].startswith("Who did the filling")
     assert pond.cannot_tell[1] in answer.caveats
-    assert len(answer.caveats) == 6
-    assert len({c.casefold().rstrip(".") for c in answer.caveats}) == 6
+    assert len(answer.caveats) == 4
+    assert len({c.casefold().rstrip(".") for c in answer.caveats}) == 4
 
     # method: registered + read cards (unknown ids skipped), last successful script, model
     m = answer.method
@@ -203,6 +203,59 @@ def test_build_answer_with_a_supported_cause(kb: KnowledgeBase) -> None:
     assert re.fullmatch(r"[0-9a-f]{16}", answer.hash)
 
     assert _roundtrip(answer) == answer
+
+
+def _clear_record(*clouds: float) -> RunRecord:
+    provs = [_prov(f"S2B_{i}", date(2026, 9, 1 + i), cloud=c) for i, c in enumerate(clouds)]
+    return _record(provenance=provs, steps=[])
+
+
+@pytest.mark.parametrize(
+    ("clouds", "level", "note"),
+    [
+        (
+            (0.0, 0.05, 0.1),
+            "High",
+            "Measured on 3 clear Sentinel-2 passes (0 to 10% cloud); no cause is named.",
+        ),
+        (
+            (0.0, 0.05),
+            "Medium",
+            "Measured on 2 clear Sentinel-2 passes (0 to 5% cloud); no cause is named.",
+        ),
+        (
+            (0.0, 0.6, 0.7),
+            "Low",
+            "Measured on 1 clear Sentinel-2 pass (0% cloud), plus 2 cloudy passes; "
+            "no cause is named.",
+        ),
+        ((0.8,), "Low", "Measured without a clear pass, plus 1 cloudy pass; no cause is named."),
+    ],
+)
+def test_measure_only_confidence_reflects_measurement_quality(
+    kb: KnowledgeBase, clouds: tuple[float, ...], level: str, note: str
+) -> None:
+    state = _state()
+    answer = build_answer(
+        _finish(measure_only=True), state, score(state, kb), kb, _clear_record(*clouds)
+    )
+    assert (answer.confidence.level, answer.confidence.note) == (level, note)
+
+
+def test_unknown_cause_caveat_not_duplicated(kb: KnowledgeBase) -> None:
+    state = _state(hypotheses=["water_loss"], findings={"observed": {}})
+    result = score(state, kb)
+    own = "No cause is named: no card fits these measurements."
+    answer = build_answer(
+        _finish(cause_card_id="water_loss", caveats=[own, "Radar was not used."]),
+        state,
+        result,
+        kb,
+        _record(),
+    )
+    assert answer.cause is None
+    assert [c for c in answer.caveats if "cause" in c.casefold()] == [own]
+    assert len(answer.caveats) <= 4
 
 
 def test_answer_blocks_hypotheses_and_primary(kb: KnowledgeBase) -> None:
@@ -251,7 +304,8 @@ def test_cause_dropped_when_scoring_does_not_support_it(kb: KnowledgeBase) -> No
     )
     assert answer.cause is None and answer.measure_only is True
     assert answer.color == CATEGORY_COLORS["water"]  # still the top card's colour
-    assert answer.confidence.note.startswith("These are measurements only")
+    assert answer.confidence.note.startswith("Measured on")
+    assert "no cause is named" in answer.confidence.note
     # pond_filling is supported, so the code caveat does not claim that no card fits.
     assert not any(c.startswith("The cause is unknown") for c in answer.caveats)
     assert any(c.startswith("No cause is named") for c in answer.caveats)
@@ -263,13 +317,16 @@ def test_measure_only_finish_names_no_cause(kb: KnowledgeBase) -> None:
     state = _state()
     answer = build_answer(_finish(measure_only=True), state, score(state, kb), kb, _record())
     assert answer.cause is None and answer.measure_only is True
-    # Never more certain than code scoring (a draft card: Low), however good the data.
-    result = score(state, kb)
-    assert answer.confidence.level == result.confidence.level == "Low"
-    assert answer.confidence.pct <= result.confidence.pct
+    # Confidence follows the measurements (a clear series of passes), not the cause scoring.
+    assert answer.confidence.level == "High"
+    assert answer.confidence.note == (
+        "Measured on a series of 24 Sentinel-2 passes; no cause is named."
+    )
+    # A deliberate measure-only answer gets no code caveat about the unknown cause.
+    assert not any("cause" in c.casefold() for c in answer.caveats)
     tiny = _state(place=PlaceInfo(name="Tiny pond", area_ha=0.3))
     answer = build_answer(_finish(measure_only=True), tiny, score(tiny, kb), kb, _record())
-    assert answer.confidence.level == "Low" and "small" in answer.confidence.note
+    assert answer.confidence.level == "Medium" and "small" in answer.confidence.note
     assert answer.eyebrow == "Tiny pond"
 
 

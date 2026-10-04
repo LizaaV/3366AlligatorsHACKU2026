@@ -1,6 +1,6 @@
 /**
- * Turn a stored run (from a reloaded thread, or polled from `GET /api/runs/{id}`) back into a
- * turn the chat can render, including paused (`waiting_user`) and still-`running` runs.
+ * Turn a stored run (from a reloaded thread) back into a turn the chat can render, including
+ * paused (`waiting_user`) runs.
  */
 
 import type { AskTurn } from '../../ask/useAskRun';
@@ -33,8 +33,10 @@ export function turnFromRecord(r: RunRecord): AskTurn {
     id: r.run_id,
     text: r.question,
     placeId: r.place_ids?.[0] ?? null,
-    point: null,
-    phase: waiting ? 'clarify' : r.status === 'running' ? 'running' : r.status === 'failed' ? 'error' : 'done',
+    area: null,
+    // This chat page does not follow runs it did not start, so a run still going on the
+    // server shows as unfinished instead of a spinner that never stops.
+    phase: waiting ? 'clarify' : r.status === 'running' || r.status === 'failed' ? 'error' : 'done',
     runId: r.run_id,
     threadId: r.thread_id,
     steps,
@@ -47,7 +49,11 @@ export function turnFromRecord(r: RunRecord): AskTurn {
     open: waiting,
     status: r.status,
     answer,
-    streamError: last('error'),
+    streamError:
+      last('error') ??
+      (r.status === 'running'
+        ? { event: 'error', message: 'This answer was still being worked on. Ask again to get it.', recoverable: false }
+        : undefined),
     durationMs: done?.ms ?? 0,
   } satisfies AskTurn;
 }

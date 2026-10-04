@@ -513,7 +513,8 @@ def test_literal_escapes_are_decoded(kb: KnowledgeBase) -> None:
     parsed, problems = parse_finish(args)
     assert problems == [] and parsed is not None
     assert parsed.title == "Water 0.12 → -0.25"
-    assert (parsed.stats[0].label, parsed.stats[0].value) == ("Water before → now", "0.12 → -0.25")
+    # Arrows in a stat value read as "to" (one plain line, no rejected draft).
+    assert (parsed.stats[0].label, parsed.stats[0].value) == ("Water before → now", "0.12 to -0.25")
     assert parsed.caveats == ["Ranges like 0.8–0.9 are from the card."]
     # Escapes of control characters stay literal (never turned into a line break).
     assert FinishArgs.model_validate(_args(title="a \\u000a b")).title == "a \\u000a b"
@@ -528,8 +529,31 @@ def test_line_breaks_and_control_characters_are_rejected(kb: KnowledgeBase) -> N
     )
     problems = validate_finish(args, _state(), kb, _score())
     assert len(problems) == 1
-    assert "stats[0].label, caveats[0]" in problems[0] and "one plain line" in problems[0]
+    assert problems[0].startswith("caveats[0]") and "one plain line" in problems[0]
     assert validate_finish(_args(sentence="Tab\there."), _state(), kb, _score()) != []
+
+
+def test_stats_are_normalised_not_rejected(kb: KnowledgeBase) -> None:
+    """Live regressions: a line break in a stat value and a 42-character label each cost a
+    rejected draft (a whole model turn); both are now tidied instead."""
+    label = "Water index inside the ponds, before and now"  # 45 characters
+    args = _args(stats=[{"label": label, "value": "0.12\n-0.25"}])
+    parsed, _ = parse_finish(args)
+    assert parsed is not None
+    assert (parsed.stats[0].label, parsed.stats[0].value) == (label, "0.12 to -0.25")
+    assert validate_finish(args, _state(), kb, _score()) == []
+    long = _args(stats=[{"label": "Water " * 20, "value": "32.7 ha"}])
+    parsed, _ = parse_finish(long)
+    assert parsed is not None and len(parsed.stats[0].label) <= 60
+    assert not parsed.stats[0].label.endswith(" ")
+
+
+def test_standard_sensor_facts_are_allowed_numbers(kb: KnowledgeBase) -> None:
+    """Live regression: "Landsat thermal pixels are 100 m" was rejected as an invented number."""
+    ok = _args(caveats=["Landsat thermal pixels are 100 m wide; Sentinel-2 passes every 5 days."])
+    assert validate_finish(ok, _state(), kb, _score()) == []
+    bad = _args(caveats=["About 4217 m of shoreline changed."])
+    assert any("4217" in p for p in validate_finish(bad, _state(), kb, _score()))
 
 
 def test_guard_policy_note_numbers_count_as_sources(kb: KnowledgeBase) -> None:

@@ -45,9 +45,17 @@ npx openapi-typescript ../contracts/openapi.json -o src/api/schema.d.ts
 | `GET /api/threads/{thread_id}` | Reopen one conversation: every run, oldest first, with answers, blocks and event logs to redraw it exactly | `ThreadDetail` |
 | `GET /api/health` | Liveness check | `{status: "ok"}` |
 
-**Not built yet** (coming in later modules; keep using the mocks):
+More endpoints, each with its own section:
 
-- watches and skills listing (A5)
+| Group | Paths | Section |
+|---|---|---|
+| Places and memory | `/api/places…`, `/api/me/memory`, `POST /api/runs/{id}/insight` | 10 |
+| PDF report | `/api/runs/{id}/report.pdf`, `/api/shares/{slug}/report.pdf` | 11 |
+| Share links and dashboards | `/api/runs/{id}/share(s)`, `/api/shares/{slug}…`, `/api/dashboards…` | 12 |
+| Watches (shown as "triggers" in the UI) | `/api/watches…` | 13 |
+| Skills library and catalog | `/api/skills…`, `/api/catalog` | 14 |
+
+**Not built** (the frontend still calls these; keep their mocks): `GET /api/map-layers` (the layer list is in `/api/catalog`), `/api/export`, `/api/ask/insights` (use `POST /api/runs/{id}/insight`), `/api/places/detect-boundary`, `/api/places/parse-file`, `/api/places/lookup-parcel`.
 
 ## 3. The live stream (`POST /api/runs`)
 
@@ -383,11 +391,12 @@ Map image URLs (`/api/layers/...png`) are always given inside blocks; use them a
 | Code | Meaning | `detail` |
 |---|---|---|
 | 400 | Bad input: ids, `X-User-Id`, area, reply answers too long, a `provider` the server has not configured | text, or `{kind, message, hint}` for areas |
-| 404 | Not found, or not yours (runs, threads, cards, layers) | text |
-| 409 | Reply to a run that isn't waiting for the user | text |
+| 404 | Not found, or not yours (runs, threads, places, watches, skills, dashboards, share links, cards, layers) | text |
+| 409 | Reply to a run that isn't waiting for the user; a conversation that already has 30 runs (start a new one); a PDF of a run that isn't `done` | text |
+| 410 | A share link that expired or was revoked | text |
 | 422 | Request didn't match the schema (FastAPI validation), or unusable area | FastAPI validation list / `{kind, message, hint}` |
-| 429 | Too many runs: the same user within 3 s, or 3 agent runs already streaming. Wait `Retry-After` seconds | text |
-| 501 | Place search not available (geocoder missing) | text |
+| 429 | Too many runs: the same user within 3 s, 3 agent runs already streaming, or the hourly limit (40 per user, 60 per client address; section 7b). Wait `Retry-After` seconds | text |
+| 501 | Place search not available (geocoder missing); `POST /api/skills/test` (not built yet) | text |
 | 503 | `/reply` only: the run's AI model is not available, or the daily budget is used up | text |
 
 Once a stream has started, problems arrive as `error` events, never as HTTP errors.
@@ -410,7 +419,7 @@ Saved places (the Places page) and the private notes the agent reads. Everything
 | `PATCH /api/places/{id}` | Change any field; sending an outline replaces it | `PlaceDto` |
 | `DELETE /api/places/{id}` | Remove it (its memory goes unreachable; ids are never reused) | **204** |
 | `GET /api/places/{id}/memory` | Profile, notes and saved insights for the timeline | `PlaceMemory` |
-| `PATCH /api/places/{id}/memory` | `{profile?: {k: v}, note?: str}`: profile keys merge (a blank value forgets that key), a note is appended | `PlaceMemory` |
+| `PATCH /api/places/{id}/memory` | `{profile?: {k: v}, note?: str}`: profile keys merge, a note is appended | `PlaceMemory` |
 | `GET /api/me/memory`, `PATCH /api/me/memory` | The user's own profile (`{profile: {k: v}}`) | `{profile}` |
 | `POST /api/runs/{run_id}/insight` | "Save to place": `{place_id, text, confidence?}` | `{run_id, place_id, saved}` (**201**) |
 
@@ -431,8 +440,8 @@ Create/patch rules:
 
 | Method + path | What it does | Returns |
 |---|---|---|
-| `GET /api/runs/{run_id}/report.pdf` | The finished run as an A4 PDF. Owner only: **404** if not yours, **409** if the run is not `done`, **400** for a bad id | `application/pdf`, `Content-Disposition: attachment; filename="earth-agent-<run_id>.pdf"` |
-| `GET /api/shares/{slug}/report.pdf` | The same PDF for a share link, no login. **404** unknown link, **410** expired or revoked | `application/pdf`, filename `earth-agent-<first 8 of slug>.pdf` |
+| `GET /api/runs/{run_id}/report.pdf` | The finished run as an A4 PDF. Owner only: **404** if not yours, **409** if the run is not `done`, **400** for a bad id | `application/pdf`, `Content-Disposition: attachment; filename="constellation-<run_id>.pdf"` |
+| `GET /api/shares/{slug}/report.pdf` | The same PDF for a share link, no login. **404** unknown link, **410** expired or revoked | `application/pdf`, filename `constellation-<first 8 of slug>.pdf` |
 
 Use a plain link or `fetch` + blob; the owner route needs the `X-User-Id` header, so fetch it if you use a non-demo user. On a share page, link to the share route.
 
@@ -441,85 +450,61 @@ Use a plain link or `fetch` + blob; the owner route needs the `X-User-Id` header
 - A layer image that is missing on disk shows a grey placeholder; the PDF is still returned.
 - Limit: built-in Helvetica font, Latin only. Chinese text (`zh-Hant`, `yue`) appears as `?` and the PDF says so.
 
-## 12. Trigger recurrence, dashboard link and satellites
+## 12. Share links and dashboards
 
-**Triggers (watches).** `WatchDto`, `CreateWatchRequest` and `PatchWatchRequest` gain two fields,
-both optional on write:
+**Share links** are a public, read-only snapshot of a finished run. They need no login and expire.
 
-- `recurrence: "recurring" | "once"` (default `"recurring"`). A `once` trigger sets
-  `enabled: false` after its first `alert`-level event; `recurring` keeps going. Not nullable on PATCH.
-- `dashboard_id: string | null` (default `null`). Links the trigger to a dashboard from
-  `/api/dashboards`. Create/PATCH answer **404** when the id is not one of the user's dashboards.
-  On PATCH, an explicit `null` unlinks it.
+| Method + path | What it does | Returns |
+|---|---|---|
+| `POST /api/runs/{run_id}/share` | Snapshot the run behind an unguessable link | `ShareCreated` (**201**) |
+| `GET /api/runs/{run_id}/shares` | The caller's links for that run | `ShareInfo[]` |
+| `GET /api/shares/{slug}` | Read a shared run (no login) | `SharedRun` |
+| `GET /api/shares/{slug}/layers/{measure}/{scene}.png` | Map images inside the snapshot (the run id is never public) | PNG |
+| `DELETE /api/shares/{slug}` | Revoke a link | **204** |
 
-**`GET /api/satellites?at=<ISO datetime>`** returns `SatelliteDto[]` (`at` defaults to now, UTC):
+- A snapshot never contains the user id, memory, event log or code.
+- Unknown link: **404**. Expired or revoked: **410**.
 
-```json
-{ "id": "sentinel-2a", "name": "Sentinel-2A", "norad_id": 40697, "mission": "Sentinel-2",
-  "lat": 12.3, "lon": 45.6, "alt_km": 786.2, "velocity_kms": 7.45,
-  "at": "2026-10-04T12:00:00Z", "track": [{ "lat": 12.3, "lon": 45.6 }] }
-```
+**Dashboards** keep blocks from runs and refresh them later without the AI.
 
-`track` is the sub-satellite point for the next 90 minutes at 2-minute steps (45 points, the first
-equals the current position). Satellites: Sentinel-1A, Sentinel-2A/2B/2C, Landsat 8/9, Terra, Aqua,
-Suomi NPP. TLEs come from CelesTrak (cached 6 h) with a bundled fallback snapshot, so the endpoint
-works offline; positions are approximate (a few km).
+| Method + path | What it does | Returns |
+|---|---|---|
+| `GET /api/dashboards` | The caller's dashboards | `DashboardSummary[]` |
+| `POST /api/dashboards` | Create one | `DashboardOut` (**201**) |
+| `GET /api/dashboards/{id}` | One dashboard with its blocks | `DashboardOut` |
+| `PATCH /api/dashboards/{id}` | Rename | `DashboardOut` |
+| `DELETE /api/dashboards/{id}` | Delete | **204** |
+| `POST /api/dashboards/{id}/blocks` | Save a block from one of the caller's runs (copies the run's script and params) | `DashboardBlockOut` (**201**) |
+| `DELETE /api/dashboards/{id}/blocks/{block_id}` | Remove a block | **204** |
+| `POST /api/dashboards/{id}/blocks/{block_id}/refresh` | Re-run the saved script with the dates moved forward (no AI, no cost) | `DashboardBlockOut` |
 
-## 13. Add-place wizard: AI boundary and boundary file
+## 13. Watches ("triggers" in the UI)
 
-**`POST /api/places/detect-boundary`**, body `{ "lat": 22.4884, "lon": 114.0448 }` →
+A watch is a saved question about a place that should be re-checked over time. The UI calls them **triggers**; the API keeps the name `watches`.
 
-```json
-{ "geometry": { "type": "Polygon", "coordinates": [[[114.044, 22.489], "..."]] },
-  "area_ha": 4.34, "confidence": "High", "method": "sentinel2_segmentation",
-  "note": "Outline grown from the 25 Sep 2026 Sentinel-2 pass; check it against the map." }
-```
+| Method + path | What it does | Returns |
+|---|---|---|
+| `GET /api/watches` | The caller's watches | `WatchDto[]` |
+| `POST /api/watches` | Create one: `{name, question, place_id?, skill_id?, category_key?, condition?, channels?, cadence?}` | `WatchDto` (**201**) |
+| `POST /api/watches/feasibility` | "Can satellites answer this?" before saving: `{text, place_id?}` | `FeasibilityDto` |
+| `PATCH /api/watches/{id}` | Pause or resume (`enabled`), rename, change condition, channels or cadence | `WatchDto` |
+| `DELETE /api/watches/{id}` | Delete | **204** |
+| `GET /api/watches/{id}/proof` | Scenes behind the latest check, plus a reproducibility hash | `WatchProofDto` |
 
-The latest clear Sentinel-2 scene over a ~600 m box is read through `earth`, NDVI and NDWI are
-computed, and the region around the point is grown (4-connected, tolerance on both indices, at most
-200 ha), vectorised, smoothed and simplified (~5 m). With no clear scene, a provider error, a
-timeout (60 s) or a degenerate region the answer is a ~1 ha square with `"confidence": "Low"` and
-`"method": "fallback_square"`. It is never a 5xx for imagery problems. A cold call can take ~35 s;
-the frontend allows 75 s. Under `EARTH_IMPL=stub` the answer is deterministic.
+- **Nothing runs watches on a schedule yet.** Measurement fields (`value`, `ci`, `baseline`, `status`, `last_run_at`, `series`) stay `null` or empty, and `next_run_at` is always `null`. The API never invents numbers; show "not checked yet".
+- A question the policy refuses gives **422**. An unknown `place_id` or someone else's watch gives **404**.
 
-**`POST /api/places/parse-file`**, multipart, field `file` (max 5 MB) →
-`{ geometry, area_ha, name, center: {lat, lon}, note }`. `geometry` is one Polygon (the largest
-polygon of the file); `name` comes from the feature / placemark, else the file name.
+## 14. Skills library and catalog
 
-| Format | Notes |
-| --- | --- |
-| `.geojson`, `.json` | Polygon, MultiPolygon, Feature(Collection), GeometryCollection; points-only files fall under "points" |
-| `.kml`, `.kmz` | Placemark polygons; points and lines count as points. DTDs are refused |
-| `.gpx` | track / route / way points |
-| `.csv` | needs `lat` + `lon` columns (also latitude/longitude/lng/x/y); points in order form the polygon if it is simple, else their convex hull |
-| `.zip` / `.shp` | **415**: no shapefile reader is installed; the hint says to export GeoJSON or KML |
+| Method + path | What it does | Returns |
+|---|---|---|
+| `GET /api/skills` | Built-in skills first (working ones, then concepts), then the caller's drafts | `SkillDto[]` |
+| `GET /api/skills/{id}` | One skill | `SkillDto` |
+| `GET /api/skills/{id}/manifest` | The reproducible recipe: ordered modules with params, plus `code_ref` / `code_sha256` for skills with a script (the same `code_ref` a run reports in `answer.method`) | `SkillManifest` |
+| `POST /api/skills` | Save a draft from the skill builder | `SkillDto` (**201**) |
+| `POST /api/skills/test` | Dry-run a draft. **Not built: always 501** after checking the body | **501** |
+| `GET /api/catalog` | Registry data: categories, satellites, skill modules, channels, languages, map layers. Colours stay in the frontend | `CatalogDto` |
 
-Errors use `detail: {kind, message, hint}`: **413** (`too_large`, `too_many_points` above
-`MAX_VERTICES` = 10 000), **415** (`unsupported_type`), **422** (`unreadable_file`, no outline in the
-file, fewer than 3 points).
-
-## 14. Chat projects (folders of conversations)
-
-Per-user folders that group chats, stored on the server (so they survive a cleared browser and
-follow the user to another device). All routes are scoped by `X-User-Id`.
-
-| Route | Body | Result |
-| --- | --- | --- |
-| `GET /api/projects` | | `[{id, name, created_at, updated_at}]`, oldest first |
-| `POST /api/projects` | `{name}` (1-60 chars, trimmed) | **201** project; **422** for a bad name or when 50 projects exist |
-| `PATCH /api/projects/{project_id}` | `{name}` | project; **404** unknown |
-| `DELETE /api/projects/{project_id}` | | **204**; its chats are kept and become unfiled; **404** unknown |
-| `PATCH /api/threads/{thread_id}` | `{project_id: string \| null}` | `ThreadSummary`; `null` unfiles; **404** for an unknown thread (or not yours) or unknown project |
-
-`ThreadSummary` and `ThreadDetail` carry `project_id: string | null`, so the history list shows
-which project each chat is in without a second call.
-
-## 15. Installed skills
-
-Which skills the user installed, stored on the server per `X-User-Id`. Installing is idempotent.
-
-| Route | Result |
-| --- | --- |
-| `GET /api/me/skills` | `{installed: string[]}`, oldest first |
-| `PUT /api/me/skills/{skill_id}` | updated list; **404** when the skill is not in `GET /api/skills` for this user |
-| `DELETE /api/me/skills/{skill_id}` | updated list (also when it was not installed) |
+- The skills the agent can actually run come from the backend registry (`backend/skills/`). Today that is one: `pond-filling-check`. Show the real list instead of the fixture's sample skills.
+- Unknown module or category on `POST /api/skills`: **422**.
+- Every field is snake_case (`category_key`, `updated_at`, …), like the rest of the API.

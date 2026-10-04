@@ -1,70 +1,96 @@
-/** Watches: standing questions the agent re-asks on each satellite pass. */
+/**
+ * Watches ("triggers" in the UI): standing questions about a place (`docs/API.md` §13).
+ *
+ * The wire is snake_case; requests are mapped here and responses by `toWatch()` /
+ * `toFeasibility()` / `toWatchProof()` in `model.ts`. Nothing runs watches on a schedule yet,
+ * so a real watch arrives with `measured: false` (see `toWatch`).
+ */
 
-import { request } from '../http';
+import { ApiError, buildUrl, errorFromResponse, readBody, request } from '../http';
 import { usingFixtures } from '../config';
+import { identityHeaders } from '../identity';
 import * as fixtures from '../fixtures';
-import type { CreateWatchRequest, FeasibilityRequest, FeasibilityWireDto, WatchPatch, WatchProofDto, WatchWireDto } from '../types';
+import type {
+  CreateWatchRequest,
+  FeasibilityDto,
+  FeasibilityRequest,
+  WatchDto,
+  WatchProofDto,
+  WatchProofWireDto,
+} from '../types';
 import type { components } from '../schema';
-import { toFeasibility, toWatch, type Feasibility, type Watch } from '../../model';
+import { toFeasibility, toWatch, toWatchProof, type Feasibility, type Watch } from '../../model';
 
 type S = components['schemas'];
 
-/**
- * Wire bodies. The backend's request models forbid unknown fields (422), so these send exactly
- * what the contract lists and nothing the UI merely collected.
- */
-const toCreateBody = (r: CreateWatchRequest): S['CreateWatchRequest'] => ({
-  name: r.name,
-  category_key: r.categoryKey,
-  place_id: r.placeId,
-  skill_id: r.skillId,
-  question: r.question,
-  condition: r.condition,
-  channels: r.channels,
-  cadence: r.cadence,
-  recurrence: r.recurrence ?? 'recurring',
-  dashboard_id: r.dashboardId ?? null,
-});
+/** A check reads real satellite data (30–120 s); the server stops it at ~150 s. */
+const CHECK_TIMEOUT_MS = 170_000;
 
-/** Only the keys present are sent; `dashboard_id: null` is the one explicit null (unlinks). */
-const toPatchBody = (p: WatchPatch): S['PatchWatchRequest'] => ({
-  ...(p.enabled !== undefined && { enabled: p.enabled }),
-  ...(p.name !== undefined && { name: p.name }),
-  ...(p.condition !== undefined && { condition: p.condition }),
-  ...(p.channels !== undefined && { channels: p.channels }),
-  ...(p.cadence !== undefined && { cadence: p.cadence }),
-  ...(p.recurrence !== undefined && { recurrence: p.recurrence }),
-  ...(p.dashboardId !== undefined && { dashboard_id: p.dashboardId }),
+/** `request()` with a longer deadline than the shared 30 s one (same headers and errors). */
+async function postCheck(id: string, signal?: AbortSignal): Promise<WatchDto> {
+  const path = `/watches/${encodeURIComponent(id)}/check`;
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), CHECK_TIMEOUT_MS);
+  const onAbort = () => timeout.abort();
+  signal?.addEventListener('abort', onAbort);
+  let res: Response;
+  try {
+    res = await fetch(buildUrl(path), {
+      method: 'POST',
+      signal: timeout.signal,
+      headers: { ...identityHeaders(), accept: 'application/json' },
+    });
+  } catch (err) {
+    if (signal?.aborted) throw new ApiError('Request aborted', 'aborted');
+    if (timeout.signal.aborted) throw new ApiError(`POST ${path} timed out`, 'timeout');
+    throw new ApiError(`POST ${path} could not reach the server`, 'network', undefined, err);
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onAbort);
+  }
+  const payload = await readBody(res);
+  if (!res.ok) throw errorFromResponse(`POST ${path}`, res, payload);
+  return payload as WatchDto;
+}
+
+/** Fields a watch can be changed through — `PATCH /api/watches/{id}` (same names on the wire). */
+export type WatchPatch = Partial<Pick<WatchDto, 'enabled' | 'condition' | 'channels' | 'cadence' | 'name'>>;
+
+const toCreateBody = (b: CreateWatchRequest): S['CreateWatchRequest'] => ({
+  name: b.name,
+  question: b.question,
+  category_key: b.categoryKey,
+  place_id: b.placeId,
+  skill_id: b.skillId,
+  condition: b.condition,
+  channels: b.channels,
+  cadence: b.cadence,
 });
 
 export const watchesApi = {
   /** GET /api/watches */
   list: (signal?: AbortSignal): Promise<Watch[]> =>
-    request<WatchWireDto[]>({ method: 'GET', path: '/watches', signal, ...(usingFixtures() && { fixture: fixtures.watches }) }).then((l) => l.map(toWatch)),
+    request<WatchDto[]>({ method: 'GET', path: '/watches', signal, fixture: fixtures.watches }).then((l) => l.map(toWatch)),
 
   /** POST /api/watches */
-  create: (req: CreateWatchRequest, signal?: AbortSignal): Promise<Watch> => {
-    const body = toCreateBody(req);
-    return request<WatchWireDto>({
+  create: (body: CreateWatchRequest, signal?: AbortSignal): Promise<Watch> =>
+    request<WatchDto>({
       method: 'POST',
       path: '/watches',
-      body,
+      body: toCreateBody(body),
       signal,
-      ...(usingFixtures() && { fixture: () => fixtures.createWatch(body) }),
-    }).then(toWatch);
-  },
+      fixture: () => fixtures.createWatch(toCreateBody(body)),
+    }).then(toWatch),
 
-  /** PATCH /api/watches/{id} — pause/resume, edit condition, change channels */
-  update: (id: string, patch: WatchPatch, signal?: AbortSignal): Promise<Watch> => {
-    const body = toPatchBody(patch);
-    return request<WatchWireDto>({
+  /** PATCH /api/watches/{id} — pause/resume, rename, edit condition, change channels or cadence. */
+  update: (id: string, patch: WatchPatch, signal?: AbortSignal): Promise<Watch> =>
+    request<WatchDto>({
       method: 'PATCH',
       path: `/watches/${encodeURIComponent(id)}`,
-      body,
+      body: patch satisfies S['PatchWatchRequest'],
       signal,
-      ...(usingFixtures() && { fixture: () => fixtures.updateWatch(id, body) }),
-    }).then(toWatch);
-  },
+      fixture: () => fixtures.updateWatch(id, patch),
+    }).then(toWatch),
 
   /** DELETE /api/watches/{id} */
   remove: (id: string, signal?: AbortSignal): Promise<void> =>
@@ -72,37 +98,40 @@ export const watchesApi = {
       method: 'DELETE',
       path: `/watches/${encodeURIComponent(id)}`,
       signal,
-      ...(usingFixtures() && { fixture: () => fixtures.deleteWatch(id) }),
+      fixture: () => fixtures.deleteWatch(id),
     }),
 
   /**
-   * GET /api/watches/{id}/proof
-   * The scenes behind the most recent run, including the ones that were rejected and why.
+   * POST /api/watches/{id}/check — "Check now": measures the watch once (no LLM) and returns
+   * it with value, status, last check, a new event and the message preview. Real data can take
+   * 30–120 s. 409 when the watch has no place, 422 when its metric cannot be measured.
    */
+  check: (id: string, signal?: AbortSignal): Promise<Watch> =>
+    (usingFixtures()
+      ? request<WatchDto>({ method: 'POST', path: `/watches/${id}/check`, signal, fixture: () => fixtures.updateWatch(id, {}) })
+      : postCheck(id, signal)
+    ).then(toWatch),
+
+  /** GET /api/watches/{id}/proof — the scenes behind the latest check, and why any were skipped. */
   proof: (id: string, signal?: AbortSignal): Promise<WatchProofDto> =>
-    request<WatchProofDto>({
+    request<WatchProofWireDto>({
       method: 'GET',
       path: `/watches/${encodeURIComponent(id)}/proof`,
       signal,
-      ...(usingFixtures() && { fixture: () => fixtures.watchProof(id) }),
-    }),
+      fixture: () => fixtures.watchProof(id),
+    }).then(toWatchProof),
 
   /**
-   * POST /api/watches/feasibility
-   * "Can satellites actually watch this?", asked before a watch is created.
-   *
-   * This endpoint is expected to REFUSE some requests — counting cars, identifying people —
-   * returning `ok: false` with an explanation and a legitimate alternative. That is a product
-   * requirement, not a gap. See docs/data/watch-feasibility.example.json.
+   * POST /api/watches/feasibility — "Can satellites actually watch this?", before saving.
+   * Expected to REFUSE some requests (counting cars, identifying people) with `ok: false`,
+   * an explanation and a legitimate alternative. That is a product requirement, not a gap.
    */
-  checkFeasibility: (req: FeasibilityRequest, signal?: AbortSignal): Promise<Feasibility> => {
-    const body: S['FeasibilityRequest'] = { text: req.text, place_id: req.placeId ?? null };
-    return request<FeasibilityWireDto>({
+  checkFeasibility: (body: FeasibilityRequest, signal?: AbortSignal): Promise<Feasibility> =>
+    request<FeasibilityDto>({
       method: 'POST',
       path: '/watches/feasibility',
-      body,
+      body: { text: body.text, place_id: body.placeId ?? null } satisfies S['FeasibilityRequest'],
       signal,
-      ...(usingFixtures() && { fixture: () => fixtures.feasibility(body) }),
-    }).then(toFeasibility);
-  },
+      fixture: () => fixtures.feasibility(body),
+    }).then(toFeasibility),
 };

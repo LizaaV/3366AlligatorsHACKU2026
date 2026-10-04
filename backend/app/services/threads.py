@@ -73,7 +73,9 @@ def list_threads(user_id: str, limit: int = 20) -> list[ThreadSummary]:
     limit = max(1, min(limit, MAX_LIST))
     out: list[ThreadSummary] = []
     filed = project_store.project_ids_by_thread(user_id)
-    for thread_id, _ in run_store.list_threads(user_id)[:limit]:
+    gone = project_store.deleted_thread_ids(user_id)
+    ids = [t for t, _ in run_store.list_threads(user_id) if t not in gone]
+    for thread_id in ids[:limit]:
         runs = owned_runs(user_id, thread_id)
         if runs:
             out.append(summarise(thread_id, runs, filed.get(thread_id)))
@@ -81,8 +83,8 @@ def list_threads(user_id: str, limit: int = 20) -> list[ThreadSummary]:
 
 
 def get_thread(user_id: str, thread_id: str) -> ThreadDetail | None:
-    """One conversation to reload exactly, or None (unknown or not the user's)."""
-    runs = owned_runs(user_id, thread_id)
+    """One conversation to reload exactly, or None (unknown, not the user's, or deleted)."""
+    runs = _live_runs(user_id, thread_id)
     if runs is None:
         return None
     filed = project_store.project_ids_by_thread(user_id)
@@ -94,11 +96,26 @@ def get_thread(user_id: str, thread_id: str) -> ThreadDetail | None:
 def set_project(user_id: str, thread_id: str, project_id: str | None) -> ThreadSummary | None:
     """File the thread in a project (None unfiles). None when the thread is unknown or not the
     user's; raises `projects.ProjectNotFound` for an unknown project."""
-    runs = owned_runs(user_id, thread_id)
+    runs = _live_runs(user_id, thread_id)
     if runs is None:
         return None
     project_store.assign_thread(user_id, thread_id, project_id)
     return summarise(thread_id, runs, project_id)
+
+
+def _live_runs(user_id: str, thread_id: str) -> list[RunRecord] | None:
+    """The thread's runs, or None when it is unknown, not the user's, or deleted."""
+    if thread_id in project_store.deleted_thread_ids(user_id):
+        return None
+    return owned_runs(user_id, thread_id)
+
+
+def delete_thread(user_id: str, thread_id: str) -> bool:
+    """Delete a chat (see `projects.forget_thread`). False when there is no such chat."""
+    if _live_runs(user_id, thread_id) is None:
+        return False
+    project_store.forget_thread(user_id, thread_id)
+    return True
 
 
 def previous_agent_run(runs: list[RunRecord]) -> tuple[RunRecord, AgentState] | None:

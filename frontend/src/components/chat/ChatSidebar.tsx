@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type ThreadSummary } from '../../api';
 import { useResource } from '../../hooks/useResource';
+import { useStore } from '../../state/store';
+import { QuestionText, type SkillName } from '../../ask/QuestionText';
 import { Ms } from '../ui';
 import { useChatFolders } from './useChatFolders';
 
@@ -19,15 +21,19 @@ export interface CurrentChat {
 export function ChatSidebar({
   open,
   mobile,
+  drop = 'up',
   activeThreadId,
   current,
   refreshKey,
   onClose,
   onNew,
   onOpen,
+  skills = [],
 }: {
   open: boolean;
   mobile: boolean;
+  /** Open above the button (composer at the bottom) or below it (composer at the top). */
+  drop?: 'up' | 'down';
   activeThreadId: string | null;
   /** The conversation being had right now; listed even before the server knows about it. */
   current: CurrentChat | null;
@@ -35,12 +41,21 @@ export function ChatSidebar({
   refreshKey: unknown;
   onClose: () => void;
   onNew: () => void;
+  /** To show skill runs as their command, "/greenness-check on Hyde Park". */
+  skills?: SkillName[];
   onOpen: (threadId: string) => void;
 }) {
-  const threads = useResource(useCallback((signal) => api.threads.list(50, signal), []), [refreshKey]);
-  const { folders, createFolder, renameFolder, deleteFolder, moveThread, folderOf } = useChatFolders(threads.data);
+  const threads = useResource(useCallback((signal) => api.threads.list(signal, 50), []), [refreshKey]);
+  // Chats deleted here: hidden at once, before the list is fetched again.
+  const [gone, setGone] = useState<Set<string>>(() => new Set());
+  const listed = useMemo(() => threads.data?.filter((t) => !gone.has(t.thread_id)), [threads.data, gone]);
+  const { folders, createFolder, renameFolder, deleteFolder, moveThread, folderOf } = useChatFolders(listed);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [menu, setMenu] = useState<string | null>(null);
+  // A chat's menu opens upwards when the list has no room for it below (few chats, or the last
+  // ones), so it is never cut off by the panel's edge.
+  const [menuUp, setMenuUp] = useState(false);
+  const { notify } = useStore();
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const panel = useRef<HTMLDivElement>(null);
@@ -67,8 +82,8 @@ export function ChatSidebar({
   }, [menu]);
 
   const rows: ThreadSummary[] = useMemo(() => {
-    const list = threads.data ?? [];
-    if (current && !list.some((t) => t.thread_id === current.threadId)) {
+    const list = listed ?? [];
+    if (current && !gone.has(current.threadId) && !list.some((t) => t.thread_id === current.threadId)) {
       const now = new Date().toISOString();
       return [
         { thread_id: current.threadId, title: current.title, place_name: null, last_question: current.title, last_status: 'done', last_sentence: null, run_count: 1, started_at: now, updated_at: now },
@@ -76,7 +91,7 @@ export function ChatSidebar({
       ];
     }
     return list;
-  }, [threads.data, current]);
+  }, [listed, current, gone]);
 
   const uncategorised = rows.filter((r) => !folderOf(r.thread_id));
 
@@ -88,8 +103,27 @@ export function ChatSidebar({
     if (renaming) renameFolder(renaming, draft);
     setRenaming(null);
   };
+  /** "New project 1", "2", "3"…: the lowest number not taken, so each new one is told apart. */
+  const nextProjectName = () => {
+    const taken = new Set(folders.map((f) => f.name));
+    let n = 1;
+    while (taken.has(`New project ${n}`)) n++;
+    return `New project ${n}`;
+  };
+  const deleteChat = async (t: ThreadSummary) => {
+    setMenu(null);
+    setGone((g) => new Set(g).add(t.thread_id));
+    try {
+      await api.threads.remove(t.thread_id);
+      if (t.thread_id === activeThreadId) onNew(); // the open chat was deleted: start a new one
+    } catch {
+      setGone((g) => { const n = new Set(g); n.delete(t.thread_id); return n; });
+      notify('Could not delete this chat. Try again.', undefined, undefined, 'error');
+    }
+    threads.refetch();
+  };
   const newProject = () => {
-    const f = createFolder('New project');
+    const f = createFolder(nextProjectName());
     setExpanded((e) => ({ ...e, [f.id]: true }));
     startRename(f.id, f.name);
   };
@@ -104,25 +138,30 @@ export function ChatSidebar({
           style={{ background: on ? 'var(--glass-fill-hover)' : undefined, padding: '7px 8px', gap: 8, minWidth: 0 }}
           title={t.title}
         >
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', font: '500 13px/1.4 var(--font)' }}>{t.title}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', font: '500 13px/1.4 var(--font)' }}><QuestionText text={t.title} skills={skills} /></span>
         </button>
         <button
           aria-label={`Options for ${t.title}`}
           aria-haspopup="menu"
-          onClick={() => setMenu((m) => (m === t.thread_id ? null : t.thread_id))}
+          onClick={(e) => {
+            const box = (e.currentTarget.closest('[data-chat-scroll]') ?? panel.current)?.getBoundingClientRect();
+            const below = box ? box.bottom - e.currentTarget.getBoundingClientRect().bottom : Infinity;
+            setMenuUp(below < 60 + 40 * (folders.length + 3));
+            setMenu((m) => (m === t.thread_id ? null : t.thread_id));
+          }}
           style={{ flex: 'none', width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 0, color: 'var(--muted)' }}
         >
           <Ms n="more_horiz" size={18} />
         </button>
         {menu === t.thread_id && (
-          <div className="menu" role="menu" style={{ right: 0, top: 32, width: 220 }}>
+          <div className="menu" role="menu" style={{ right: 0, width: 220, ...(menuUp ? { bottom: 32 } : { top: 32 }) }}>
             <div className="menu-label eyebrow">Move to project…</div>
             {folders.map((f) => (
               <button key={f.id} className={`menu-item ${folderOf(t.thread_id) === f.id ? 'on' : ''}`} onClick={() => { moveThread(t.thread_id, f.id); setExpanded((e) => ({ ...e, [f.id]: true })); setMenu(null); }}>
                 <Ms n="folder" />{f.name}
               </button>
             ))}
-            <button className="menu-item" onClick={() => { const f = createFolder('New project'); moveThread(t.thread_id, f.id); setExpanded((e) => ({ ...e, [f.id]: true })); startRename(f.id, f.name); setMenu(null); }}>
+            <button className="menu-item" onClick={() => { const f = createFolder(nextProjectName()); moveThread(t.thread_id, f.id); setExpanded((e) => ({ ...e, [f.id]: true })); startRename(f.id, f.name); setMenu(null); }}>
               <Ms n="create_new_folder" />New project
             </button>
             {folderOf(t.thread_id) && (
@@ -130,6 +169,10 @@ export function ChatSidebar({
                 <Ms n="folder_off" />Remove from project
               </button>
             )}
+            <div className="divider" style={{ margin: '6px 4px' }} />
+            <button className="menu-item" style={{ color: 'var(--coral)' }} onClick={() => void deleteChat(t)}>
+              <Ms n="delete" />Delete chat
+            </button>
           </div>
         )}
       </div>
@@ -145,7 +188,7 @@ export function ChatSidebar({
         role="dialog"
         aria-label="Chats"
         className="menu"
-        style={{ left: 0, bottom: 'calc(100% + 12px)', width: mobile ? 'min(320px, calc(100vw - 40px))' : 340, maxHeight: 'min(480px, 60vh)', padding: 0, zIndex: 60, display: 'flex', flexDirection: 'column' }}
+        style={{ left: 0, ...(drop === 'up' ? { bottom: 'calc(100% + 12px)' } : { top: 'calc(100% + 12px)' }), width: mobile ? 'min(320px, calc(100vw - 40px))' : 340, maxHeight: 'min(480px, 60vh)', padding: 0, zIndex: 60, display: 'flex', flexDirection: 'column' }}
       >
         <div className="row" style={{ padding: 10, gap: 6 }}>
           <button className="btn btn-ghost btn-sm" onClick={() => { onNew(); onClose(); }} style={{ flex: 1, justifyContent: 'flex-start' }}>
@@ -154,7 +197,7 @@ export function ChatSidebar({
           <button className="icon-btn sm" onClick={onClose} aria-label="Close chats" title="Close"><Ms n="close" /></button>
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 6px 12px' }}>
+        <div data-chat-scroll style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 6px 12px' }}>
           <div className="row" style={{ justifyContent: 'space-between', padding: '8px 8px 4px' }}>
             <span className="eyebrow">Projects</span>
             <button className="btn btn-text btn-sm" onClick={newProject}><Ms n="add" />New project</button>
@@ -186,7 +229,7 @@ export function ChatSidebar({
                         <span className="tiny">{inside.length}</span>
                       </button>
                       <button aria-label={`Rename ${f.name}`} title="Rename" onClick={() => startRename(f.id, f.name)} style={{ flex: 'none', width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 0, color: 'var(--muted)' }}><Ms n="edit" size={16} /></button>
-                      <button aria-label={`Delete ${f.name}`} title="Delete project (chats are kept)" onClick={() => { if (window.confirm(`Delete the project “${f.name}”? Its chats are kept and move back to Chats.`)) deleteFolder(f.id); }} style={{ flex: 'none', width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 0, color: 'var(--muted)' }}><Ms n="close" size={16} /></button>
+                      <button aria-label={`Delete ${f.name}`} title="Delete project (chats are kept)" onClick={() => deleteFolder(f.id)} style={{ flex: 'none', width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 0, color: 'var(--muted)' }}><Ms n="close" size={16} /></button>
                     </>
                   )}
                 </div>

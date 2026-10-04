@@ -29,7 +29,7 @@ import {
 } from 'react';
 import { ApiError, api, toApiError } from '../api';
 import type { ChannelId, CreateWatchRequest, WatchDto } from '../api/types';
-import type { NewPlace, PlacePatch } from '../api/endpoints/places';
+import type { NewPlace } from '../api/endpoints/places';
 import type { CreateSkillRequest } from '../api/endpoints/skills';
 import {
   categoryOf,
@@ -42,7 +42,7 @@ import {
   type SkillModule,
   type Watch,
 } from '../model';
-import { translate } from '../data/i18n';
+import { LANGS, translate } from '../data/i18n';
 import { navigate, useRoute, type Page, type Route } from '../router';
 
 /* ---------- modals ---------- */
@@ -54,11 +54,10 @@ export type Modal =
   | { kind: 'expert'; context: string; placeId?: string | null }
   | { kind: 'connectors'; focus?: ChannelId }
   | { kind: 'app' }
-  | { kind: 'addPlace'; prefill?: { lat: number; lon: number; name?: string; method?: 'pin' } }
-  | { kind: 'watchBuilder'; prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean; dashboardId?: string }
-  | { kind: 'knowledgeCard'; cardId: string }
-  | { kind: 'editPlace'; placeId: string; tab?: 'details' | 'memory' }
-  | { kind: 'aboutYou' };
+  | { kind: 'addPlace' }
+  | { kind: 'watchBuilder'; prefill?: string; placeId?: string | null; skillId?: string; fromAnswer?: boolean }
+  | { kind: 'lang' }
+  | { kind: 'knowledgeCard'; cardId: string };
 
 export interface Connectors {
   email: { connected: boolean; address: string };
@@ -115,10 +114,9 @@ interface Store {
   /* mutations */
   addPlace: (req: NewPlace) => Promise<Place>;
   removePlace: (id: string) => Promise<void>;
-  updatePlace: (id: string, patch: PlacePatch) => Promise<Place>;
   addSkill: (req: CreateSkillRequest) => Promise<Skill>;
   addWatch: (req: CreateWatchRequest) => Promise<Watch>;
-  updateWatch: (id: string, patch: Partial<Pick<WatchDto, 'enabled' | 'condition' | 'channels' | 'cadence' | 'name' | 'recurrence' | 'dashboardId'>>) => Promise<void>;
+  updateWatch: (id: string, patch: Partial<Pick<WatchDto, 'enabled' | 'condition' | 'channels' | 'cadence' | 'name'>>) => Promise<void>;
   removeWatch: (id: string) => Promise<void>;
 
   /* UI state */
@@ -127,6 +125,7 @@ interface Store {
   askPlaceId: string | null;
   setAskPlace: (id: string | null) => void;
   lang: string;
+  setLang: (c: string) => void;
   t: (key: string) => string;
   connectors: Connectors;
   setConnectors: (c: Connectors) => void;
@@ -136,7 +135,18 @@ interface Store {
   toast: Toast | null;
   notify: (text: string, action?: string, fn?: () => void, icon?: string) => void;
   dismissToast: () => void;
+  /** The opening screen (full-screen Earth) is showing; the nav hides until it is dismissed. */
+  splash: boolean;
+  setSplash: (on: boolean) => void;
+  /** Home (the logo): the Ask page's globe with nothing selected. Not the opening screen. */
+  goHome: () => void;
+  /** Bumped by `goHome`, so the Ask page can reset its own map state. */
+  homeTick: number;
 }
+
+/** Show the opening screen only on a bare visit to the site; any `#/…` (the logo's
+ * `/#/ask`, `#/places`, `?place=`) goes straight into the app. */
+const startsOnSplash = () => window.location.hash.replace(/^#\/?/, '') === '';
 
 const Ctx = createContext<Store | null>(null);
 
@@ -169,14 +179,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLoading({ catalog: true, skills: true, places: true, watches: true });
     setErrors({});
 
-    // One request: the catalog and the map layers are the same response.
     api.catalog
-      .load(ac.signal)
-      .then((c) => {
-        if (!live) return;
-        setCatalog(c.catalog);
-        setMapLayers(c.mapLayers);
-      })
+      .get(ac.signal)
+      .then((c) => live && setCatalog(c))
       .catch(fail('catalog'))
       .finally(done('catalog'));
     api.skills
@@ -195,10 +200,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .catch(fail('watches'))
       .finally(done('watches'));
 
-    // The user's installed skills; a failure leaves the list empty, not the page broken.
-    api.skills
-      .installed(ac.signal)
-      .then((ids) => live && setInstalled(ids))
+    // Small reference lists; a failure here degrades a panel, not the page.
+    api.catalog
+      .mapLayers(ac.signal)
+      .then((l) => live && setMapLayers(l))
       .catch(() => undefined);
 
     return () => {
@@ -210,12 +215,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
   /* ---------- UI state ---------- */
-  const [installed, setInstalled] = useState<string[]>([]);
+  const [installed, setInstalled] = useState<string[]>([
+    'dry-patch-finder',
+    'weekly-crop-health',
+    'reservoir-level-tracker',
+    'deforestation-alerts',
+    'active-fire-map',
+    'algae-red-tide-alert',
+  ]);
   const [askPlaceId, setAskPlaceId] = useState<string | null>(null);
-  // English only: answers, PDFs and the interface.
-  const lang = 'en';
+  // One language for now (English); answers and UI both use it.
+  const [lang, setLangState] = useState<string>('en');
   const [connectors, setConnectors] = useState<Connectors>({
-    email: { connected: false, address: '' },
+    email: { connected: true, address: 'you@farm.example' },
     whatsapp: { connected: false, number: '' },
     sms: { connected: false, number: '' },
     push: { connected: false },
@@ -223,24 +235,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   });
   const [modal, setModal] = useState<Modal | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [splash, setSplash] = useState<boolean>(startsOnSplash);
+  const [homeTick, setHomeTick] = useState(0);
   const toastTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
-  /** Default the Ask page to the first place once places arrive, unless the URL named one. */
-  const seededPlace = useRef(false);
+  /*
+   * No place is pre-selected: a plain visit lands on the globe hero, and general questions
+   * work without a place. A place is chosen explicitly (selector, Places page) or by the URL.
+   */
+  // Any deep link (another page, a place, a skill) leaves the opening screen.
   useEffect(() => {
-    if (seededPlace.current || !places.length) return;
-    seededPlace.current = true;
-    if (route.query.place === undefined) setAskPlaceId(places[0].id);
-  }, [places, route.query.place]);
+    if (route.page !== 'ask' || Object.keys(route.query).length) setSplash(false);
+  }, [route]);
 
   useEffect(() => {
     if (route.page === 'ask' && route.query.place !== undefined) {
-      seededPlace.current = true;
       setAskPlaceId(route.query.place === 'none' ? null : route.query.place);
     }
   }, [route]);
+
+  useEffect(() => {
+    const l = LANGS.find((x) => x.code === lang);
+    document.documentElement.lang = lang;
+    document.documentElement.dir = l?.rtl && l.ui ? 'rtl' : 'ltr';
+    try {
+      localStorage.setItem('gt.lang', lang);
+    } catch {
+      /* storage unavailable (private window, blocked site data) */
+    }
+  }, [lang]);
 
   const go = useCallback((page: Page, id?: string, query?: Record<string, string>) => navigate(page, id, query), []);
 
@@ -253,8 +278,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   /* ---------- mutations ---------- */
 
   /** Snapshot for optimistic rollback, read inside callbacks without re-creating them. */
-  const installedRef = useRef<string[]>([]);
-  installedRef.current = installed;
   const watchesRef = useRef<Watch[]>([]);
   watchesRef.current = watches;
 
@@ -262,12 +285,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const created = await api.places.create(req);
     setPlaces((all) => [...all, created]);
     return created;
-  }, []);
-
-  const updatePlace = useCallback(async (id: string, patch: PlacePatch) => {
-    const updated = await api.places.update(id, patch);
-    setPlaces((all) => all.map((p) => (p.id === id ? updated : p)));
-    return updated;
   }, []);
 
   const removePlace = useCallback(async (id: string) => {
@@ -308,23 +325,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setWatches((all) => all.filter((w) => w.id !== id));
   }, []);
 
-  /** Install / uninstall on the server. Optimistic; rolls back and says so if the call fails. */
-  const toggleInstall = useCallback(
-    (id: string) => {
-      const before = installedRef.current;
-      const next = !before.includes(id);
-      setInstalled(next ? [...before, id] : before.filter((x) => x !== id));
-      api.skills
-        .setInstalled(id, next)
-        .then((ids) => setInstalled(ids))
-        .catch(() => {
-          setInstalled(before);
-          notify(next ? 'Could not install the skill. Try again.' : 'Could not uninstall the skill. Try again.', undefined, undefined, 'error');
-        });
-    },
-    [notify],
-  );
-
   const categories = catalog?.categories ?? EMPTY_CATALOG.categories;
   const category = useCallback((key: string) => categoryOf(categories, key), [categories]);
 
@@ -348,18 +348,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       addPlace,
       removePlace,
-      updatePlace,
       addSkill,
       addWatch,
       updateWatch,
       removeWatch,
 
       installed,
-      toggleInstall,
+      toggleInstall: (id) => setInstalled((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])),
       askPlaceId,
       setAskPlace: setAskPlaceId,
       lang,
-      t: (key) => translate(key),
+      setLang: setLangState,
+      t: (key) => translate(LANGS.find((x) => x.code === lang)?.ui ? lang : 'en', key),
       connectors,
       setConnectors,
       modal,
@@ -368,6 +368,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toast,
       notify,
       dismissToast: () => setToast(null),
+      splash,
+      setSplash,
+      goHome: () => {
+        setAskPlaceId(null);
+        setModal(null);
+        if (window.location.hash !== '#/ask') window.location.hash = '#/ask';
+        setSplash(false);
+        setHomeTick((n) => n + 1);
+      },
+      homeTick,
     }),
     [
       route,
@@ -384,19 +394,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       reload,
       addPlace,
       removePlace,
-      updatePlace,
       addSkill,
       addWatch,
       updateWatch,
       removeWatch,
       installed,
-      toggleInstall,
       askPlaceId,
       lang,
       connectors,
       modal,
       toast,
       notify,
+      splash,
+      homeTick,
     ],
   );
 

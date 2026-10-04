@@ -16,8 +16,9 @@
  * always process-only descriptions, which is precisely what a step event carries.
  */
 
-import { ApiError, request } from '../http';
-import { FIXTURE_CLARIFY, FIXTURE_ERROR_RATE, usingFixtures } from '../config';
+import { ApiError, errorFromResponse, notAvailable, readBody, request } from '../http';
+import { API_BASE, FIXTURE_CLARIFY, FIXTURE_ERROR_RATE, usingFixtures } from '../config';
+import { identityHeaders, userId } from '../identity';
 import { streamSse, type StreamEvent } from '../stream';
 import type { components } from '../schema';
 import { pickProgressScript } from '../../ask/progressScripts';
@@ -29,6 +30,9 @@ export type RunRequest = S['RunRequest'];
 export type ReplyRequest = S['ReplyRequest'];
 export type RunRecord = S['RunRecord'];
 export type BackendAnswer = S['Answer'];
+export type ShareCreated = S['ShareCreated'];
+export type InsightSaved = S['InsightSaved'];
+export type InsightCreate = S['InsightCreate'];
 
 export type RunEventHandler = (ev: StreamEvent) => void;
 
@@ -56,7 +60,75 @@ export const runsApi = {
     usingFixtures()
       ? fixtureReply(body, onEvent, signal)
       : streamSse(`/runs/${encodeURIComponent(runId)}/reply`, body, onEvent, signal),
+
+  /**
+   * URL of the run's PDF report (`GET /api/runs/{run_id}/report.pdf`). Owner only: a plain
+   * link sends no `X-User-Id`, so prefer `downloadReport` unless the user is `demo`.
+   */
+  reportUrl: (runId: string): string => `${API_BASE}/runs/${encodeURIComponent(runId)}/report.pdf`,
+
+  /**
+   * Fetch the PDF with the user's id and save it via an `<a download>`. Rejects with an
+   * ApiError: 409 `conflict` if the run is not `done`, 404 if it is not this user's, and
+   * `not_available` in fixture mode (fixture runs do not exist on a server).
+   */
+  downloadReport: async (runId: string, filename?: string): Promise<void> => {
+    if (usingFixtures()) return notAvailable('PDF reports');
+    const path = `/runs/${encodeURIComponent(runId)}/report.pdf`;
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}${path}`, { headers: { ...identityHeaders(), accept: 'application/pdf' } });
+    } catch (err) {
+      throw new ApiError(`GET ${path} could not reach the server`, 'network', undefined, err);
+    }
+    if (!res.ok) throw errorFromResponse(`GET ${path}`, res, await readBody(res).catch(() => undefined));
+    const blob = await res.blob();
+    const name = filename ?? filenameFrom(res.headers.get('content-disposition')) ?? `earth-agent-${runId}.pdf`;
+    const url = URL.createObjectURL(blob);
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } finally {
+      // Give the browser a moment to start the download before the URL goes away.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    }
+  },
+
+  /**
+   * POST /api/runs/{run_id}/share — a public, read-only snapshot behind an unguessable link.
+   * `url` is the server's path for the share; `expires_at` is ISO-8601. Fixture mode rejects
+   * with `not_available` rather than handing out a dead link.
+   */
+  share: (runId: string, signal?: AbortSignal): Promise<ShareCreated> =>
+    usingFixtures()
+      ? notAvailable('Share links')
+      : request<ShareCreated>({ method: 'POST', path: `/runs/${encodeURIComponent(runId)}/share`, signal }),
+
+  /** POST /api/runs/{run_id}/insight — "Save to place": keeps a line from this answer in the place's memory. */
+  saveInsight: (
+    runId: string,
+    body: { place_id: string; text: string; confidence?: string },
+    signal?: AbortSignal,
+  ): Promise<InsightSaved> =>
+    request<InsightSaved>({
+      method: 'POST',
+      path: `/runs/${encodeURIComponent(runId)}/insight`,
+      body: { place_id: body.place_id, text: body.text, confidence: body.confidence ?? '' } satisfies InsightCreate,
+      signal,
+      ...(usingFixtures() ? { fixture: () => ({ run_id: runId, place_id: body.place_id, saved: true }) } : {}),
+    }),
 };
+
+/** `attachment; filename="earth-agent-r_x.pdf"` → `earth-agent-r_x.pdf`. */
+function filenameFrom(disposition: string | null): string | null {
+  const m = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  return m ? decodeURIComponent(m[1]) : null;
+}
 
 /* ------------------------------------------------------------------ fixtures */
 
@@ -163,7 +235,7 @@ function fixtureRecord(runId: string): RunRecord {
   return {
     run_id: runId,
     thread_id: fixtureId('t'),
-    user_id: 'demo',
+    user_id: userId(),
     question: '',
     status: 'done',
     answer: FIXTURE_RUN_ANSWER,

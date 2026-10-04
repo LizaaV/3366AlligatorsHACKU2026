@@ -20,7 +20,6 @@ __all__ = [
     "FeasibilityDto",
     "FeasibilityRequest",
     "PatchWatchRequest",
-    "Recurrence",
     "Tier",
     "WatchDto",
     "WatchEvent",
@@ -35,7 +34,6 @@ Tier = Literal["free", "paid"]
 WatchStatus = Literal["ok", "warn", "alert"]
 WatchEventLevel = Literal["info", "warn", "alert"]
 Channel = Literal["email", "whatsapp", "sms", "push", "slack"]
-Recurrence = Literal["recurring", "once"]
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 Text = Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]
@@ -90,12 +88,6 @@ class WatchDto(BaseModel):
     delta: str = ""
     status: WatchStatus | None = Field(None, description="Null until the first real run.")
     enabled: bool = True
-    recurrence: Recurrence = Field(
-        "recurring",
-        description="'once' triggers disable themselves (`enabled: false`) after their first "
-        "alert-level event; 'recurring' keeps firing.",
-    )
-    dashboard_id: str | None = Field(None, description="Optional linked dashboard.")
     series: WatchSeries = Field(default_factory=WatchSeries)
     channels: list[Channel] = Field(default_factory=list)
     cadence: str = ""
@@ -105,6 +97,11 @@ class WatchDto(BaseModel):
     last_run_at: datetime | None = None
     next_run_at: datetime | None = None
     events: list[WatchEvent] = Field(default_factory=list, description="Newest first.")
+    message: str | None = Field(
+        None,
+        description="The one-line alert the user would receive, built from the last check; "
+        "a sample based on the condition (starting 'Sample ·') before the first check.",
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -124,8 +121,6 @@ class CreateWatchRequest(BaseModel):
     condition: Text = ""
     channels: list[Channel] = Field(default_factory=list, max_length=5)
     cadence: Text = ""
-    recurrence: Recurrence = "recurring"
-    dashboard_id: SafeId | None = None
 
     _channels = field_validator("channels")(_dedupe)
 
@@ -140,14 +135,10 @@ class PatchWatchRequest(BaseModel):
     condition: Text | None = None
     channels: list[Channel] | None = Field(default=None, max_length=5)
     cadence: Text | None = None
-    recurrence: Recurrence | None = None
-    dashboard_id: SafeId | None = None  # explicit null unlinks the dashboard
 
     _channels = field_validator("channels")(_dedupe)
 
-    @field_validator(
-        "enabled", "name", "condition", "channels", "cadence", "recurrence", mode="before"
-    )
+    @field_validator("enabled", "name", "condition", "channels", "cadence", mode="before")
     @classmethod
     def _no_null(cls, v: object) -> object:
         if v is None:

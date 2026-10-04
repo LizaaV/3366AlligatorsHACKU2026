@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import re
 from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -138,7 +139,9 @@ def test_save_block_copies_block_script_and_params(client: TestClient) -> None:
     assert "script" not in saved["source"]  # kept server-side only
     stored = dash_service.get_dashboard(dash, "alice")
     assert stored.blocks[0].source.script == SCRIPT
-    assert saved["caption"].startswith("Saved 3 Oct 2026: Area changed: 3 ha")
+    # "Saved <today>: ..." — the date is the day the test runs, so only its shape is checked.
+    caption = saved["caption"]
+    assert re.match(r"Saved \d{1,2} \w{3} \d{4}: Area changed: 3 ha", caption), caption
     assert client.get(f"/api/dashboards/{dash}", headers=ALICE).json()["blocks"] == [saved]
 
 

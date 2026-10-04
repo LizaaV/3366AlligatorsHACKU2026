@@ -11,15 +11,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../state/store';
 import type { Loc } from './types';
 
-const DEFAULT_PROJECT = 'My places';
-
 export function useDetailsForm(loc: Loc | null) {
   const { places, skills } = useStore();
-  // Blank projects (older places saved without one) are not offered as a choice.
-  const projects = useMemo(() => {
-    const named = Array.from(new Set(places.map((p) => p.project.trim()).filter(Boolean)));
-    return named.length ? named : [DEFAULT_PROJECT];
-  }, [places]);
+  const projects = useMemo(() => Array.from(new Set(places.map((p) => p.project))), [places]);
 
   const [name, setName] = useState('');
   const [project, setProject] = useState<string | null>(null);
@@ -52,8 +46,7 @@ export function useDetailsForm(loc: Loc | null) {
   }, []);
 
   const finalName = name.trim();
-  // A project is optional: an empty choice files the place under the default project.
-  const finalProject = (effectiveProject === '__new' ? newProject.trim() : effectiveProject) || DEFAULT_PROJECT;
+  const finalProject = effectiveProject === '__new' ? newProject.trim() : effectiveProject;
 
   return {
     projects,

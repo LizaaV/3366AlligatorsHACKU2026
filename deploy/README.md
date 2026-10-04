@@ -2,6 +2,8 @@
 
 Brings up the whole app (React SPA + FastAPI) on any Linux VM with Docker. No cloud-specific tooling.
 
+**On AWS:** see [`aws/README.md`](aws/README.md) for the EC2 plan and the `launch.sh` / `ship.sh` scripts.
+
 ```
 browser ──:80──> nginx (frontend container) ──/api/*──> backend:8000 (FastAPI, internal only)
                        └── serves the built SPA, history fallback to index.html
@@ -9,7 +11,7 @@ browser ──:80──> nginx (frontend container) ──/api/*──> backend:
 
 nginx is the single public entry point; the backend is not published on the host. The SPA calls `/api` on its own origin. The frontend image is built with `VITE_API_SOURCE=http` (Vite inlines it at build time), so the deployed app talks to the real backend instead of the scripted fixtures; set `VITE_API_SOURCE=fixture` in `deploy/.env` and rebuild to get the mock-only UI.
 
-> **Note:** the backend implements the whole API contract, so the `http` build has no pages left on sample data. Alerts are not sent yet (triggers are saved and checked only).
+> **Product note: `VITE_API_SOURCE=http` and unbuilt routes.** With `http`, a page whose backend route is not built yet shows an error instead of sample data. Live today: ask (runs, threads), areas, knowledge, places and memory, shares, dashboards, PDF reports, watches, skills and catalog. Not built: map layers (`/api/map-layers`), export, `/api/ask/insights`, boundary detection, file parsing and parcel lookup (see `docs/API.md` section 2). The team must decide with Liza and Anna Claire whether the demo build keeps sample data on for those pages. Options: build with `VITE_API_SOURCE=fixture` (everything mocked, including the ask flow), or migrate per endpoint in the frontend so live routes use `http` and the rest keep fixtures.
 
 ## 1. VM prerequisites
 
@@ -39,13 +41,17 @@ cp deploy/.env.example deploy/.env        # then edit: PUBLIC_BASE_URL, HTTP_POR
 | --- | --- | --- | --- |
 | `EARTH_IMPL` | `backend/.env` | `stub` | `stub` = offline Hoo Hok Wai preset, no network. `real` = Sentinel-2 via STAC (needs outbound internet). |
 | `SANDBOX_IMPL` | `backend/.env` | `subprocess` | How agent-written scripts run. `docker` = opt-in container sandbox, see "Docker sandbox" below. |
-| `ANTHROPIC_API_KEY` | `backend/.env` | unset | LLM key; only read once the LLM agent lands (see `docs/BUILD-PLAN.md` section 9). |
-| `SHARE_TTL_DAYS` | `backend/.env` | n/a yet | Planned (share links); ignored until implemented. |
+| `ANTHROPIC_API_KEY` | `backend/.env` | unset | Claude key for the agent. Without it, questions about places other than the preset get an `agent_unavailable` error. |
+| `AGENT_MODE` | `backend/.env` | `agent` | `agent` = the Claude tool-use loop. `preset` = the scripted Hoo Hok Wai run only, no AI calls. |
+| `DAILY_SPEND_CAP_USD` | `backend/.env` | `20` | Total AI spend over the last 24 h above which new agent runs are refused. |
+| `RUNS_PER_HOUR_PER_USER` | `backend/.env` | `40` | Anti-spam: runs (questions + replies) per user per hour. `0` turns it off. |
+| `RUNS_PER_HOUR_PER_IP` | `backend/.env` | `60` | Anti-spam: runs per client address per hour. `0` turns it off. |
+| `SHARE_TTL_DAYS` | `backend/.env` | `30` | How long a share link lasts (1 to 3650 days). |
 | `RUNS_DB_PATH` | `backend/.env` | `$EARTH_DATA_DIR/runs.sqlite` | Run store location. Leave unset. |
 | `EARTH_DATA_DIR` | compose | `/data` | Cache, rendered layers, memory, run DB (volume). Set by compose; do not override. |
 | `CORS_ORIGINS` | compose | `["$PUBLIC_BASE_URL"]` | Set by compose from `PUBLIC_BASE_URL`. |
 | `PUBLIC_BASE_URL` | `deploy/.env` | `http://localhost` | Public URL. Compose passes it to the backend (share links read it) and derives `CORS_ORIGINS` from it. |
-| `TRUST_PROXY_HEADERS` | backend (set by compose to `true`) | Trust nginx's `X-Real-IP` for the per-IP run limit. Only safe while the backend is reachable only through nginx. |
+| `TRUST_PROXY_HEADERS` | compose | `true` | Trust nginx's `X-Real-IP` for the per-IP run limit. Only safe while the backend is reachable only through nginx. |
 | `HTTP_PORT` | `deploy/.env` | `80` | Host port of nginx. |
 | `VITE_API_SOURCE` | `deploy/.env` | `http` | Frontend build arg: `http` real API, `fixture` mocks. Needs a rebuild. |
 
@@ -171,4 +177,4 @@ The profile builds `earth-sandbox:latest` (`backend/sandbox/Dockerfile`); the ov
 Other notes:
 - The earth service needs the per-run token (`Authorization: Bearer ...`, revoked when the run ends) and only dispatches the public `earth` functions. Sandbox containers can also reach the backend's public API on `:8000` (same container), which is no more than the internet can do.
 - `earth` calls from docker runs are serialised in the backend (one at a time), because `earth.calls` keeps the run's budget and listener in module globals.
-- Local development (Docker Desktop): `cd backend && sh sandbox/dev-up.sh` builds the image, creates the internal `earth-only` network and an `earth-relay` container that forwards `earth-relay:8701` to the host (internal networks cannot reach the host). Then `SANDBOX_IMPL=docker uv run uvicorn app.main:app`. Tests: `DOCKER_SANDBOX_TESTS=1 uv run pytest tests/test_docker_sandbox.py`.
+- Local development (Docker Desktop): `cd backend && sh sandbox/dev-up.sh` builds the image, creates the internal `earth-only` network and an `earth-relay` container that forwards `earth-relay:8701` to the host (internal networks cannot reach the host). Then `SANDBOX_IMPL=docker uv run uvicorn app.main:app --no-proxy-headers`. Tests: `DOCKER_SANDBOX_TESTS=1 uv run pytest tests/test_docker_sandbox.py`.

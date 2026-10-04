@@ -101,8 +101,10 @@ def test_me_memory_isolated_and_header_validated(client: TestClient) -> None:
 def test_place_memory_isolated_between_users(client: TestClient) -> None:
     client.get("/api/places")  # demo seeded pl_hhw
     client.patch("/api/places/pl_hhw/memory", json={"note": "secret"})
-    # bob has no such place -> 404, never sees demo's memory
-    assert client.get("/api/places/pl_hhw/memory", headers={"X-User-Id": "bob"}).status_code == 404
+    # bob has his own copy of the demo place, never demo's memory
+    res = client.get("/api/places/pl_hhw/memory", headers={"X-User-Id": "bob"})
+    assert res.status_code == 200
+    assert "secret" not in res.text
     sq = {
         "type": "Polygon",
         "coordinates": [
@@ -110,7 +112,11 @@ def test_place_memory_isolated_between_users(client: TestClient) -> None:
         ],
     }
     client.post("/api/places", json={"name": "Hoo", "geometry": sq}, headers={"X-User-Id": "bob"})
-    bob = client.get("/api/places", headers={"X-User-Id": "bob"}).json()[0]["id"]
+    bob = next(
+        p["id"]
+        for p in client.get("/api/places", headers={"X-User-Id": "bob"}).json()
+        if p["name"] == "Hoo"
+    )
     assert (
         client.get(f"/api/places/{bob}/memory", headers={"X-User-Id": "bob"}).json()["notes"] == []
     )

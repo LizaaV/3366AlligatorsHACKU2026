@@ -10,9 +10,17 @@ import { api } from '../../../api';
 import { useResource } from '../../../hooks/useResource';
 import { ErrorState } from '../../../components/async';
 import { Ms } from '../../../components/ui';
-import { fmtC, outerRing, ringToPts } from '../../../lib/geo';
+import { outerRing, ringToPts } from '../../../lib/geo';
 import { toSearchHits, type AreaSearchHit } from '../../../model';
 import type { Loc, MethodProps } from '../types';
+
+/** Category guessed from a geocoder hit, so the wizard can preselect one. */
+const SEARCH_CAT: Record<string, string> = {
+  'Lake Mead': 'water',
+  'Rondônia': 'forests',
+  'Port of Rotterdam': 'finance',
+  'Great Barrier Reef': 'oceans',
+};
 
 /** Typing pause before a lookup goes out. The resolver may hit a real geocoder. */
 const DEBOUNCE_MS = 350;
@@ -56,7 +64,7 @@ export function SearchMethod({ onChange }: MethodProps) {
       {geo.error ? (
         <ErrorState error={geo.error} onRetry={geo.refetch} title="Search is unavailable" compact />
       ) : term && hits.length === 0 && !geo.isFetching ? (
-        <div className="caption">No match. Try coordinates, or drop a pin on the globe instead.</div>
+        <div className="caption">No match. Try coordinates, or draw it on the map instead.</div>
       ) : (
         <div className="col" style={{ gap: 2 }}>
           {hits.map((r, i) => (
@@ -64,7 +72,6 @@ export function SearchMethod({ onChange }: MethodProps) {
             <button key={`${r.name}-${i}`} className={`menu-item ${picked === r ? 'on' : ''}`} onClick={() => setPicked(r)}>
               <Ms n="location_on" />
               <span className="grow">{r.name} <span className="caption">· {r.description}</span></span>
-              <span className="tiny hide-mobile">{fmtC(r.lat, r.lon)}</span>
               {picked === r && <Ms n="check" style={{ color: '#fff' }} />}
             </button>
           ))}
@@ -89,6 +96,7 @@ function toLoc(hit: AreaSearchHit): Loc {
     label: hit.name,
     source: 'search',
     via: `Search · ${hit.name}, ${hit.description}`,
+    categoryKey: SEARCH_CAT[hit.name],
     ...(pts ? { pts, givenLabel: 'Outline from the place search' } : {}),
   };
 }

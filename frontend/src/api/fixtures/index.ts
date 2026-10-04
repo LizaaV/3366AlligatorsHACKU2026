@@ -12,16 +12,18 @@ import placesJson from './places.json';
 import placeSearchJson from './place-search-results.json';
 import watchesJson from './watches.json';
 import feasibilityJson from './watch-feasibility.json';
-import mapLayersJson from './map-layers.json';
 
 import type {
+  InsightDto,
+  InsightRequest,
   CatalogDto,
-  MapLayerDto,
+  FeasibilityDto,
+  FeasibilityRequest,
   PlaceSearchResultDto,
-  ProofSceneDto,
   SkillDto,
-  WatchProofDto,
-  WatchWireDto,
+  SkillManifestDto,
+  WatchDto,
+  WatchProofWireDto,
 } from '../types';
 import { approxAreaHa, outerRing, ringToPts } from '../../lib/geo';
 import { ApiError } from '../http';
@@ -32,17 +34,15 @@ type PlaceDto = S['PlaceDto'];
 type CreatePlaceRequest = S['CreatePlaceRequest'];
 type PlaceMemory = S['PlaceMemory'];
 type MemoryPatch = S['MemoryPatch'];
-type FeasibilityDto = S['FeasibilityDto'];
-type FeasibilityRequest = S['FeasibilityRequest'];
 type CreateWatchRequest = S['CreateWatchRequest'];
-type PatchWatchRequest = S['PatchWatchRequest'];
+type ProofScene = S['ProofScene'];
 
 /* ---------------- reference data (read-only) ---------------- */
 
 export const catalog = () => catalogJson as unknown as CatalogDto;
 export const skills = () => skillsJson as unknown as SkillDto[];
-export const skillManifest = (id: string) => (skillManifestsJson as unknown as Record<string, unknown>)[id];
-export const mapLayers = () => mapLayersJson as unknown as MapLayerDto[];
+export const skillManifest = (id: string): SkillManifestDto | undefined =>
+  (skillManifestsJson as unknown as Record<string, SkillManifestDto>)[id];
 export const placeSearch = (q: string) => {
   const s = q.trim().toLowerCase();
   const all = placeSearchJson as unknown as PlaceSearchResultDto[];
@@ -54,7 +54,7 @@ export const placeSearch = (q: string) => {
 // stand-in: real persistence comes with the real backend, not a localStorage patch here.
 
 let placeState: PlaceDto[] = structuredClone(placesJson as unknown as PlaceDto[]);
-let watchState: WatchWireDto[] = structuredClone(watchesJson as unknown as WatchWireDto[]);
+let watchState: WatchDto[] = structuredClone(watchesJson as unknown as WatchDto[]);
 
 const id = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`;
 
@@ -161,23 +161,21 @@ export const patchPlaceMemory = (placeId: string, patch: MemoryPatch): PlaceMemo
 
 export const watches = () => watchState;
 
-export const createWatch = (req: CreateWatchRequest): WatchWireDto => {
-  const template = (watchesJson as unknown as WatchWireDto[])[0];
+export const createWatch = (req: CreateWatchRequest): WatchDto => {
+  const template = (watchesJson as unknown as WatchDto[])[0];
   const now = new Date().toISOString();
-  const watch: WatchWireDto = {
+  // Like the real API: nothing has been measured yet, so the numbers are null.
+  const watch: WatchDto = {
     ...template,
     id: id('w'),
     name: req.name,
-    category_key: req.category_key,
+    category_key: req.category_key ?? '',
     place_id: req.place_id ?? null,
-    skill_id: req.skill_id,
+    skill_id: req.skill_id ?? '',
     question: req.question,
-    condition: req.condition,
+    condition: req.condition ?? '',
     channels: req.channels ?? [],
-    cadence: req.cadence,
-    recurrence: req.recurrence ?? 'recurring',
-    dashboard_id: req.dashboard_id ?? null,
-    // Like the real backend: no measurement exists until a run has produced one.
+    cadence: req.cadence ?? '',
     metric: '',
     value: null,
     unit: '',
@@ -185,12 +183,13 @@ export const createWatch = (req: CreateWatchRequest): WatchWireDto => {
     baseline: null,
     baseline_label: '',
     delta: '',
+    confidence: 'Low',
     status: null,
     enabled: true,
     series: { unit: '', labels: [], current: [], band_low: [], band_high: [], mean: [] },
     last_run_at: null,
     next_run_at: null,
-    events: [],
+    events: [{ at: now, text: 'Watch created. No passes measured yet.', level: 'info' }],
     created_at: now,
     updated_at: now,
   };
@@ -198,10 +197,9 @@ export const createWatch = (req: CreateWatchRequest): WatchWireDto => {
   return watch;
 };
 
-export const updateWatch = (watchId: string, patch: PatchWatchRequest): WatchWireDto => {
-  let updated: WatchWireDto | undefined;
-  const defined = Object.fromEntries(Object.entries(patch).filter(([k, v]) => v !== null || k === 'dashboard_id'));
-  watchState = watchState.map((w) => (w.id === watchId ? (updated = { ...w, ...defined, updated_at: new Date().toISOString() }) : w));
+export const updateWatch = (watchId: string, patch: Partial<WatchDto>): WatchDto => {
+  let updated: WatchDto | undefined;
+  watchState = watchState.map((w) => (w.id === watchId ? (updated = { ...w, ...patch }) : w));
   if (!updated) throw new Error(`No watch ${watchId}`);
   return updated;
 };
@@ -247,11 +245,51 @@ export const feasibility = (req: FeasibilityRequest): FeasibilityDto => {
 };
 
 /**
+ * Stand-in for POST /ask/insights. Builds a factual summary from the watch records it holds,
+ * rather than returning invented prose — so the shape is exercised without the frontend
+ * asserting findings it cannot know.
+ */
+export const insight = (req: InsightRequest): InsightDto => {
+  const fmt = (v: number, unit: string) => `${v}${unit ? (unit.startsWith('%') || unit.startsWith('\u00b0') ? '' : ' ') + unit : ''}`;
+  const all = watchState;
+  const scoped = req.scope === 'watch' ? all.filter((w) => w.id === req.watchId) : all.filter((w) => w.enabled);
+  const basis = [`Read ${scoped.length} watch${scoped.length === 1 ? '' : 'es'}`, 'Compared the last 3 passes', 'Checked the 5-year baseline'];
+
+  if (!scoped.length) {
+    return { title: 'Nothing to report yet', body: 'There are no active watches to read. Create one and the agent will check it on every new satellite pass.', basis: [] };
+  }
+
+  const line = (w: (typeof all)[number]) =>
+    w.value === null || w.value === undefined
+      ? `${w.name}: not checked yet.`
+      : `${w.name}: ${w.metric} is ${fmt(w.value, w.unit)}${w.ci ? ` (90% range ${fmt(w.ci[0], w.unit)}\u2013${fmt(w.ci[1], w.unit)})` : ''} against ${fmt(w.baseline ?? 0, w.unit)} for the ${w.baseline_label.toLowerCase()}. ${w.delta}. The rule is \u201c${w.condition}\u201d, and confidence is ${w.confidence.toLowerCase()}.`;
+
+  const attention = scoped.filter((w) => w.status === 'warn' || w.status === 'alert');
+  const subject = attention[0] ?? scoped[0];
+  const title =
+    req.scope === 'watch'
+      ? `${subject.metric} is ${subject.status === 'ok' ? 'within its normal range' : 'outside its normal range'}`
+      : attention.length
+        ? `${attention.length} watch${attention.length === 1 ? '' : 'es'} need attention`
+        : 'Everything is inside its normal range';
+
+  const body = [
+    `You asked: \u201c${req.question}\u201d`,
+    ...(attention.length ? attention.map(line) : [line(subject)]),
+    attention.length
+      ? 'Everything else is inside its normal 5-year range.'
+      : `All ${scoped.length} watch${scoped.length === 1 ? '' : 'es'} are inside their normal 5-year range.`,
+  ].join(' ');
+
+  return { title, body, basis };
+};
+
+/**
  * Stand-in for GET /watches/{id}/proof. Scene identifiers are synthesised from the watch's
  * satellite in the real archive's naming conventions — plausible, but not real scenes. This is
  * exactly the kind of fabrication that should not live in a component, which is why it is here.
  */
-export const watchProof = (watchId: string): WatchProofDto => {
+export const watchProof = (watchId: string): WatchProofWireDto => {
   const w = watchState.find((x) => x.id === watchId);
   const sat = (w?.satellites ?? 'Sentinel-2').split(' \u00b7 ')[0];
   const dates = ['Sep 28', 'Sep 23', 'Sep 18', 'Sep 13', 'Sep 8'];
@@ -267,8 +305,8 @@ export const watchProof = (watchId: string): WatchProofDto => {
     return `S2${i % 2 ? 'A' : 'B'}_MSIL2A_2026${md}T172909_N0511_R055_T14SKG`;
   };
   const optical = !/sentinel-1|viirs|firms|swot/i.test(sat);
-  const scenes: ProofSceneDto[] = dates.map((date, i) => {
-    const why = optical && i === 2 ? 'Skipped \u2014 64% cloud over the area' : optical && i === 3 ? 'Skipped \u2014 18 mm rain the day before' : undefined;
+  const scenes: ProofScene[] = dates.map((date, i) => {
+    const why = optical && i === 2 ? 'Skipped \u2014 64% cloud over the area' : optical && i === 3 ? 'Skipped \u2014 18 mm rain the day before' : null;
     return { id: sceneId(date, i), date, sat, cloud: why ? 64 : i * 2, used: !why, why };
   });
   let h = 2166136261;
@@ -296,4 +334,34 @@ export const detectBoundary = (lat: number, lon: number, w = 400, h = 300) => {
     return [+(((s * k * w) / 2) * j).toFixed(1), +(((-c * k * h) / 2) * j).toFixed(1)] as [number, number];
   });
   return pts;
+};
+
+export const PARCEL_SYSTEMS = [
+  { id: 'br', name: 'Brazil · CAR', placeholder: 'RO-1100205-8F3A…', tier: 'free' as const, lat: -10.082, lon: -62.914, categoryKey: 'forests' },
+  { id: 'eu', name: 'EU · INSPIRE cadastral parcel', placeholder: 'NL.IMKAD.KadastraalPerceel.…', tier: 'free' as const, lat: 51.982, lon: 4.418, categoryKey: 'agriculture' },
+  { id: 'in', name: 'India · Survey number', placeholder: 'Anand / 214/2', tier: 'free' as const, lat: 22.552, lon: 72.968, categoryKey: 'agriculture' },
+  { id: 'us', name: 'United States · APN (county)', placeholder: '055-123-04-0-00-00-001', tier: 'paid' as const, lat: 37.951, lon: -100.884, categoryKey: 'agriculture' },
+  { id: 'ke', name: 'Kenya · LR number', placeholder: 'Nakuru/Block 4/112', tier: 'paid' as const, lat: -0.312, lon: 36.081, categoryKey: 'agriculture' },
+];
+
+export const WHATSAPP_PINS = [
+  { id: 'wa1', from: 'You', when: '2 min ago', note: 'Lower shamba, near the borehole', lat: -0.3021, lon: 36.0712 },
+  { id: 'wa2', from: 'Field team · Juma', when: 'Yesterday, 16:40', note: 'Maize block east of road', lat: 37.9903, lon: -100.9061 },
+];
+
+export const WHATSAPP_NUMBER = '+1 (555) 014-7788';
+
+/* ---------------- library concepts ---------------- */
+
+/**
+ * The 28 ready-made skills in 9 categories from the team's pitch and research docs, as the
+ * library shows them next to the backend's runnable skills. Marked `concept` (described, not
+ * runnable), with no invented run counts, ratings or accuracy figures. Delete each one as its
+ * real skill lands in the backend registry; the listing drops duplicates by id.
+ */
+export const conceptSkills = (): SkillDto[] =>
+  skills().map((s) => ({ ...s, status: 'concept', runs: null, rating: null, accuracy: null }));
+export const conceptManifest = (id: string): SkillManifestDto | undefined => {
+  const m = skillManifest(id);
+  return m && { ...m, status: 'concept', code_ref: null, code_sha256: null, accuracy: { ...m.accuracy, statement: null } };
 };

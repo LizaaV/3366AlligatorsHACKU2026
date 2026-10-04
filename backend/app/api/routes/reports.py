@@ -20,7 +20,7 @@ def _pdf(content: bytes, short: str) -> Response:
     return Response(
         content=content,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="earth-agent-{short}.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="constellation-{short}.pdf"'},
     )
 
 

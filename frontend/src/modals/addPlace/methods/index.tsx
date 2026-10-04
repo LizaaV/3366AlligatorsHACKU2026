@@ -9,8 +9,11 @@
 import type { Loc, Method } from '../types';
 import { SearchMethod } from './SearchMethod';
 import { CoordsMethod } from './CoordsMethod';
-import { PinMethod } from './PinMethod';
+import { MapPickMethod } from './MapPickMethod';
 import { UploadMethod } from './UploadMethod';
+import { ParcelMethod } from './ParcelMethod';
+import { WhatsAppMethod } from './WhatsAppMethod';
+import { ProjectMethod } from './ProjectMethod';
 
 export function MethodInput({ method, onChange }: { method: Method; onChange: (loc: Loc | null) => void }) {
   switch (method) {
@@ -18,10 +21,18 @@ export function MethodInput({ method, onChange }: { method: Method; onChange: (l
       return <SearchMethod onChange={onChange} />;
     case 'coords':
       return <CoordsMethod onChange={onChange} />;
+    case 'draw':
+      return <MapPickMethod mode="draw" onChange={onChange} />;
     case 'pin':
-      return <PinMethod onChange={onChange} />;
+      return <MapPickMethod mode="pin" onChange={onChange} />;
     case 'upload':
       return <UploadMethod onChange={onChange} />;
+    case 'parcel':
+      return <ParcelMethod onChange={onChange} />;
+    case 'whatsapp':
+      return <WhatsAppMethod onChange={onChange} />;
+    case 'project':
+      return <ProjectMethod onChange={onChange} />;
     default:
       return assertNever(method);
   }

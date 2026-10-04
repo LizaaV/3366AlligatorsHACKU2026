@@ -21,6 +21,7 @@
     "status": "warn",
     "enabled": true,
     "series": {
+      "unit": "ha",
       "labels": [
         "Jul",
         "Aug",
@@ -116,9 +117,7 @@
         "level": "alert"
       }
     ],
-    "recurrence": "recurring",
-    "dashboard_id": "db-np",
-    "created_at": "2026-09-01T09:00:00Z",
+    "created_at": "2026-08-01T00:00:00Z",
     "updated_at": "2026-09-28T18:04:00Z"
   },
   {
@@ -143,6 +142,7 @@
     "status": "ok",
     "enabled": true,
     "series": {
+      "unit": "",
       "labels": [
         "Jul",
         "Aug",
@@ -227,9 +227,7 @@
         "level": "info"
       }
     ],
-    "recurrence": "recurring",
-    "dashboard_id": "db-np",
-    "created_at": "2026-09-01T09:00:00Z",
+    "created_at": "2026-08-01T00:00:00Z",
     "updated_at": "2026-09-28T18:04:00Z"
   },
   {
@@ -254,6 +252,7 @@
     "status": "ok",
     "enabled": true,
     "series": {
+      "unit": "°C",
       "labels": [
         "Jul",
         "Aug",
@@ -333,10 +332,8 @@
         "level": "warn"
       }
     ],
-    "recurrence": "once",
-    "dashboard_id": null,
-    "created_at": "2026-09-01T09:00:00Z",
-    "updated_at": "2026-09-28T18:04:00Z"
+    "created_at": "2026-08-01T00:00:00Z",
+    "updated_at": "2026-09-26T12:00:00Z"
   },
   {
     "id": "w-mead",
@@ -360,6 +357,7 @@
     "status": "ok",
     "enabled": false,
     "series": {
+      "unit": "% vs Aug",
       "labels": [
         "Jul",
         "Aug",
@@ -439,10 +437,8 @@
         "level": "info"
       }
     ],
-    "recurrence": "recurring",
-    "dashboard_id": null,
-    "created_at": "2026-09-01T09:00:00Z",
-    "updated_at": "2026-09-28T18:04:00Z"
+    "created_at": "2026-08-01T00:00:00Z",
+    "updated_at": "2026-09-30T12:00:00Z"
   },
   {
     "id": "w-algae",
@@ -466,6 +462,7 @@
     "status": "warn",
     "enabled": true,
     "series": {
+      "unit": "µg/L",
       "labels": [
         "Jul",
         "Aug",
@@ -551,10 +548,8 @@
         "level": "alert"
       }
     ],
-    "recurrence": "once",
-    "dashboard_id": "db-lake",
-    "created_at": "2026-09-01T09:00:00Z",
-    "updated_at": "2026-09-28T18:04:00Z"
+    "created_at": "2026-08-01T00:00:00Z",
+    "updated_at": "2026-10-03T11:20:00Z"
   },
   {
     "id": "w-defor",
@@ -578,6 +573,7 @@
     "status": "ok",
     "enabled": true,
     "series": {
+      "unit": "ha",
       "labels": [
         "Jul",
         "Aug",
@@ -657,10 +653,8 @@
         "level": "info"
       }
     ],
-    "recurrence": "recurring",
-    "dashboard_id": null,
-    "created_at": "2026-09-01T09:00:00Z",
-    "updated_at": "2026-09-28T18:04:00Z"
+    "created_at": "2026-08-01T00:00:00Z",
+    "updated_at": "2026-09-29T12:00:00Z"
   },
   {
     "id": "w-fire",
@@ -684,6 +678,7 @@
     "status": "ok",
     "enabled": true,
     "series": {
+      "unit": "",
       "labels": [
         "Jul",
         "Aug",
@@ -764,9 +759,7 @@
         "level": "alert"
       }
     ],
-    "recurrence": "once",
-    "dashboard_id": null,
-    "created_at": "2026-09-01T09:00:00Z",
-    "updated_at": "2026-09-28T18:04:00Z"
+    "created_at": "2026-08-01T00:00:00Z",
+    "updated_at": "2026-10-03T06:10:00Z"
   }
 ]

@@ -1,104 +1,66 @@
 /**
- * Public page behind a share link: `<origin>/proof/<slug>`.
- *
- * Whoever receives the link sees a read-only snapshot of one answer — the question, the
- * answer, its visuals and the PDF report — without an account or the rest of the app.
- * Data comes from `GET /api/shares/{slug}`; an expired or revoked link answers 410.
+ * The public page behind a share link: `/proof/<slug>` (the URL `POST /api/runs/{id}/share`
+ * returns). Read-only, no login: the question, the answer, its evidence blocks and the PDF.
  */
 
 import { useCallback } from 'react';
-import { API_BASE, ApiError } from '../api';
-import { request } from '../api/http';
-import type { components } from '../api/schema';
+import { api } from '../api';
+import type { SharedRun } from '../api';
 import { useResource } from '../hooks/useResource';
-import { toAnswer } from '../model';
+import { toAnswer, type AnswerBlock } from '../model';
 import { AnswerBlocks } from '../components/blocks';
-import { Ms } from '../components/ui';
+import { ErrorState } from '../components/async';
 import { Logo } from '../components/Shell';
+import { Ms } from '../components/ui';
+import { AnswerCard } from './AnswerCard';
 
-type SharedRun = components['schemas']['SharedRun'];
-
-/** The slug when the page was opened on a share link, else null. */
+/** The slug when the page was opened at `/proof/<slug>`, else null. */
 export const proofSlug = (path = window.location.pathname): string | null => {
-  const m = path.match(/^\/proof\/([A-Za-z0-9_-]+)\/?$/);
+  const m = /^\/proof\/([A-Za-z0-9_-]{4,128})\/?$/.exec(path);
   return m ? m[1] : null;
 };
-
-/** The app itself. A full path: this page lives at /proof/<slug>, so a bare `#/ask` would stay here. */
-const APP_URL = '/#/ask';
-
-const LAYER_URL = /^(.*)\/layers\/[^/?#]+\/([a-z_]+)\/([^/?#]+\.png)(\?.*)?$/;
-
-/** Point `/api/layers/{run}/{measure}/{scene}.png` urls at the share's own route; other values stay as they are. */
-export function toShareUrls<T>(value: T, slug: string): T {
-  if (typeof value === 'string') {
-    const m = value.match(LAYER_URL);
-    return (m && m[1].endsWith('/api') ? `${m[1]}/shares/${encodeURIComponent(slug)}/layers/${m[2]}/${m[3]}${m[4] ?? ''}` : value) as T;
-  }
-  if (Array.isArray(value)) return value.map((v) => toShareUrls(v, slug)) as T;
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toShareUrls(v, slug)])) as T;
-  return value;
-}
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 export function ProofPage({ slug }: { slug: string }) {
-  const shared = useResource(
-    useCallback((signal) => request<SharedRun>({ method: 'GET', path: `/shares/${encodeURIComponent(slug)}`, signal }), [slug]),
-    [slug],
-  );
-
-  const gone = shared.error instanceof ApiError && (shared.error.status === 410 || shared.error.status === 404);
-  const run = shared.data;
-  const answer = run?.answer ? toAnswer(run.answer) : null;
-  const blocks = toShareUrls(run?.blocks?.length ? run.blocks : answer?.blocks ?? [], slug);
-  const pdf = `${API_BASE}/shares/${encodeURIComponent(slug)}/report.pdf`;
+  const res = useResource(useCallback((signal: AbortSignal) => api.shares.get(slug, signal), [slug]), [slug]);
+  const run: SharedRun | undefined = res.data;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', background: 'var(--canvas)' }}>
-      <header className="row" style={{ height: 'var(--nav-h)', padding: '0 20px', borderBottom: '1px solid var(--hair-soft)' }}>
-        <Logo to={APP_URL} />
-        <span className="tiny" style={{ marginLeft: 'auto' }}>Shared answer</span>
+    <div style={{ minHeight: '100vh', background: '#000' }}>
+      <header className="row" style={{ height: 56, padding: '0 20px', borderBottom: '1px solid var(--hair-soft)', gap: 16 }}>
+        <Logo />
+        <span className="tiny muted" style={{ marginLeft: 'auto' }}>Shared result · read only</span>
       </header>
-
-      <main className="col" style={{ maxWidth: 760, margin: '0 auto', padding: '32px 16px 64px', gap: 20 }}>
-        {shared.isLoading && <div className="caption"><span className="spinner" /> Loading the shared answer…</div>}
-
-        {shared.error && (
-          <div className="panel col" style={{ padding: 24, gap: 8 }}>
-            <Ms n={gone ? 'link_off' : 'error_outline'} size={28} className="muted" />
-            <div className="subhead">{gone ? 'This link has expired or was turned off' : 'The shared answer could not be loaded'}</div>
-            <div className="caption">{gone ? 'Ask the person who sent it for a new link.' : 'Check your connection and try again.'}</div>
-            {!gone && <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={shared.refetch}>Try again</button>}
-          </div>
+      <main style={{ maxWidth: 760, margin: '0 auto', padding: '32px 16px 64px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {res.error && (
+          <ErrorState
+            error={res.error}
+            title={res.error.status === 410 ? 'This link has expired' : 'This shared result could not be opened'}
+            message={res.error.status === 410 ? 'The owner revoked it, or it is past its expiry date.' : undefined}
+          />
         )}
-
+        {!run && !res.error && <div className="caption">Loading…</div>}
         {run && (
           <>
             <div className="col" style={{ gap: 6 }}>
-              <span className="eyebrow muted">
-                {run.area?.name ? `${run.area.name} · ` : ''}asked {fmtDate(run.created_at)}
-              </span>
-              <h1 style={{ margin: 0, font: '600 28px/1.2 var(--font)', letterSpacing: -0.6 }}>{run.question}</h1>
-            </div>
-
-            {answer && (
-              <div className="panel col" style={{ padding: 20, gap: 10 }}>
-                <div style={{ font: '600 22px/1.2 var(--font)', letterSpacing: -0.4 }}>{answer.title}</div>
-                <div className="body-sm" style={{ fontSize: 15, lineHeight: 1.6 }}>{answer.sentence}</div>
-                {answer.finding && <div className="body-sm"><span className="muted">{answer.findingLabel}: </span>{answer.finding}</div>}
-                {answer.action && <div className="body-sm"><span className="muted">{answer.actionLabel}: </span>{answer.action}</div>}
-                <div className="tiny">Confidence: {answer.confidence.level} · {answer.confidence.pct}%</div>
+              <div className="eyebrow muted">{run.area?.name ?? 'A place on Earth'} · asked {fmtDate(run.created_at)}</div>
+              <h1 className="h3" style={{ margin: 0 }}>{run.question}</h1>
+              <div className="row wrap" style={{ gap: 8 }}>
+                <a className="btn btn-sm" href={api.shares.reportUrl(slug)} download>
+                  <Ms n="picture_as_pdf" />PDF report
+                </a>
+                <span className="tiny muted">Link expires {fmtDate(run.expires_at)}</span>
               </div>
-            )}
-
-            <AnswerBlocks blocks={blocks} />
-
-            <div className="row wrap" style={{ gap: 8 }}>
-              <a className="btn btn-primary" href={pdf} download><Ms n="picture_as_pdf" />Download PDF report</a>
-              <a className="btn btn-ghost" href={APP_URL}><Ms n="public" />Open Constellation</a>
             </div>
-            <div className="tiny">Snapshot taken {fmtDate(run.shared_at)} · link valid until {fmtDate(run.expires_at)}</div>
+            <AnswerBlocks blocks={run.blocks as AnswerBlock[]} onPickScene={() => undefined} />
+            {run.answer && (
+              <AnswerCard answer={toAnswer(run.answer)} question={run.question} placeId={null} onRunSkill={() => undefined} />
+            )}
+            <div className="caption muted" style={{ borderTop: '1px solid var(--hair-soft)', paddingTop: 14 }}>
+              Made with Constellation from free satellite data. Not an official assessment.{' '}
+              <a href="/" style={{ color: '#fff' }}>Ask your own question</a>
+            </div>
           </>
         )}
       </main>

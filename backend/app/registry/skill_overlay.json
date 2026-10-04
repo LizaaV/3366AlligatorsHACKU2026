@@ -6,7 +6,7 @@
     "tier": "free",
     "price": null,
     "publisher": {
-      "name": "Earth Agent",
+      "name": "Constellation",
       "official": true,
       "verified": false
     },
@@ -91,6 +91,407 @@
             "water_loss",
             "construction",
             "new_bare_or_built"
+          ]
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ]
+  },
+  "greenness-check": {
+    "category_key": "forests",
+    "sat": "Sentinel-2",
+    "cost": "Free",
+    "tier": "free",
+    "price": null,
+    "publisher": {
+      "name": "Constellation",
+      "official": true,
+      "verified": false
+    },
+    "reference": {
+      "lat": 51.5073,
+      "lon": -0.1657
+    },
+    "res": "10 m",
+    "revisit": "5 days",
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      },
+      {
+        "key": "context",
+        "type": "answers",
+        "required": false
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {}
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 60,
+          "baseline_years": 4
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 30
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDVI"
+          ]
+        }
+      },
+      {
+        "module": "detect.anomaly",
+        "params": {}
+      },
+      {
+        "module": "explain.cause",
+        "params": {
+          "cards": [
+            "vegetation_loss",
+            "seasonal",
+            "harvest",
+            "vegetation_gain"
+          ]
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ]
+  },
+  "tree-cover-change": {
+    "category_key": "forests",
+    "sat": "Sentinel-2",
+    "cost": "Free",
+    "tier": "free",
+    "price": null,
+    "publisher": {
+      "name": "Constellation",
+      "official": true,
+      "verified": false
+    },
+    "reference": {
+      "lat": 22.39,
+      "lon": 114.04
+    },
+    "res": "10 m",
+    "revisit": "5 days",
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      },
+      {
+        "key": "context",
+        "type": "answers",
+        "required": false
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {}
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 60,
+          "compare_from": "2022"
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 30
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDVI",
+            "NDMI",
+            "NDBI"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {}
+      },
+      {
+        "module": "explain.cause",
+        "params": {
+          "cards": [
+            "vegetation_loss",
+            "seasonal",
+            "harvest",
+            "construction",
+            "new_bare_or_built"
+          ]
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ]
+  },
+  "new-building-check": {
+    "category_key": "urban",
+    "sat": "Sentinel-2 + Sentinel-1",
+    "cost": "Free",
+    "tier": "free",
+    "price": null,
+    "publisher": {
+      "name": "Constellation",
+      "official": true,
+      "verified": false
+    },
+    "reference": {
+      "lat": 22.5,
+      "lon": 114.07
+    },
+    "res": "10 m",
+    "revisit": "5 days",
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      },
+      {
+        "key": "context",
+        "type": "answers",
+        "required": false
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {}
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 60,
+          "compare_from": "2022"
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "s2",
+            "s1"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 30
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "SCL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "NDBI",
+            "NDVI",
+            "VV"
+          ]
+        }
+      },
+      {
+        "module": "detect.change",
+        "params": {}
+      },
+      {
+        "module": "explain.cause",
+        "params": {
+          "cards": [
+            "construction",
+            "new_bare_or_built",
+            "vegetation_loss",
+            "seasonal"
+          ]
+        }
+      },
+      {
+        "module": "output.map",
+        "params": {
+          "confidence": true
+        }
+      }
+    ]
+  },
+  "heat-check": {
+    "category_key": "urban",
+    "sat": "Landsat 8/9",
+    "cost": "Free",
+    "tier": "free",
+    "price": null,
+    "publisher": {
+      "name": "Constellation",
+      "official": true,
+      "verified": false
+    },
+    "reference": {
+      "lat": 51.5073,
+      "lon": -0.1657
+    },
+    "res": "100 m",
+    "revisit": "8 days",
+    "inputs": [
+      {
+        "key": "area",
+        "type": "geometry",
+        "required": true,
+        "accepts": [
+          "place",
+          "polygon",
+          "geojson",
+          "kml"
+        ]
+      },
+      {
+        "key": "context",
+        "type": "answers",
+        "required": false
+      }
+    ],
+    "steps": [
+      {
+        "module": "area.mark",
+        "params": {}
+      },
+      {
+        "module": "time.window",
+        "params": {
+          "recent_days": 365,
+          "baseline_years": 2
+        }
+      },
+      {
+        "module": "sat.route",
+        "params": {
+          "prefer": "free",
+          "candidates": [
+            "l9"
+          ]
+        }
+      },
+      {
+        "module": "scenes.filter",
+        "params": {
+          "max_cloud_pct": 30
+        }
+      },
+      {
+        "module": "scenes.clean",
+        "params": {
+          "mask": "QA_PIXEL"
+        }
+      },
+      {
+        "module": "index.compute",
+        "params": {
+          "indices": [
+            "ST_B10"
+          ]
+        }
+      },
+      {
+        "module": "detect.anomaly",
+        "params": {}
+      },
+      {
+        "module": "explain.cause",
+        "params": {
+          "cards": [
+            "construction",
+            "new_bare_or_built",
+            "vegetation_loss"
           ]
         }
       },

@@ -8,6 +8,7 @@
  * parsing is gone — compare the Date objects instead.
  */
 
+import type { Watch } from '../model';
 
 /* ---------------- numbers ---------------- */
 
@@ -20,7 +21,7 @@ export const fmtNum = (v: number) => {
 export const fmtVal = (v: number, unit: string) =>
   `${fmtNum(v)}${unit ? (unit.startsWith('%') || unit.startsWith('°') ? '' : ' ') + unit : ''}`;
 
-export const ciLabel = (w: { ci: [number, number] }) =>
+export const ciLabel = (w: Pick<Watch, 'ci'>) =>
   w.ci[0] === w.ci[1] ? 'Exact count' : `90% range ${fmtNum(w.ci[0])}–${fmtNum(w.ci[1])}`;
 
 export const fmtRuns = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`);

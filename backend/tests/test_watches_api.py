@@ -50,6 +50,7 @@ BODY = {
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(svc, "_DEMO_TRIGGERS", [])  # these tests start with no triggers
     return TestClient(app)
 
 
@@ -68,10 +69,50 @@ def _create(client: TestClient, **extra: object) -> dict:
 # --- CRUD -----------------------------------------------------------------------------------
 
 
-def test_empty_list_no_fake_seed(client: TestClient) -> None:
+def test_empty_list_without_demo_triggers(client: TestClient) -> None:
     res = client.get("/api/watches")
     assert res.status_code == 200
     assert res.json() == []
+
+
+def test_demo_triggers_are_offered_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    c = TestClient(app)
+    me = {"X-User-Id": "u_demo"}
+    got = c.get("/api/watches", headers=me).json()
+    assert sorted((w["place_id"], w["skill_id"]) for w in got) == [
+        ("pl_example_hyde_park", "greenness-check"),
+        ("pl_hhw", "pond-filling-check"),
+    ]
+    assert all(w["enabled"] for w in got)
+    # A deleted demo trigger never comes back.
+    pond = next(w for w in got if w["skill_id"] == "pond-filling-check")
+    assert c.delete(f"/api/watches/{pond['id']}", headers=me).status_code == 204
+    assert [w["skill_id"] for w in c.get("/api/watches", headers=me).json()] == ["greenness-check"]
+
+
+def test_demo_trigger_skipped_without_its_place_or_when_already_there(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    c = TestClient(app)
+    me = {"X-User-Id": "u_mine"}
+    with monkeypatch.context() as m:  # an older user: their own pond trigger, no Hyde Park
+        m.setattr(svc, "_DEMO_TRIGGERS", [])
+        assert c.delete("/api/places/pl_example_hyde_park", headers=me).status_code == 204
+        own = c.post(
+            "/api/watches",
+            json={
+                "name": "My ponds",
+                "place_id": "pl_hhw",
+                "skill_id": "pond-filling-check",
+                "question": "Tell me if the ponds are filled in",
+            },
+            headers=me,
+        )
+        assert own.status_code == 201, own.text
+    got = c.get("/api/watches", headers=me).json()
+    assert [w["name"] for w in got] == ["My ponds"]  # nothing doubled, nothing on a gone place
 
 
 def test_create_and_list(client: TestClient) -> None:
@@ -260,14 +301,14 @@ def test_feasibility_refusals(client: TestClient, text: str) -> None:
 @pytest.mark.parametrize(
     "text",
     [
-        "Tell me when open water in the ponds drops by more than 20%",
-        "Alert me if the fishponds are filled in",
-        "Watch the wetland for shrinking water",
+        "Are the ponds being filled in?",
+        "Is the pond water level dropping?",
+        "tell me if the fish ponds lose water",
     ],
 )
-def test_feasibility_matches_open_water(client: TestClient, text: str) -> None:
+def test_feasibility_ponds_use_the_pond_skill(client: TestClient, text: str) -> None:
     got = client.post("/api/watches/feasibility", json={"text": text}).json()
-    assert got["ok"] is True
+    assert got["ok"] is True and got["partial"] is False
     assert got["skill_id"] == "pond-filling-check"
     assert got["category_key"] == "water"
 

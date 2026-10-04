@@ -27,16 +27,18 @@ import type {
   ChannelId,
   ConfidenceLevel,
   DeliveryChannelDto,
-  FeasibilityWireDto,
+  FeasibilityDto,
   LanguageDto,
   MapLayerDto,
   PlaceSource,
+  ProofSceneDto,
   SatelliteDto,
   SkillDto,
   SkillModuleDto,
   Tier,
-  WatchWireDto,
-  WatchRecurrence,
+  WatchDto,
+  WatchProofDto,
+  WatchProofWireDto,
   WatchStatus,
 } from './api/types';
 
@@ -67,20 +69,67 @@ export interface MapLayer {
   id: string;
   name: string;
   source: string;
+  /** Presentation only: the API sends no colours, so they are resolved here by layer id. */
   color: string;
   isAgentMade: boolean;
+  /** Spectral index behind the layer (`NDVI`, `NDWI`...), when there is one. */
+  index: string | null;
+  /** `/api/layers/{run_id}/<id>/{scene}.png`. Blocks carry ready-made URLs; this is informational. */
+  urlTemplate: string;
   /** Switched on in the layer panel. */
   on: boolean;
   /** The agent has produced this layer, so it can be toggled. */
   ready: boolean;
 }
 
-export const toMapLayer = (d: MapLayerDto): MapLayer => ({
-  ...d,
-  // The user-drawn contour is available immediately; agent layers appear once a run produces them.
-  on: !d.isAgentMade,
-  ready: !d.isAgentMade,
-});
+const LAYER_COLORS: Record<string, string> = {
+  contour: '#ffffff',
+  rgb: '#c9cdd6',
+  greenness: '#00ca8e',
+  ndvi: '#00ca8e',
+  moisture: '#14c6cb',
+  ndmi: '#14c6cb',
+  water: '#3b8cf6',
+  bare: '#c08a5a',
+  burn: '#f97316',
+  roughness: '#a78bfa',
+  heat: '#f24c53',
+  lst: '#f24c53',
+  dry: '#ffcf25',
+  clouds: '#656a76',
+};
+
+export const toMapLayer = (d: MapLayerDto): MapLayer => {
+  const isAgentMade = d.is_agent_made ?? true;
+  return {
+    id: d.id,
+    name: d.name,
+    source: d.source,
+    color: LAYER_COLORS[d.id] ?? '#9aa0aa',
+    isAgentMade,
+    index: d.index ?? null,
+    urlTemplate: d.url_template,
+    // The user-drawn contour is available immediately; agent layers appear once a run produces them.
+    on: !isAgentMade,
+    ready: !isAgentMade,
+  };
+};
+
+/**
+ * The place outline the user drew. Not a backend layer (the catalog lists only rendered
+ * satellite layers), so the frontend adds it to the layer panel itself.
+ */
+export const CONTOUR_LAYER: MapLayer = {
+  id: 'contour',
+  name: 'Field contour',
+  source: 'Drawn by you',
+  color: LAYER_COLORS.contour,
+  isAgentMade: false,
+  index: null,
+  urlTemplate: '',
+  on: true,
+  ready: true,
+};
 
 export interface Catalog {
   categories: Category[];
@@ -88,6 +137,8 @@ export interface Catalog {
   modules: SkillModule[];
   channels: DeliveryChannel[];
   languages: Language[];
+  /** Map layers from `map_layers`, with the frontend's contour layer first. */
+  mapLayers?: MapLayer[];
 }
 
 /** Look up a category by key, with a usable fallback if the backend sends an unknown one. */
@@ -119,17 +170,16 @@ export interface Skill {
   reference: { lat: number; lon: number } | null;
   res: string;
   revisit: string;
-  /** `null` until the backend counts runs per skill. Never shown as 0. */
-  runs: number | null;
-  /** `null` until ratings exist. */
-  rating: number | null;
+  runs: number;
+  rating: number;
   version: string;
   updatedAt: Date | null;
-  /** Ordered module ids; the params live in the manifest. */
   steps: string[];
-  /** `null` when the skill has not been validated. */
-  accuracy: string | null;
+  accuracy: string;
   limits: string[];
+  /** `available` = the agent can run it; `concept` = described only; `draft` = the user's own. */
+  status: SkillDto['status'];
+  visibility: SkillDto['visibility'];
 }
 
 export const toSkill = (d: SkillDto): Skill => ({
@@ -145,15 +195,18 @@ export const toSkill = (d: SkillDto): Skill => ({
   official: d.publisher.official ?? false,
   verified: d.publisher.verified ?? false,
   reference: d.reference ?? null,
-  res: d.res ?? '\u2014',
-  revisit: d.revisit ?? '\u2014',
-  runs: d.runs ?? null,
-  rating: d.rating ?? null,
+  res: d.res ?? '',
+  revisit: d.revisit ?? '',
+  // The registry does not count runs or collect ratings yet; 0 reads as "none".
+  runs: d.runs ?? 0,
+  rating: d.rating ?? 0,
   version: d.version,
   updatedAt: parseIso(d.updated_at),
   steps: d.steps,
-  accuracy: d.accuracy ?? null,
+  accuracy: d.accuracy ?? '',
   limits: d.limits ?? [],
+  status: d.status,
+  visibility: d.visibility,
 });
 
 /* ---------------- places ---------------- */
@@ -168,6 +221,8 @@ export interface Place {
   zoom: number;
   /** Outline as reference-zoom pixel offsets from the centre — for drawing only. */
   pts: Pt[];
+  /** The outline itself (GeoJSON, WGS84), as saved: sent back when asking what is there. */
+  geometry: PlaceDto['geometry'];
   circle: boolean;
   /** Authoritative, from the API. Never recomputed client-side for a saved place. */
   areaHa: number;
@@ -204,9 +259,10 @@ export const toPlace = (d: PlaceDto): Place => {
     lon: d.center.lon,
     zoom: fitZoom(pts, 600),
     pts,
+    geometry: d.geometry,
     circle: d.is_circle,
     // AUTHORITATIVE, from the server. Never recomputed for a saved place.
-    // One decimal is plenty for display (0.1 ha = 1,000 m²).
+    // One decimal is honest at 10 m pixels (and readable); the server keeps the exact figure.
     areaHa: Math.round(d.area_ha * 10) / 10,
     project: d.project ?? '',
     tags: d.tags ?? [],
@@ -234,20 +290,17 @@ export interface Watch {
   question: string;
   condition: string;
   metric: string;
-  /** `null` until the first real run; the API never invents a measurement. */
-  value: number | null;
+  /** False until the watch has been checked at least once; the numbers below are placeholders. */
+  measured: boolean;
+  value: number;
   unit: string;
-  ci: [number, number] | null;
+  ci: [number, number];
   confidence: ConfidenceLevel;
   baselineLabel: string;
-  baseline: number | null;
+  baseline: number;
   delta: string;
-  /** `ok` also stands in for "no run yet" (see `hasRun`), so shared status pills keep working. */
   status: WatchStatus;
-  /** False until a real run produced `value` / `lastRunAt`. */
-  hasRun: boolean;
   enabled: boolean;
-  /** Chart series, rescaled to 0..1 here (the API sends real units). Empty until the first runs. */
   series: { labels: string[]; current: number[]; bandLow: number[]; bandHigh: number[]; mean: number[] };
   channels: ChannelId[];
   cadence: string;
@@ -259,59 +312,73 @@ export interface Watch {
   thumbnailZoom: number;
   ring: boolean;
   events: WatchEvent[];
-  /** `once` triggers fire a single time, then stop. */
-  recurrence: WatchRecurrence;
-  dashboardId: string | null;
+  /** The one-line alert the user would get (from the last check; a "Sample ·" line before). */
+  message: string | null;
+  createdAt: Date | null;
 }
 
 /**
- * The API sends the series in real units (`WatchSeries.unit`); `HistoryChart` draws 0..1. One
- * shared min/max keeps the line, the band and the mean on the same scale.
+ * Nothing runs watches on a schedule yet (`docs/API.md` §13), so the measurement fields
+ * (`value`, `ci`, `baseline`, `status`, `series`) arrive `null`/empty until a watch has been
+ * checked. The view keeps them non-null so existing cards render, and sets `measured: false`
+ * — components should show "not checked yet" instead of the placeholder numbers.
  */
-function normaliseSeries(s: WatchWireDto['series']): Watch['series'] {
-  const cur = s?.current ?? [];
-  const lo = s?.band_low ?? [];
-  const hi = s?.band_high ?? [];
-  const mean = s?.mean ?? [];
-  const all = [...cur, ...lo, ...hi, ...mean];
-  if (!all.length) return { labels: s?.labels ?? [], current: [], bandLow: [], bandHigh: [], mean: [] };
-  const min = Math.min(...all);
-  const span = Math.max(...all) - min;
-  const n = (v: number) => (span === 0 ? 0.5 : 0.08 + ((v - min) / span) * 0.84);
-  return { labels: s?.labels ?? [], current: cur.map(n), bandLow: lo.map(n), bandHigh: hi.map(n), mean: mean.map(n) };
-}
+export const toWatch = (d: WatchDto): Watch => {
+  const measured = d.value !== null && d.value !== undefined;
+  const series = d.series;
+  return {
+    id: d.id,
+    name: d.name,
+    categoryKey: d.category_key,
+    placeId: d.place_id ?? null,
+    skillId: d.skill_id,
+    question: d.question,
+    condition: d.condition,
+    metric: d.metric,
+    measured,
+    value: d.value ?? 0,
+    unit: d.unit,
+    ci: d.ci ?? [d.value ?? 0, d.value ?? 0],
+    confidence: d.confidence,
+    baselineLabel: d.baseline_label,
+    baseline: d.baseline ?? 0,
+    delta: d.delta || (measured ? '' : 'Not checked yet'),
+    status: d.status ?? 'ok',
+    enabled: d.enabled,
+    series: {
+      labels: series?.labels ?? [],
+      current: series?.current ?? [],
+      bandLow: series?.band_low ?? [],
+      bandHigh: series?.band_high ?? [],
+      mean: series?.mean ?? [],
+    },
+    channels: d.channels ?? [],
+    cadence: d.cadence,
+    tier: d.tier,
+    lastRunAt: parseIso(d.last_run_at),
+    nextRunAt: parseIso(d.next_run_at),
+    satellites: d.satellites,
+    thumbnailZoom: 14,
+    ring: d.ring,
+    events: (d.events ?? []).map((e) => ({ at: parseIso(e.at), text: e.text, level: e.level })),
+    message: d.message ?? null,
+    createdAt: parseIso(d.created_at),
+  };
+};
 
-export const toWatch = (d: WatchWireDto): Watch => ({
-  id: d.id,
-  name: d.name,
-  categoryKey: d.category_key ?? '',
-  placeId: d.place_id ?? null,
-  skillId: d.skill_id ?? '',
-  question: d.question,
-  condition: d.condition ?? '',
-  metric: d.metric ?? '',
-  value: d.value ?? null,
-  unit: d.unit ?? '',
-  ci: d.ci ? [d.ci[0], d.ci[1]] : null,
-  confidence: d.confidence,
-  baselineLabel: d.baseline_label ?? '',
-  baseline: d.baseline ?? null,
-  delta: d.delta ?? '',
-  status: d.status ?? 'ok',
-  hasRun: d.value != null || d.last_run_at != null,
-  enabled: d.enabled ?? true,
-  series: normaliseSeries(d.series),
-  channels: d.channels ?? [],
-  cadence: d.cadence ?? '',
-  tier: d.tier ?? 'free',
-  lastRunAt: parseIso(d.last_run_at),
-  nextRunAt: parseIso(d.next_run_at),
-  satellites: d.satellites ?? '',
-  thumbnailZoom: 14,
-  ring: d.ring ?? false,
-  events: (d.events ?? []).map((e) => ({ at: parseIso(e.at), text: e.text, level: e.level })),
-  recurrence: d.recurrence ?? 'recurring',
-  dashboardId: d.dashboard_id ?? null,
+/** `GET /api/watches/{id}/proof` → view shape. `cloud` is already a percent. */
+export const toWatchProof = (d: WatchProofWireDto): WatchProofDto => ({
+  hash: d.hash ?? '',
+  scenes: (d.scenes ?? []).map(
+    (sc): ProofSceneDto => ({
+      sceneId: sc.id,
+      date: sc.date,
+      satellite: sc.sat,
+      cloudPct: sc.cloud,
+      used: sc.used,
+      ...(sc.why ? { why: sc.why } : {}),
+    }),
+  ),
 });
 
 /* ---------------- areas ---------------- */
@@ -325,7 +392,10 @@ export const toWatch = (d: WatchWireDto): Watch => ({
  */
 export interface AreaSearchHit {
   name: string;
+  /** Where it is ('Ile-de-France, France'), to tell same-named places apart. */
   description: string;
+  /** What it is ('park', 'city', 'administrative'...), when the search knows. */
+  kind: string | null;
   lat: number;
   lon: number;
   zoom: number;
@@ -345,20 +415,25 @@ const SOURCE_LABEL: Record<AreaResolveResponseDto['source'], string> = {
 /** Zoom for a candidate with no outline to fit. */
 const MATCH_ZOOM = 14;
 
+/** How far to zoom for a search hit: towns and regions wide, parks and streets close. */
+const zoomForKind = (kind: string | null | undefined) =>
+  !kind ? MATCH_ZOOM : /city|town|administrative|state|county|region|country/.test(kind) ? 12 : /village|suburb|quarter|neighbourhood/.test(kind) ? 14 : 15;
+
 export function toSearchHits(res: AreaResolveResponseDto): AreaSearchHit[] {
   const ring = outerRing(res.area.geojson);
   const centre = ring && ring.length ? meanOf(ring) : null;
+  const top = res.best ?? null;
 
   const best: AreaSearchHit[] = centre
     ? [
         {
           name: res.area.name ?? 'Selected area',
-          description: SOURCE_LABEL[res.source],
-          lat: centre.lat,
-          lon: centre.lon,
-          // Reuse the same projection the rest of the app draws with, rather than a second
-          // implementation of "how far out should the camera sit".
-          zoom: ring ? fitZoom(ringToPts(ring, centre), 600) : MATCH_ZOOM,
+          description: top?.description ?? SOURCE_LABEL[res.source],
+          kind: top?.kind ?? null,
+          lat: top?.lat ?? centre.lat,
+          lon: top?.lon ?? centre.lon,
+          // Towns and regions open wide; a drawn or linked outline is fitted to the screen.
+          zoom: top ? zoomForKind(top.kind) : ring ? fitZoom(ringToPts(ring, centre), 600) : MATCH_ZOOM,
           area: res.area,
         },
       ]
@@ -368,10 +443,11 @@ export function toSearchHits(res: AreaResolveResponseDto): AreaSearchHit[] {
     ...best,
     ...(res.matches ?? []).map((m) => ({
       name: m.name,
-      description: 'Search result',
+      description: m.description ?? '',
+      kind: m.kind ?? null,
       lat: m.lat,
       lon: m.lon,
-      zoom: MATCH_ZOOM,
+      zoom: zoomForKind(m.kind),
       area: null,
     })),
   ];
@@ -512,22 +588,39 @@ export function passTimelineFrom(blocks: AnswerBlock[]): PassTimeline | null {
   };
 }
 
+/** A rendered satellite image from a run, pinned to WGS84 bounds, for the map overlay. */
+export interface MapImage {
+  layerId: string;
+  url: string;
+  /** [west, south, east, north] */
+  bounds: [number, number, number, number];
+  date: string;
+  label: string;
+  when: 'before' | 'after';
+}
+
 /**
- * Map layers an answer produced, so the layer panel can switch them on as the run completes.
- *
- * The pre-contract proposal had the answer carry `layerIds` directly. The contract instead
- * attaches a `layer_id` to each rendered `Image` inside a block, which is the better shape —
- * the id travels with the thing it draws — so this collects them.
+ * The before/after images of a run's `then_now` blocks, keyed by the measure they show
+ * (`water`, `greenness`... — the catalog's layer ids). A block without a measure keys on its
+ * image's `layer_id`.
  */
-export function layerIdsFrom(blocks: AnswerBlock[]): string[] {
-  const ids = new Set<string>();
+export function mapImagesFrom(blocks: AnswerBlock[]): Record<string, { before: MapImage; after: MapImage }> {
+  const out: Record<string, { before: MapImage; after: MapImage }> = {};
   for (const b of blocks) {
-    if (b.type === 'then_now') {
-      ids.add(b.before.layer_id);
-      ids.add(b.after.layer_id);
-    }
+    if (b.type !== 'then_now') continue;
+    const key = b.measure ?? b.after.layer_id;
+    if (out[key]) continue;
+    const img = (i: typeof b.before, when: MapImage['when']): MapImage => ({
+      layerId: i.layer_id,
+      url: i.url,
+      bounds: i.bounds as MapImage['bounds'],
+      date: i.date,
+      label: i.label,
+      when,
+    });
+    out[key] = { before: img(b.before, 'before'), after: img(b.after, 'after') };
   }
-  return [...ids];
+  return out;
 }
 
 /** A step the backend actually ran, from `step_started` / `step_finished`. */
@@ -543,10 +636,10 @@ export interface RunStep {
   done: boolean;
 }
 
-/** "Can satellites actually watch this?" in the frontend's vocabulary. */
+/** "Can satellites watch this?" — view model of `FeasibilityDto`. */
 export interface Feasibility {
   ok: boolean;
-  /** Answerable only with a compromise (paid imagery, or lower confidence). */
+  /** Answerable, but only with a compromise (paid imagery, or lower confidence). */
   partial: boolean;
   title: string;
   skillId: string;
@@ -559,25 +652,25 @@ export interface Feasibility {
   cost: string;
   confidence: ConfidenceLevel;
   notes: string[];
-  /** Offered when `ok` is false: something satellites *can* do instead. */
+  /** Offered when `ok` is false — something satellites *can* do instead. */
   alternative?: string;
 }
 
-export const toFeasibility = (d: FeasibilityWireDto): Feasibility => ({
+export const toFeasibility = (d: FeasibilityDto): Feasibility => ({
   ok: d.ok,
-  partial: d.partial ?? false,
+  partial: d.partial,
   title: d.title,
-  skillId: d.skill_id ?? '',
-  categoryKey: d.category_key ?? '',
-  metric: d.metric ?? '',
-  condition: d.condition ?? '',
-  satellites: d.satellites ?? '\u2014',
-  cadence: d.cadence ?? '\u2014',
-  tier: d.tier ?? 'free',
-  cost: d.cost ?? '\u2014',
+  skillId: d.skill_id,
+  categoryKey: d.category_key,
+  metric: d.metric,
+  condition: d.condition,
+  satellites: d.satellites,
+  cadence: d.cadence,
+  tier: d.tier,
+  cost: d.cost,
   confidence: d.confidence,
   notes: d.notes ?? [],
-  alternative: d.alternative ?? undefined,
+  ...(d.alternative ? { alternative: d.alternative } : {}),
 });
 
 /* ---------------- helpers ---------------- */

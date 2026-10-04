@@ -6,8 +6,12 @@ export type ApiSource = 'fixture' | 'http';
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 /**
- * `http` (the default) calls the real backend, which implements the whole contract. Set
- * `VITE_API_SOURCE=fixture` to run the UI on the local stand-ins in `src/api/fixtures/`.
+ * `http` (the default) calls the real backend. `VITE_API_SOURCE=fixture` serves the local
+ * stand-ins in `src/api/fixtures/` instead, for UI work without a backend.
+ *
+ * This is a whole-app switch for convenience. The real migration happens per endpoint: when a
+ * backend route goes live, delete that endpoint's `fixture` callback and it becomes a network
+ * call regardless of this setting.
  */
 export const API_SOURCE: ApiSource = import.meta.env.VITE_API_SOURCE === 'fixture' ? 'fixture' : 'http';
 

@@ -18,7 +18,7 @@ import { useStore } from '../state/store';
 import { ApiError, toApiError } from '../api';
 import type { Place } from '../model';
 import { sourceLabel } from '../data/presentation';
-import { fmtC, ptsToRing } from '../lib/geo';
+import { ptsToRing } from '../lib/geo';
 import { Btn, Modal, ModalHead, Ms } from '../components/ui';
 import { ErrorState } from '../components/async';
 import { Steps } from './addPlace/Steps';
@@ -29,32 +29,17 @@ import { useOutline } from './addPlace/useOutline';
 import { useDetailsForm } from './addPlace/useDetailsForm';
 import { METHODS, type Loc, type Method } from './addPlace/types';
 
-/** A location carried in from elsewhere (geocoder pick, globe click): the wizard starts at the outline step. */
-export interface AddPlacePrefill { lat: number; lon: number; name?: string; method?: 'pin' }
-
-const fmtHa = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
-
-export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
-  const { close, addPlace, addWatch, notify, go, skills, setAskPlace } = useStore();
-  const [step, setStep] = useState(prefill ? 2 : 1);
-  const [method, setMethod] = useState<Method | null>(prefill ? (prefill.method ?? 'pin') : null);
-  const [loc, setLoc] = useState<Loc | null>(() =>
-    prefill
-      ? {
-          lat: prefill.lat,
-          lon: prefill.lon,
-          label: prefill.name ?? 'Pinned site',
-          source: 'pin',
-          via: prefill.name ? `${prefill.name} · ${fmtC(prefill.lat, prefill.lon)}` : fmtC(prefill.lat, prefill.lon),
-        }
-      : null,
-  );
+export function AddPlaceModal() {
+  const { close, addPlace, addWatch, notify, go, skills } = useStore();
+  const [step, setStep] = useState(1);
+  const [method, setMethod] = useState<Method | null>(null);
+  const [loc, setLoc] = useState<Loc | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
 
   const outline = useOutline({ loc, step, method });
   const form = useDetailsForm(loc);
-  const { pts, isCircle, ha, fitted, outlineLabel, center } = outline;
+  const { pts, isCircle, ha, fitted, outlineLabel } = outline;
 
   // Stable so the method components' effects don't re-fire on every render of this shell.
   const onMethodChange = useCallback((next: Loc | null) => setLoc(next), []);
@@ -69,6 +54,8 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
         lon: loc.lon,
         zoom: Math.max(12, Math.min(16, fitted)),
         pts,
+        // A preview is only drawn, never sent anywhere, so it needs no real outline.
+        geometry: {},
         circle: isCircle,
         areaHa: ha,
         project: form.finalProject,
@@ -85,14 +72,6 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
     setError(null);
     outline.begin(loc, method);
     setStep(2);
-  };
-
-  /** The user picked a different spot on the globe in step 2: start over from a pin there. */
-  const relocate = (at: { lat: number; lon: number }) => {
-    const next: Loc = { ...at, label: 'Pinned site', source: 'pin', via: fmtC(at.lat, at.lon) };
-    setMethod('pin');
-    setLoc(next);
-    outline.begin(next, 'pin');
   };
 
   const goStep3 = () => {
@@ -116,7 +95,7 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
       const created = await addPlace({
         name: form.finalName,
         categoryKey: form.categoryKey,
-        center: center ?? { lat: loc.lat, lon: loc.lon },
+        center: { lat: loc.lat, lon: loc.lon },
         geometry: { type: 'Polygon', coordinates: [ptsToRing(pts, { lat: loc.lat, lon: loc.lon })] },
         isCircle,
         project: form.finalProject,
@@ -130,7 +109,7 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
         ],
       });
 
-      // Watches the user opted into. Each is a separate write; one failing must not lose the place.
+      // Triggers the user opted into. Each is a separate write; one failing must not lose the place.
       const started: string[] = [];
       for (const skillId of form.startWatch) {
         const sk = skills.find((x) => x.id === skillId);
@@ -148,17 +127,15 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
           });
           started.push(sk.name);
         } catch {
-          notify(`${created.name} saved, but the “${sk.name}” trigger could not be created`, undefined, undefined, 'error');
+          notify(`${created.name} saved, but the “${sk.name}” trigger could not be saved`, undefined, undefined, 'error');
         }
       }
 
       close();
-      // Point the chat composer at the new place straight away.
-      setAskPlace(created.id);
       notify(
         started.length
-          ? `${created.name} saved · ${fmtHa(created.areaHa)} ha · ${started.length} trigger${started.length > 1 ? 's' : ''} started`
-          : `${created.name} saved · ${fmtHa(created.areaHa)} ha`,
+          ? `${created.name} saved · ${created.areaHa} ha · ${started.length} trigger${started.length > 1 ? 's' : ''} saved`
+          : `${created.name} saved · ${created.areaHa} ha`,
         'Ask about it',
         () => go('ask', undefined, { place: created.id }),
         'check_circle',
@@ -178,7 +155,7 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
       {step === 1 && (
         <>
           <div className="subhead">How do you want to add it?</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
             {METHODS.map((mt) => {
               const on = method === mt.id;
               return (
@@ -188,7 +165,6 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
                   // unmounted, so whatever it had reported is no longer backed by any input.
                   onClick={() => { setMethod(mt.id); setLoc(null); }}
                   aria-pressed={on}
-                  aria-label={mt.title}
                   style={{
                     textAlign: 'left', padding: 12, borderRadius: 'var(--r)', display: 'flex', flexDirection: 'column', gap: 6,
                     background: on ? 'var(--s2)' : 'var(--canvas)', border: `1px solid ${on ? '#fff' : 'var(--hair-soft)'}`, color: '#fff',
@@ -206,12 +182,11 @@ export function AddPlaceModal({ prefill }: { prefill?: AddPlacePrefill }) {
               <MethodInput method={method} onChange={onMethodChange} />
             </div>
           )}
-          {!method && <div className="caption">Once the place is located you can draw its outline, use the AI boundary and fine-tune every point.</div>}
         </>
       )}
 
-      {step === 2 && loc && draft && <OutlineStep loc={loc} draft={draft} outline={outline} onRelocate={relocate} />}
-      {step === 3 && loc && <DetailsStep loc={loc} ha={ha} form={form} outline={{ shape: outline.shape, edited: outline.isEdited }} />}
+      {step === 2 && loc && draft && <OutlineStep loc={loc} draft={draft} outline={outline} />}
+      {step === 3 && loc && <DetailsStep loc={loc} ha={ha} form={form} />}
 
       {error && <ErrorState error={error} onRetry={step === 3 ? () => void save() : undefined} title="Could not complete that" compact />}
 

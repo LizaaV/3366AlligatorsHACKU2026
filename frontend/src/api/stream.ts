@@ -19,7 +19,8 @@
  */
 
 import { API_BASE } from './config';
-import { ApiError } from './http';
+import { ApiError, errorFromResponse, readBody } from './http';
+import { identityHeaders } from './identity';
 import type { components } from './schema';
 
 type S = components['schemas'];
@@ -63,7 +64,7 @@ export async function streamSse(
   try {
     res = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
+      headers: { ...identityHeaders(), 'content-type': 'application/json', accept: 'text/event-stream' },
       body: JSON.stringify(body),
       signal,
     });
@@ -72,34 +73,23 @@ export async function streamSse(
     throw new ApiError(`POST ${path} could not reach the server`, 'network', undefined, err);
   }
 
-  // Errors before the stream starts are plain JSON, so read and surface the detail.
+  // Errors before the stream starts are plain JSON (400/404/409/422/429/501/503), so read and
+  // surface the detail. 429 carries Retry-After; 409 is e.g. "This conversation is full".
   if (!res.ok) {
-    const payload = await res
-      .text()
-      .then((t) => {
-        try {
-          return JSON.parse(t) as unknown;
-        } catch {
-          return t;
-        }
-      })
-      .catch(() => undefined);
-    throw new ApiError(
-      `POST ${path} failed with ${res.status}`,
-      res.status === 501 ? 'not-implemented' : 'http',
-      res.status,
-      payload,
-    );
+    const payload = await readBody(res).catch(() => undefined);
+    throw errorFromResponse(`POST ${path}`, res, payload);
   }
   if (!res.body) throw new ApiError(`POST ${path} returned no body`, 'parse', res.status);
 
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = '';
+  let sawDone = false;
   try {
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
-      buffer += value.replace(/\r\n/g, '\n');
+      // Normalise the whole buffer, not the chunk: a CRLF can be split across two chunks.
+      buffer = (buffer + value).replace(/\r\n/g, '\n');
       let cut: number;
       while ((cut = buffer.indexOf('\n\n')) !== -1) {
         const message = buffer.slice(0, cut);
@@ -113,6 +103,7 @@ export async function streamSse(
         } catch {
           throw new ApiError(`${path} sent an event that was not JSON`, 'parse', res.status, data);
         }
+        if (parsed.event === 'done') sawDone = true;
         onEvent(parsed);
       }
     }
@@ -122,6 +113,24 @@ export async function streamSse(
   } finally {
     // Releasing the lock lets an aborted fetch tear the connection down promptly.
     reader.releaseLock();
+  }
+
+  // Every stream ends with exactly one `done`. Without it the connection dropped mid-run
+  // (server restart, proxy timeout), and the caller must not wait forever.
+  if (!sawDone) {
+    throw new ApiError(`${path} stream ended before the run finished`, 'network', res.status);
+  }
+}
+
+/** Friendly text for the `error` event kinds the user can do nothing about but wait. */
+export function streamErrorMessage(ev: { message: string; kind?: string | null }): string {
+  switch (ev.kind) {
+    case 'agent_unavailable':
+      return 'The analysis agent is not available on this server right now. Try again later, or try the Hoo Hok Wai example.';
+    case 'spend_cap':
+      return "Today's analysis budget is used up. Try again tomorrow, or try the Hoo Hok Wai example.";
+    default:
+      return ev.message;
   }
 }
 

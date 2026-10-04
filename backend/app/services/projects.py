@@ -23,6 +23,8 @@ __all__ = [
     "assign_thread",
     "create_project",
     "delete_project",
+    "deleted_thread_ids",
+    "forget_thread",
     "list_projects",
     "project_ids_by_thread",
     "rename_project",
@@ -46,6 +48,12 @@ CREATE TABLE IF NOT EXISTS thread_projects (
     PRIMARY KEY (user_id, thread_id)
 );
 CREATE INDEX IF NOT EXISTS thread_projects_project ON thread_projects(project_id);
+CREATE TABLE IF NOT EXISTS deleted_threads (
+    user_id    TEXT NOT NULL,
+    thread_id  TEXT NOT NULL,
+    deleted_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, thread_id)
+);
 """
 _COLS = "id, name, created_at, updated_at"
 _WRITE_LOCK = threading.Lock()
@@ -177,3 +185,28 @@ def assign_thread(user_id: str, thread_id: str, project_id: str | None) -> None:
             " ON CONFLICT(user_id, thread_id) DO UPDATE SET project_id = excluded.project_id",
             (user_id, thread_id, project_id),
         )
+
+
+def forget_thread(user_id: str, thread_id: str) -> None:
+    """Delete a chat for the user: it leaves their list and its project for good. The runs
+    themselves are kept, so the daily spend limit still counts them and share links already
+    sent keep working. The caller has checked that the thread is the user's."""
+    now = datetime.now(UTC).isoformat()
+    with _WRITE_LOCK, _db() as conn:
+        conn.execute(
+            "DELETE FROM thread_projects WHERE user_id = ? AND thread_id = ?", (user_id, thread_id)
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO deleted_threads (user_id, thread_id, deleted_at)"
+            " VALUES (?, ?, ?)",
+            (user_id, thread_id, now),
+        )
+
+
+def deleted_thread_ids(user_id: str) -> set[str]:
+    """The chats the user has deleted."""
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT thread_id FROM deleted_threads WHERE user_id = ?", (user_id,)
+        ).fetchall()
+    return {r[0] for r in rows}

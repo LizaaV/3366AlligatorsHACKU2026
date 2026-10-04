@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_name: str = "Earth Agent API"
+    app_name: str = "Constellation API"
     cors_origins: list[str] = ["http://localhost:5173"]
     public_base_url: str = "http://localhost:5173"  # share links: <this>/proof/<slug>
     share_ttl_days: int = Field(30, ge=1, le=3650)  # 1 day to 10 years
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     runs_per_hour_per_user: int = 40
     #: Anti-spam: runs started from one client address per hour (0 = off).
     runs_per_hour_per_ip: int = 60
-    #: Trust `X-Real-IP` / `X-Forwarded-For` for the client address (only behind our nginx).
+    #: Trust `X-Real-IP` for the client address (only behind our nginx; never X-Forwarded-For).
     trust_proxy_headers: bool = False
 
 

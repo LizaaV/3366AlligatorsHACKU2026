@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services import places as places_svc
 from app.services.memory import ID_RE
 
 SQUARE = {  # ~11 ha near Hoo Hok Wai, [lon, lat]
@@ -40,7 +41,40 @@ HUGE = {  # ~0.1 deg square, well over 25 km2
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(places_svc, "_EXAMPLES", [])  # these tests follow the demo place only
     return TestClient(app)
+
+
+EXAMPLE_IDS = ["pl_example_hyde_park", "pl_example_kai_tak", "pl_example_narok"]
+
+
+def test_new_user_gets_the_example_places_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    c = TestClient(app)
+    a = {"X-User-Id": "u_examples"}
+    places = c.get("/api/places", headers=a).json()
+    assert sorted(p["id"] for p in places) == sorted(["pl_hhw", *EXAMPLE_IDS])
+    by_id = {p["id"]: p for p in places}
+    assert by_id["pl_example_hyde_park"]["category_key"] == "forests"
+    assert 150 < by_id["pl_example_hyde_park"]["area_ha"] < 250
+    assert all(by_id[i]["project"] == "Examples" for i in EXAMPLE_IDS)
+    # a deleted example never comes back
+    assert c.delete("/api/places/pl_example_narok", headers=a).status_code == 204
+    ids = [p["id"] for p in c.get("/api/places", headers=a).json()]
+    assert "pl_example_narok" not in ids and len(ids) == 3
+
+
+def test_existing_user_with_an_old_marker_gets_only_the_new_examples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    (tmp_path / "places").mkdir()
+    (tmp_path / "places" / "u_old.json").write_text("[]")  # deleted the demo place long ago
+    (tmp_path / "places" / "u_old.seeded").touch()  # the old, empty marker
+    ids = [
+        p["id"] for p in TestClient(app).get("/api/places", headers={"X-User-Id": "u_old"}).json()
+    ]
+    assert sorted(ids) == sorted(EXAMPLE_IDS)  # the demo place stays deleted
 
 
 def test_demo_seed_and_list(client: TestClient) -> None:
@@ -54,8 +88,33 @@ def test_demo_seed_and_list(client: TestClient) -> None:
     assert client.get("/api/places").json() == places  # seeded once
 
 
-def test_seed_only_for_demo(client: TestClient) -> None:
-    assert client.get("/api/places", headers={"X-User-Id": "alice"}).json() == []
+def test_every_new_user_gets_the_demo_place(client: TestClient) -> None:
+    for user in ("alice", "u-7f3a9c1e"):
+        ids = [x["id"] for x in client.get("/api/places", headers={"X-User-Id": user}).json()]
+        assert ids == ["pl_hhw"]
+
+
+def test_demo_place_seeded_once_per_user_and_not_after_delete(client: TestClient) -> None:
+    a = {"X-User-Id": "alice"}
+    b = {"X-User-Id": "bob"}
+    client.get("/api/places", headers=a)
+    assert [x["id"] for x in client.get("/api/places", headers=a).json()] == ["pl_hhw"]
+    assert client.delete("/api/places/pl_hhw", headers=a).status_code == 204
+    assert client.get("/api/places", headers=a).json() == []  # never reseeded
+    assert client.get("/api/places/pl_hhw", headers=a).status_code == 404
+    assert [x["id"] for x in client.get("/api/places", headers=b).json()] == ["pl_hhw"]
+
+
+def test_existing_user_without_marker_gets_the_demo_place_once(
+    client: TestClient, tmp_path: Path
+) -> None:
+    a = {"X-User-Id": "alice"}
+    p = client.post("/api/places", json={"name": "Mine", "geometry": SQUARE}, headers=a).json()
+    ids = [x["id"] for x in client.get("/api/places", headers=a).json()]
+    assert sorted(ids) == sorted([p["id"], "pl_hhw"])
+    (tmp_path / "places" / "alice.seeded").unlink()  # a file from before the marker existed
+    ids = [x["id"] for x in client.get("/api/places", headers=a).json()]
+    assert ids.count("pl_hhw") == 1
 
 
 def test_create_polygon_and_get(client: TestClient) -> None:
@@ -209,7 +268,7 @@ def test_corrupt_file_is_moved_aside_not_500(client: TestClient, tmp_path: Path)
     f.parent.mkdir(parents=True)
     f.write_text("{not json")
     a = {"X-User-Id": "alice"}
-    assert client.get("/api/places", headers=a).json() == []
+    assert [x["id"] for x in client.get("/api/places", headers=a).json()] == ["pl_hhw"]
     assert (tmp_path / "places" / "alice.json.corrupt").read_text() == "{not json"
     new = {"name": "n", "geometry": SQUARE}
     assert client.post("/api/places", json=new, headers=a).status_code == 201
@@ -230,8 +289,8 @@ def test_user_isolation(client: TestClient) -> None:
     a = {"X-User-Id": "alice"}
     b = {"X-User-Id": "bob"}
     p = client.post("/api/places", json={"name": "Mine", "geometry": SQUARE}, headers=a).json()
-    assert [x["id"] for x in client.get("/api/places", headers=a).json()] == [p["id"]]
-    assert client.get("/api/places", headers=b).json() == []
+    assert [x["id"] for x in client.get("/api/places", headers=a).json()] == [p["id"], "pl_hhw"]
+    assert [x["id"] for x in client.get("/api/places", headers=b).json()] == ["pl_hhw"]
     assert client.get(f"/api/places/{p['id']}", headers=b).status_code == 404
     assert client.delete(f"/api/places/{p['id']}", headers=b).status_code == 404
     assert all(x["id"] != p["id"] for x in client.get("/api/places").json())  # demo
@@ -241,3 +300,39 @@ def test_user_isolation(client: TestClient) -> None:
 def test_invalid_user_header(client: TestClient, bad: str) -> None:
     res = client.get("/api/places", headers={"X-User-Id": bad})
     assert res.status_code == 400
+
+
+def test_delete_removes_the_record_and_its_memory_file(client: TestClient, tmp_path: Path) -> None:
+    h = {"X-User-Id": "u_cleanup"}
+    made = client.post(
+        "/api/places",
+        json={"name": "Temp", "center": {"lat": 22.53, "lon": 114.09}, "radius_m": 200},
+        headers=h,
+    ).json()
+    pid = made["id"]
+    assert (
+        client.patch(
+            f"/api/places/{pid}/memory", json={"note": "fish ponds"}, headers=h
+        ).status_code
+        == 200
+    )
+    memo = next(tmp_path.rglob(f"{pid}.md"))
+    assert memo.is_file()
+    assert client.delete(f"/api/places/{pid}", headers=h).status_code == 204
+    assert not memo.exists()  # nothing of the place is left on disk
+    places_file = next(tmp_path.rglob("u_cleanup.json"))
+    assert pid not in places_file.read_text()
+
+
+def test_an_example_is_skipped_when_the_user_has_a_place_of_that_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    c = TestClient(app)
+    a = {"X-User-Id": "u_mine"}
+    with monkeypatch.context() as m:  # before the examples existed, they drew their own
+        m.setattr(places_svc, "_EXAMPLES", [])
+        c.post("/api/places", json={"name": "hyde park", "geometry": SQUARE}, headers=a)
+    names = [p["name"].lower() for p in c.get("/api/places", headers=a).json()]
+    assert names.count("hyde park") == 1
+    assert "kai tak sports park" in names and "wheat fields, narok" in names

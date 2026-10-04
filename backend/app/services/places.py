@@ -27,6 +27,9 @@ log = logging.getLogger(__name__)
 _locks: dict[str, threading.Lock] = {}
 _guard = threading.Lock()
 
+#: The demo place every user starts with (the preset's outline).
+DEMO_PLACE_ID = "pl_hhw"
+
 
 def _path(user_id: str) -> Path:
     if not ID_RE.fullmatch(user_id):
@@ -40,25 +43,58 @@ def _lock(path: Path) -> threading.Lock:
 
 
 def _load(path: Path, user_id: str | None = None) -> list[dict]:
-    """Read the user's places. Seeds the demo user's first visit; a corrupt file is moved
-    aside to `.corrupt` and treated as empty. Callers must hold `_lock(path)`."""
+    """Read the user's places, seeding the demo place on the user's first visit (see
+    `_seed_once`). A corrupt file is moved aside to `.corrupt` and treated as empty.
+    Callers must hold `_lock(path)`."""
     try:
         text = path.read_text(encoding="utf-8")
     except (FileNotFoundError, NotADirectoryError):
-        if user_id == "demo":
-            rows = _seed()
-            _save(path, rows)
-            return rows
-        return []
-    try:
-        rows = json.loads(text)
-        if not isinstance(rows, list):
-            raise ValueError("places file is not a list")
-        return rows
-    except ValueError:  # JSONDecodeError is a ValueError
-        log.warning("corrupt places file %s: moved to .corrupt, starting empty", path)
-        os.replace(path, path.with_name(path.name + ".corrupt"))
-        return []
+        rows: list[dict] = []
+    else:
+        try:
+            rows = json.loads(text)
+            if not isinstance(rows, list):
+                raise ValueError("places file is not a list")
+        except ValueError:  # JSONDecodeError is a ValueError
+            log.warning("corrupt places file %s: moved to .corrupt, starting empty", path)
+            os.replace(path, path.with_name(path.name + ".corrupt"))
+            rows = []
+    if user_id is not None:
+        rows = _seed_once(path, rows)
+    return rows
+
+
+def _seed_marker(path: Path) -> Path:
+    return path.with_name(path.stem + ".seeded")
+
+
+def _seed_once(path: Path, rows: list[dict]) -> list[dict]:
+    """Every user gets the example places once (Hoo Hok Wai plus a few from around the world),
+    so the Places page is never empty and each kind of question has somewhere to try it. The
+    marker file lists the ids already offered: a deleted example never comes back, and an
+    example added later is still offered once to existing users. An example is skipped when
+    the user already has a place of that name (their own Hyde Park, say), so none is doubled.
+    Callers must hold `_lock(path)`."""
+    marker = _seed_marker(path)
+    offered: set[str] = set()
+    if marker.exists():
+        # Older markers are empty files written when only the demo place existed.
+        offered = {line.strip() for line in marker.read_text().splitlines() if line.strip()}
+        offered = offered or {DEMO_PLACE_ID}
+    have = {r.get("id") for r in rows}
+    names = {str(r.get("name", "")).strip().casefold() for r in rows}
+    new = [
+        r
+        for r in _seed()
+        if r["id"] not in offered and r["id"] not in have and r["name"].casefold() not in names
+    ]
+    if new:
+        rows = [*rows, *new]
+        _save(path, rows)
+    if new or not marker.exists():
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("\n".join(sorted(offered | {r["id"] for r in _seed()})) + "\n")
+    return rows
 
 
 def _save(path: Path, rows: list[dict]) -> None:
@@ -118,12 +154,39 @@ def _dto(row: dict, user_id: str) -> PlaceDto:
     return PlaceDto(**row, details=details)
 
 
+# Example places offered to every user, beside the Hoo Hok Wai demo: one per kind of question.
+_HYDE_PARK = earth.Area.from_geojson(
+    {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [-0.1874, 51.5083],
+                [-0.1868, 51.5112],
+                [-0.1588, 51.5135],
+                [-0.1528, 51.5103],
+                [-0.1569, 51.5046],
+                [-0.1772, 51.5027],
+                [-0.1874, 51.5083],
+            ]
+        ],
+    },
+    name="Hyde Park",
+)
+_KAI_TAK = earth.Area.from_point(22.3236, 114.2004, radius_m=450, name="Kai Tak Sports Park")
+_NAROK = earth.Area.from_point(-1.0, 35.75, radius_m=500, name="Wheat fields, Narok")
+_EXAMPLES: list[tuple[str, earth.Area, str, list[str], bool]] = [
+    ("pl_example_hyde_park", _HYDE_PARK, "forests", ["Park", "Example"], False),
+    ("pl_example_kai_tak", _KAI_TAK, "urban", ["Building site", "Example"], True),
+    ("pl_example_narok", _NAROK, "agriculture", ["Farm", "Example"], True),
+]
+
+
 def _seed() -> list[dict]:
-    """Demo user's first visit: the Hoo Hok Wai preset, so the Places page is not empty."""
+    """The demo place (the Hoo Hok Wai preset) and the example places."""
     now = _now()
-    return [
+    rows = [
         {
-            "id": "pl_hhw",
+            "id": DEMO_PLACE_ID,
             "name": "Hoo Hok Wai ponds",
             "category_key": "water",
             "center": _center(HOO_HOK_WAI),
@@ -137,6 +200,24 @@ def _seed() -> list[dict]:
             "updated_at": now,
         }
     ]
+    for pid, area, category, tags, circle in _EXAMPLES:
+        rows.append(
+            {
+                "id": pid,
+                "name": area.name,
+                "category_key": category,
+                "center": _center(area),
+                "geometry": area.geojson,
+                "area_ha": area.area_ha,
+                "is_circle": circle,
+                "project": "Examples",
+                "tags": tags,
+                "source": "search",
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
+    return rows
 
 
 def list_places(user_id: str) -> list[PlaceDto]:
@@ -222,8 +303,8 @@ def update_place(user_id: str, place_id: str, req: PatchPlaceRequest) -> PlaceDt
 
 
 def delete_place(user_id: str, place_id: str) -> bool:
-    """Removes the record and detaches its watches. Ids are never reused, so the orphaned
-    memory file is unreachable."""
+    """Removes the record and its memory file, and detaches its watches (they become general
+    ones, not deleted). Nothing of the place is left on disk."""
     if not ID_RE.fullmatch(place_id):
         return False
     path = _path(user_id)
@@ -234,4 +315,5 @@ def delete_place(user_id: str, place_id: str) -> bool:
             return False
         _save(path, kept)
     watches.detach_place(user_id, place_id)  # its watches become general ones, not deleted
+    memory.forget_place(user_id, place_id)
     return True

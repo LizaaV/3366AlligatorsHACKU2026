@@ -1,19 +1,19 @@
-/** Step 3: name it, file it, tag it, and optionally start watching it. */
+/** Step 3: name it, file it, tag it, and optionally save triggers for it. */
 
 import { useStore } from '../../state/store';
 import { Check } from '../../components/ui';
-import { sourceLabel } from '../../data/presentation';
-import { fmtC } from '../../lib/geo';
-import type { Loc, Shape } from './types';
+import { skillRunnable, sourceLabel } from '../../data/presentation';
+import type { Loc } from './types';
 import type { DetailsForm } from './useDetailsForm';
 
-export function DetailsStep({ loc, ha, form, outline }: { loc: Loc; ha: number; form: DetailsForm; outline: { shape: Shape; edited: boolean } }) {
-  const origin = `${outline.shape === 'drawn' ? 'Drawn' : sourceLabel(loc.source)}${outline.edited ? ' · outline edited' : ''}`;
+export function DetailsStep({ loc, ha, form }: { loc: Loc; ha: number; form: DetailsForm }) {
   const { categories } = useStore();
   const {
     projects, name, setName, project, setProject, newProject, setNewProject,
-    categoryKey, setCategoryKey, tags, setTags, startWatch, setStartWatch, suggested,
+    categoryKey, setCategoryKey, tags, setTags, startWatch, setStartWatch,
   } = form;
+  // Only skills with a working script can back a trigger; concepts would be a dead end.
+  const suggested = form.suggested.filter(skillRunnable);
 
   return (
     <>
@@ -54,7 +54,7 @@ export function DetailsStep({ loc, ha, form, outline }: { loc: Loc; ha: number; 
       </label>
       {suggested.length > 0 && (
         <div className="field">
-          Start watching <span className="tiny">Optional · re-runs on every new satellite pass</span>
+          Add triggers <span className="tiny">Optional · saved with the place, so you can run them from Triggers</span>
           <div className="col" style={{ gap: 6 }}>
             {suggested.map((sk) => {
               const on = startWatch.includes(sk.id);
@@ -73,11 +73,10 @@ export function DetailsStep({ loc, ha, form, outline }: { loc: Loc; ha: number; 
         </div>
       )}
       <div className="well row wrap" style={{ padding: '10px 14px', gap: 12 }}>
-        <span className="caption">{origin}</span>
+        <span className="caption">{sourceLabel(loc.source)}</span>
         <span className="caption">·</span>
-        <span className="caption">{fmtC(loc.lat, loc.lon)}</span>
         <span className="caption">·</span>
-        <span className="caption">{ha.toLocaleString(undefined, { maximumFractionDigits: 1 })} ha</span>
+        <span className="caption">{ha} ha</span>
       </div>
     </>
   );

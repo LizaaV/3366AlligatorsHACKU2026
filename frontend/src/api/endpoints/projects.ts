@@ -7,12 +7,11 @@
  *   DELETE /api/projects/{id}         -> 204; the project's chats are kept and become unfiled
  *
  * Which project a chat is in is `ThreadSummary.project_id`, changed with `api.threads.setProject`.
- * Fixtures run only in fixture mode (see `fx`).
+ * Fixture mode keeps no projects: `list` is empty and changes are echoed back.
  */
 
 import { request } from '../http';
 import { usingFixtures } from '../config';
-import * as fixtures from '../fixtures/projects';
 import type { components } from '../schema';
 
 type S = components['schemas'];
@@ -32,13 +31,14 @@ const toProject = (p: S['Project']): Project => ({
 });
 
 const enc = encodeURIComponent;
+const fixtureProject = (id: string, name: string): S['Project'] => ({ id, name, created_at: '', updated_at: '' });
 /** Spread into `request()` options only in fixture mode, so a live build never carries a stand-in. */
 const fx = <T>(fn: () => T) => (usingFixtures() ? { fixture: fn } : {});
 
 export const projectsApi = {
   /** GET /api/projects, oldest first. */
   list: (signal?: AbortSignal): Promise<Project[]> =>
-    request<S['Project'][]>({ method: 'GET', path: '/projects', signal, ...fx(fixtures.projects) }).then((l) => l.map(toProject)),
+    request<S['Project'][]>({ method: 'GET', path: '/projects', signal, ...fx(() => [] as S['Project'][]) }).then((l) => l.map(toProject)),
 
   /** POST /api/projects */
   create: (name: string, signal?: AbortSignal): Promise<Project> =>
@@ -47,7 +47,7 @@ export const projectsApi = {
       path: '/projects',
       body: { name } satisfies S['ProjectCreate'],
       signal,
-      ...fx(() => fixtures.createProject(name)),
+      ...fx(() => fixtureProject(`p_${Date.now()}`, name)),
     }).then(toProject),
 
   /** PATCH /api/projects/{id} */
@@ -57,10 +57,10 @@ export const projectsApi = {
       path: `/projects/${enc(id)}`,
       body: { name } satisfies S['ProjectUpdate'],
       signal,
-      ...fx(() => fixtures.renameProject(id, name)),
+      ...fx(() => fixtureProject(id, name)),
     }).then(toProject),
 
   /** DELETE /api/projects/{id} — its chats are kept and become unfiled. */
   remove: (id: string, signal?: AbortSignal): Promise<void> =>
-    request<void>({ method: 'DELETE', path: `/projects/${enc(id)}`, signal, ...fx(() => fixtures.deleteProject(id)) }),
+    request<void>({ method: 'DELETE', path: `/projects/${enc(id)}`, signal, ...fx(() => undefined) }),
 };

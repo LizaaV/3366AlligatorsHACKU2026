@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
 import { href, useStore, type Page } from '../state/store';
 import { Ms } from './ui';
 
@@ -6,7 +5,6 @@ const TABS: { page: Page; icon: string; key: string }[] = [
   { page: 'ask', icon: 'forum', key: 'nav.ask' },
   { page: 'places', icon: 'pentagon', key: 'nav.places' },
   { page: 'triggers', icon: 'notifications_active', key: 'nav.triggers' },
-  { page: 'dashboard', icon: 'dashboard', key: 'nav.dashboard' },
   { page: 'library', icon: 'auto_stories', key: 'nav.library' },
 ];
 
@@ -20,61 +18,37 @@ export const BigDipper = ({ width = 30 }: { width?: number }) => (
   </svg>
 );
 
-/** `to` overrides the link for pages outside the app's hash routes (the public /proof page). */
-export const Logo = ({ to }: { to?: string }) => (
-  <a href={to ?? href('ask')} className="row" style={{ gap: 10, font: '600 15px/1 var(--font)', color: '#fff' }} aria-label="Constellation home">
-    <BigDipper />
-    Constellation
-  </a>
-);
-
-function useClickAway(open: boolean, close: () => void) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && close();
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [open, close]);
-  return ref;
-}
-
-function AccountMenu() {
-  const { open, connectors } = useStore();
-  const [show, setShow] = useState(false);
-  const ref = useClickAway(show, () => setShow(false));
+/**
+ * Home: the opening globe with nothing selected. Inside the app this resets the Ask page; from
+ * another path (a shared result at /proof/…) it is a real link to the app's root.
+ */
+export function Logo() {
+  const { goHome } = useStore();
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button onClick={() => setShow((s) => !s)} aria-label="Account" style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--hair)', background: 'var(--s2)', font: '600 13px/1 var(--font)' }}>
-        MK
-      </button>
-      {show && (
-        <div className="menu" style={{ right: 0, top: 42, width: 280 }}>
-          <div className="menu-label eyebrow">Account</div>
-          <div style={{ padding: '4px 10px 10px' }}>
-            <div className="ink" style={{ font: '600 14px/1.4 var(--font)' }}>Your workspace</div>
-          </div>
-          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'connectors' }); }}>
-            <Ms n="hub" />Connectors
-            {Object.values(connectors).some((c) => c.connected) && (
-              <span className="tiny" style={{ marginLeft: 'auto' }}>{Object.values(connectors).filter((c) => c.connected).length} on</span>
-            )}
-          </button>
-          <button className="menu-item" onClick={() => { setShow(false); open({ kind: 'aboutYou' }); }}>
-            <Ms n="person" />About you
-          </button>
-        </div>
-      )}
-    </div>
+    <a
+      href="/#/ask"
+      onClick={(e) => {
+        if (window.location.pathname !== '/') return; // e.g. a shared result: load the app's home
+        e.preventDefault();
+        goHome();
+      }}
+      className="row"
+      style={{ gap: 10, font: '600 15px/1 var(--font)', color: '#fff' }}
+      aria-label="Constellation home"
+    >
+      <BigDipper />
+      Constellation
+    </a>
   );
 }
 
 export function TopNav() {
-  const { route, t } = useStore();
+  const { route, t, splash } = useStore();
+  if (splash) return null;
   return (
     <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'var(--nav-h)', zIndex: 90, display: 'flex', alignItems: 'center', gap: 24, padding: '0 20px', background: '#000', borderBottom: '1px solid var(--hair-soft)' }}>
       <Logo />
-      <nav className="hide-mobile" style={{ display: 'flex', gap: 4 }} aria-label="Main">
+      <nav className="hide-mobile" style={{ display: 'flex', gap: 4 }} aria-label={t('nav.main')}>
         {TABS.map((tb) => {
           const on = route.page === tb.page;
           return (
@@ -85,17 +59,15 @@ export function TopNav() {
           );
         })}
       </nav>
-      <div className="row" style={{ marginLeft: 'auto', gap: 6 }}>
-        <AccountMenu />
-      </div>
     </header>
   );
 }
 
 export function MobileTabs() {
-  const { route, t } = useStore();
+  const { route, t, splash } = useStore();
+  if (splash) return null;
   return (
-    <nav className="show-mobile" aria-label="Main" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 64, zIndex: 90, display: 'flex', background: '#000', borderTop: '1px solid var(--hair-soft)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <nav className="show-mobile" aria-label={t('nav.main')} style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 64, zIndex: 90, display: 'flex', background: '#000', borderTop: '1px solid var(--hair-soft)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {TABS.map((tb) => {
         const on = route.page === tb.page;
         return (
@@ -113,11 +85,11 @@ export function ToastHost() {
   const { toast, dismissToast } = useStore();
   if (!toast) return null;
   return (
-    <div role="status" className="glass glass-strong" style={{ position: 'fixed', left: 0, right: 0, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100vw - 32px)', top: 72, zIndex: 120, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 10px 10px 16px', borderRadius: 12, color: '#fff', font: '600 14px/1.4 var(--font)', animation: 'fadeUp .25s ease both' }}>
+    <div role="status" style={{ position: 'fixed', left: 0, right: 0, margin: '0 auto', width: 'max-content', maxWidth: 'calc(100vw - 32px)', top: 72, zIndex: 120, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 10px 10px 16px', borderRadius: 12, background: '#fff', color: '#000', font: '600 14px/1.4 var(--font)', animation: 'fadeUp .25s ease both' }}>
       <Ms n={toast.icon || 'check_circle'} size={18} />
       <span>{toast.text}</span>
       {toast.action && (
-        <button onClick={() => { toast.fn?.(); dismissToast(); }} style={{ padding: '6px 12px', borderRadius: 8, background: '#fff', color: '#000', border: 0, font: '600 13px/1.29 var(--font)' }}>
+        <button onClick={() => { toast.fn?.(); dismissToast(); }} style={{ padding: '6px 12px', borderRadius: 8, background: '#000', color: '#fff', border: 0, font: '600 13px/1.29 var(--font)' }}>
           {toast.action}
         </button>
       )}

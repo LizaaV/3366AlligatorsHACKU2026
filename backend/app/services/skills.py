@@ -42,7 +42,7 @@ from app.schemas.skills import (
 )
 from app.services import catalog
 from app.services.agent import skills as registry
-from app.services.agent.skills import SKILLS_DIR
+from app.services.agent.skills import SKILL_ID_RE, SKILLS_DIR
 from app.services.agent.skills import Skill as RegistrySkill
 from earth import settings as earth_settings
 
@@ -50,7 +50,6 @@ log = logging.getLogger(__name__)
 _lock = threading.Lock()
 
 BACKEND = Path(__file__).resolve().parents[2]
-SKILL_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 _AREA_INPUT = {
     "key": "area",
@@ -72,7 +71,7 @@ _FALLBACK_OVERLAY: dict[str, Any] = {
     "sat": "",
     "cost": "Free",
     "tier": "free",
-    "publisher": {"name": "Earth Agent", "official": True, "verified": False},
+    "publisher": {"name": "Constellation", "official": True, "verified": False},
 }
 
 

@@ -1,23 +1,12 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import type { Place, Watch } from '../model';
 import { thumb } from '../lib/geo';
-import { STATUS_STYLE } from '../data/presentation';
-import { fmtDay, timeKey } from '../lib/format';
-import { api } from '../api';
-import { useResource } from '../hooks/useResource';
+import { STATUS_STYLE, hasMeasurement, hasSeries, hasStatus } from '../data/presentation';
+import { ciLabel, fmtDate, fmtVal } from '../lib/format';
 import { Btn, Empty, HistoryChart, Ms, RingOverlay, Toggle } from '../components/ui';
 import { ErrorState, SkeletonCard } from '../components/async';
-import { RecurrencePill, WatchDetail, hasSeries, watchBaseline, watchRange, watchValue } from './WatchDetail';
-
-type Kind = 'all' | 'recurring' | 'once' | 'dashboard';
-
-const KINDS: { id: Kind; label: string; icon: string; test: (w: Watch) => boolean }[] = [
-  { id: 'all', label: 'All', icon: 'select_all', test: () => true },
-  { id: 'recurring', label: 'Recurring', icon: 'autorenew', test: (w) => w.recurrence === 'recurring' },
-  { id: 'once', label: 'One-time', icon: 'looks_one', test: (w) => w.recurrence === 'once' },
-  { id: 'dashboard', label: 'On a dashboard', icon: 'dashboard', test: (w) => !!w.dashboardId },
-];
+import { MessagePreview, WatchDetail, useCheckNow } from './WatchDetail';
 
 export function WatchesPage() {
   const { route } = useStore();
@@ -31,30 +20,25 @@ export function WatchesPage() {
 }
 
 function Overview() {
-  const { watches, places, open, t, categories, channels, loading, errors, reload } = useStore();
+  const { watches, places, open, t, categories, loading, errors, reload } = useStore();
   const [cat, setCat] = useState<number | 'all'>('all');
   const [grouped, setGrouped] = useState(true);
-  const [kind, setKind] = useState<Kind>('all');
-  const dashboards = useResource(useCallback((signal) => api.dashboards.list(signal), []), []);
-  const dashName = (id: string | null) => (id ? dashboards.data?.find((d) => d.id === id)?.name ?? 'Dashboard' : undefined);
 
   const active = watches.filter((w) => w.enabled);
-  const attention = active.filter((w) => w.status !== 'ok');
-  const soonest = [...active].sort((a, b) => timeKey(a.nextRunAt) - timeKey(b.nextRunAt))[0];
-  const channelsUsed = channels.filter((c) => active.some((w) => w.channels.includes(c.id)));
+  const attention = active.filter((w) => hasStatus(w) && w.status !== 'ok');
+  const checked = watches.filter((w) => w.lastRunAt);
 
-  const byKind = useMemo(() => watches.filter(KINDS.find((k) => k.id === kind)!.test), [watches, kind]);
   const catsUsed = useMemo(
-    () => categories.map((c, i) => ({ c, i, n: byKind.filter((w) => w.categoryKey === c.key).length })).filter((x) => x.n > 0),
-    [byKind, categories],
+    () => categories.map((c, i) => ({ c, i, n: watches.filter((w) => w.categoryKey === c.key).length })).filter((x) => x.n > 0),
+    [watches, categories],
   );
-  const shown = cat === 'all' ? byKind : byKind.filter((w) => w.categoryKey === categories[cat]?.key);
+  const shown = cat === 'all' ? watches : watches.filter((w) => w.categoryKey === categories[cat]?.key);
   const groups = catsUsed.filter((g) => cat === 'all' || g.i === cat).map((g) => ({ ...g, list: shown.filter((w) => w.categoryKey === g.c.key) }));
 
   return (
     <>
       <style>{`
-        .wp-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .wp-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .wp-stats > div { padding: 16px 18px; }
         .wp-stats .v { font-size: 24px; letter-spacing: -0.4px; }
         .wp-card { cursor: pointer; transition: border-color .15s ease; }
@@ -69,9 +53,10 @@ function Overview() {
         <div>
           <div className="eyebrow">Triggers</div>
           <div className="h1" style={{ marginTop: 10 }}>{t('watches.title')}</div>
-          <div className="body" style={{ marginTop: 6, maxWidth: 640 }}>{t('watches.sub')}</div>
+          <div className="body" style={{ marginTop: 6, maxWidth: 640 }}>Saved questions about your places, each with the condition you care about.</div>
+          <div className="caption" style={{ marginTop: 6, maxWidth: 640 }}>Automatic re-checks and alerts are not running yet: use “Check now” on a trigger to measure it on the latest clear pass.</div>
         </div>
-        <Btn variant="primary" icon="add" onClick={() => open({ kind: 'watchBuilder' })}>{t('cta.newTrigger')}</Btn>
+        <Btn variant="primary" icon="add" onClick={() => open({ kind: 'watchBuilder' })}>New trigger</Btn>
       </div>
 
       <div className="stats wp-stats">
@@ -82,37 +67,20 @@ function Overview() {
         </div>
         <div>
           <div className="l">Need attention</div>
-          <div className="v" style={{ color: attention.length ? 'var(--yellow)' : undefined }}>{attention.length}</div>
-          <div className="ci">{attention.length ? attention.map((w) => w.name.split(' · ').pop()).join(', ') : 'All normal'}</div>
+          <div className="v" style={{ color: attention.length ? 'var(--yellow)' : undefined }}>{checked.length ? attention.length : '—'}</div>
+          <div className="ci">{!checked.length ? 'Not checked yet' : attention.length ? attention.map((w) => w.name.split(' · ').pop()).join(', ') : 'All normal'}</div>
         </div>
         <div>
-          <div className="l">Next update</div>
-          <div className="v">{fmtDay(soonest?.nextRunAt ?? null, '—')}</div>
-          <div className="ci">{soonest ? soonest.satellites.split(' · ')[0] : 'No active triggers'}</div>
-        </div>
-        <div>
-          <div className="l">Delivery channels</div>
-          <div className="v row" style={{ gap: 6 }}>
-            {channelsUsed.length ? channelsUsed.map((c) => <Ms key={c.id} n={c.icon} size={20} />) : '—'}
-          </div>
-          <div className="ci">{channelsUsed.map((c) => c.name).join(' · ') || 'None yet'}</div>
+          <div className="l">Checked</div>
+          <div className="v">{checked.length}</div>
+          <div className="ci">{checked.length ? `of ${watches.length} triggers` : 'Not checked yet'}</div>
         </div>
       </div>
 
-
       <div className="col" style={{ gap: 16 }}>
-        <div className="wp-chips" role="tablist" aria-label="Filter by type">
-          {KINDS.map((k) => (
-            <button key={k.id} role="tab" aria-selected={kind === k.id} className={`chip ${kind === k.id ? 'on' : ''}`} onClick={() => { setKind(k.id); setCat('all'); }}>
-              <Ms n={k.icon} />
-              {k.label}
-              <span style={{ opacity: 0.6 }}>{watches.filter(k.test).length}</span>
-            </button>
-          ))}
-        </div>
         <div className="row wrap" style={{ justifyContent: 'space-between', gap: 12 }}>
           <div className="wp-chips grow" role="tablist" aria-label="Filter by category">
-            <button role="tab" aria-selected={cat === 'all'} className={`chip ${cat === 'all' ? 'on' : ''}`} onClick={() => setCat('all')}>All <span style={{ opacity: 0.6 }}>{byKind.length}</span></button>
+            <button role="tab" aria-selected={cat === 'all'} className={`chip ${cat === 'all' ? 'on' : ''}`} onClick={() => setCat('all')}>All <span style={{ opacity: 0.6 }}>{watches.length}</span></button>
             {catsUsed.map(({ c, i, n }) => (
               <button key={c.key} role="tab" aria-selected={cat === i} className={`chip ${cat === i ? 'on' : ''}`} onClick={() => setCat(i)}>
                 <span className="dot" style={{ background: c.color }} />
@@ -134,12 +102,8 @@ function Overview() {
         ) : errors.watches ? (
           <ErrorState error={errors.watches} onRetry={reload} title="Could not load your triggers" />
         ) : watches.length === 0 ? (
-          <Empty icon="visibility" title="No triggers yet" body="Tell the agent what to keep an eye on. It checks whether satellites can see it, then alerts you by email, WhatsApp or push.">
-            <Btn variant="primary" icon="add" onClick={() => open({ kind: 'watchBuilder' })}>{t('cta.newTrigger')}</Btn>
-          </Empty>
-        ) : byKind.length === 0 ? (
-          <Empty icon="filter_alt_off" title="No triggers match" body="Try a different filter to see the rest of your triggers.">
-            <Btn onClick={() => setKind('all')}>Show all triggers</Btn>
+          <Empty icon="notifications" title="No triggers yet" body="Describe what to look for at a place. The agent checks whether satellites can see it before you save the trigger.">
+            <Btn variant="primary" icon="add" onClick={() => open({ kind: 'watchBuilder' })}>New trigger</Btn>
           </Empty>
         ) : grouped ? (
           groups.map((g, gi) => (
@@ -150,19 +114,70 @@ function Overview() {
                 <span className="eyebrow" style={{ opacity: 0.7 }}>· {g.list.length}</span>
               </div>
               <div className="grid-cards">
-                {g.list.map((w) => { const pl = places.find((p) => p.id === w.placeId); return <WatchCard key={w.id} w={w} placeName={pl?.name} place={pl} dashboardName={dashName(w.dashboardId)} />; })}
+                {g.list.map((w) => { const pl = places.find((p) => p.id === w.placeId); return <WatchCard key={w.id} w={w} placeName={pl?.name} place={pl} />; })}
                 {gi === groups.length - 1 && <AddTile />}
               </div>
             </section>
           ))
         ) : (
           <div className="grid-cards">
-            {shown.map((w) => { const pl = places.find((p) => p.id === w.placeId); return <WatchCard key={w.id} w={w} placeName={pl?.name} place={pl} dashboardName={dashName(w.dashboardId)} />; })}
+            {shown.map((w) => { const pl = places.find((p) => p.id === w.placeId); return <WatchCard key={w.id} w={w} placeName={pl?.name} place={pl} />; })}
             <AddTile />
           </div>
         )}
+
+        <ExampleTriggers />
       </div>
     </>
+  );
+}
+
+/**
+ * Ready-made trigger ideas from the team's pitch and research docs. Picking one opens the
+ * builder with the sentence filled in, so the agent still checks it against real coverage.
+ */
+const EXAMPLE_TRIGGERS: { icon: string; categoryKey: string; title: string; text: string; when: string }[] = [
+  { icon: 'flood', categoryKey: 'disasters', title: 'Flood check after a rainstorm', text: 'When a Black Rainstorm warning is issued, check flooding around my building with radar and message me', when: 'On an event' },
+  { icon: 'water_drop', categoryKey: 'agriculture', title: 'Weekly dry-patch alert', text: 'Every week, tell me if a dry patch in my field grows past 2 ha', when: 'Weekly' },
+  { icon: 'set_meal', categoryKey: 'oceans', title: 'Red tide near a fish farm', text: 'Alert me if algae or red tide appears within 2 km of my fish farm', when: 'Every pass' },
+  { icon: 'forest', categoryKey: 'forests', title: 'Forest cleared on a plot', text: 'Warn me if any forest is cleared on this plot compared with 31 Dec 2020', when: 'Every pass' },
+  { icon: 'grass', categoryKey: 'agriculture', title: 'Pasture for herders', text: 'Tell me when the grass here drops below its 5-year average for this month', when: 'Every 10 days' },
+  { icon: 'construction', categoryKey: 'urban', title: 'New construction nearby', text: 'Tell me when new buildings or cleared ground appear around the reservoir', when: 'Monthly' },
+  { icon: 'local_fire_department', categoryKey: 'disasters', title: 'Fire close to my farm', text: 'Alert me if a fire starts within 10 km of my farm', when: 'Daily' },
+  { icon: 'waves', categoryKey: 'water', title: 'Pond filled in', text: 'Tell me if any of the ponds here stop holding open water', when: 'One time' },
+];
+
+function ExampleTriggers() {
+  const { open, category } = useStore();
+  return (
+    <section className="col" style={{ gap: 14, marginTop: 24 }}>
+      <div className="col" style={{ gap: 4 }}>
+        <span className="eyebrow">Examples</span>
+        <span className="caption">Start from one of these. Each can be recurring or one-time, and you can change the sentence before saving.</span>
+      </div>
+      <div className="grid-cards">
+        {EXAMPLE_TRIGGERS.map((ex) => {
+          const cat = category(ex.categoryKey);
+          return (
+            <button
+              key={ex.title}
+              className="card wp-card col"
+              onClick={() => open({ kind: 'watchBuilder', prefill: ex.text })}
+              style={{ padding: 18, gap: 8, textAlign: 'left', color: 'inherit', font: 'inherit' }}
+            >
+              <div className="row" style={{ gap: 8 }}>
+                <Ms n={ex.icon} size={20} style={{ color: cat.color }} />
+                <span className="eyebrow">{cat.name}</span>
+                <span className="tiny" style={{ marginLeft: 'auto' }}>{ex.when}</span>
+              </div>
+              <div className="card-title">{ex.title}</div>
+              <div className="body-sm">{ex.text}</div>
+              <span className="row tiny" style={{ marginTop: 'auto', paddingTop: 6, gap: 4, color: 'var(--blue)' }}><Ms n="add" size={14} />Use this trigger</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -175,24 +190,25 @@ function AddTile() {
       style={{ minHeight: 280, borderRadius: 'var(--r-lg)', border: '1px dashed var(--hair)', background: 'transparent', color: 'var(--muted)', alignItems: 'center', justifyContent: 'center', gap: 8, font: '600 14px/1.29 var(--font)', padding: 24, textAlign: 'center' }}
     >
       <Ms n="add" size={28} />
-      Ask the agent to build a trigger
-      <span className="tiny" style={{ maxWidth: 240 }}>Describe it in a sentence — the agent checks if satellites can see it.</span>
+      Ask the agent to set a trigger
+      <span className="tiny" style={{ maxWidth: 240 }}>Describe it in a sentence; the agent checks if satellites can see it.</span>
     </button>
   );
 }
 
 /**
- * Thumbnail for a watch. The backend sends a location and a zoom hint, not a baked tile URL —
+ * Thumbnail for a trigger. The backend sends a location and a zoom hint, not a baked tile URL —
  * building the URL is a frontend concern (and lets the basemap provider change freely).
  */
 const thumbFor = (w: Watch, place?: Place) =>
   place ? thumb(place.lat, place.lon, w.thumbnailZoom) : thumb(0, 0, 2);
 
-function WatchCard({ w, placeName, place, dashboardName }: { w: Watch; placeName?: string; place?: Place; dashboardName?: string }) {
-  const { go, updateWatch, notify, category, channels } = useStore();
+function WatchCard({ w, placeName, place }: { w: Watch; placeName?: string; place?: Place }) {
+  const { go, updateWatch, notify, category } = useStore();
   const cat = category(w.categoryKey);
-  const accent = w.enabled && w.status !== 'ok' ? STATUS_STYLE[w.status].color : null;
+  const accent = w.enabled && hasStatus(w) && w.status !== 'ok' ? STATUS_STYLE[w.status].color : null;
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  const check = useCheckNow(w);
 
   return (
     <div
@@ -212,7 +228,7 @@ function WatchCard({ w, placeName, place, dashboardName }: { w: Watch; placeName
           </span>
         )}
         <span style={{ position: 'absolute', right: 12, bottom: 12 }}>
-          {w.enabled ? <span className="live" style={{ color: 'var(--muted)' }}><Ms n="bookmark" size={12} />SAVED</span> : <span className="live" style={{ color: 'var(--muted)' }}><Ms n="pause" size={12} />PAUSED</span>}
+          {w.enabled ? <span className="live" style={{ color: 'var(--muted)' }}>ACTIVE</span> : <span className="live" style={{ color: 'var(--muted)' }}><Ms n="pause" size={12} />PAUSED</span>}
         </span>
       </div>
 
@@ -222,19 +238,6 @@ function WatchCard({ w, placeName, place, dashboardName }: { w: Watch; placeName
           <span className="eyebrow">{cat.name}</span>
         </div>
         <div className="card-title">{w.name}</div>
-        <div className="row wrap" style={{ gap: 6 }}>
-          <RecurrencePill recurrence={w.recurrence} />
-          {w.dashboardId && (
-            <button
-              className="pill"
-              style={{ border: 0, background: 'var(--s2)', color: '#fff' }}
-              onClick={(e) => { stop(e); go('dashboard', w.dashboardId!); }}
-              title="The dashboard this trigger watches"
-            >
-              <Ms n="dashboard" size={14} />{dashboardName ?? 'Dashboard'}
-            </button>
-          )}
-        </div>
         {w.placeId && placeName ? (
           <button onClick={(e) => { stop(e); go('ask', undefined, { place: w.placeId! }); }} className="row" style={{ alignSelf: 'flex-start', gap: 4, padding: 0, border: 0, background: 'none', color: 'var(--blue)', font: '500 13px/1.38 var(--font)' }}>
             <Ms n="location_on" size={14} />{placeName}
@@ -243,26 +246,41 @@ function WatchCard({ w, placeName, place, dashboardName }: { w: Watch; placeName
           <span className="caption row" style={{ gap: 4 }}><Ms n="travel_explore" size={14} />All my places</span>
         )}
 
-        <div className="row wrap" style={{ alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-          <span style={{ font: '700 32px/1.17 var(--font)', letterSpacing: -0.8 }}>{watchValue(w)}</span>
-          <span className="body-sm">{w.metric}</span>
-        </div>
-        <div className="tiny" style={{ marginTop: -4 }}>
-          <span className="muted">{watchRange(w)}</span>{w.baselineLabel ? <> · {w.baselineLabel}: {watchBaseline(w)}</> : null}
-        </div>
-        <div className="caption" style={{ color: accent ?? 'var(--muted)' }}>{w.hasRun ? w.delta : 'Waiting for the first pass'}</div>
+        {hasMeasurement(w) ? (
+          <>
+            <div className="row wrap" style={{ alignItems: 'baseline', gap: 8, marginTop: 4 }}>
+              <span style={{ font: '700 32px/1.17 var(--font)', letterSpacing: -0.8 }}>{fmtVal(w.value, w.unit ?? '')}</span>
+              <span className="body-sm">{w.metric}</span>
+            </div>
+            <div className="tiny" style={{ marginTop: -4 }}>
+              {w.ci && <span className="muted">{ciLabel(w)}</span>}
+              {typeof w.baseline === 'number' && <> · {w.baselineLabel}: {fmtVal(w.baseline, w.unit ?? '')}</>}
+            </div>
+            {w.delta && <div className="caption" style={{ color: accent ?? 'var(--muted)' }}>{w.delta}</div>}
+          </>
+        ) : (
+          <div className="col" style={{ gap: 2, marginTop: 4 }}>
+            <span className="body-sm ink">Not checked yet</span>
+            <span className="tiny" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{w.condition || w.question}</span>
+          </div>
+        )}
+
+        <MessagePreview w={w} compact />
 
         {hasSeries(w) && (
           <div style={{ marginTop: 4 }}>
-            <HistoryChart series={w.series.current} band={[w.series.bandLow, w.series.bandHigh]} mean={w.series.mean} color={cat.color} height={70} compact />
+            <HistoryChart series={w.series.current} band={w.series.bandLow?.length ? [w.series.bandLow, w.series.bandHigh] : undefined} mean={w.series.mean?.length ? w.series.mean : undefined} color={cat.color} height={70} compact />
           </div>
         )}
 
         <div className="row" style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--hair-soft)', gap: 10 }}>
-          <span className="row" style={{ gap: 4 }} title={w.channels.map((c) => channels.find((x) => x.id === c)?.name).join(', ')}>
-            {w.channels.map((c) => <Ms key={c} n={channels.find((x) => x.id === c)?.icon ?? 'notifications'} size={16} className="muted" />)}
+          <span className="tiny grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.lastRunAt ? `Checked ${fmtDate(w.lastRunAt)}` : 'Not checked yet'}</span>
+          <span onClick={stop} onKeyDown={stop}>
+            <Btn size="sm" variant="text" icon={check.checking ? undefined : 'refresh'} onClick={() => void check.run()} disabled={check.disabled} title={check.title}>
+              {check.checking && <span className="spinner" />}
+              {check.checking ? 'Checking…' : 'Check now'}
+            </Btn>
           </span>
-          <span className="tiny grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.cadence}</span>
           <span onClick={stop} onKeyDown={stop}>
             <Toggle
               on={w.enabled}

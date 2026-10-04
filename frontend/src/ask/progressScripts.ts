@@ -1,14 +1,15 @@
 /**
- * Prewritten step sequences for the fixture run stream (`api/endpoints/runs.ts`), used only
- * when `VITE_API_SOURCE=fixture`. Against the real backend the steps are the ones the agent
- * actually took, arriving as stream events.
+ * Prewritten progress sequences shown while the agent request is in flight.
  *
- * These are *presentation only* — they deliberately never state a finding. Every step
- * describes process ("kept 7 of 12 scenes", "applied cloud mask"); the numbers, confidence
- * and conclusions come from the answer and are rendered by the answer card.
+ * These are *presentation only* — they are not a log of what the backend did, and they
+ * deliberately never state a finding. Every step describes process ("kept 7 of 12 scenes",
+ * "applied cloud mask"); the actual numbers, confidence and conclusions come from the
+ * `/ask` response and are rendered by the answer card.
  *
  * One script is picked at random per run, so a user who asks several questions does not
- * see the same sequence twice in a row.
+ * see the same choreography twice in a row. The player (`useProgressScript`) paces the
+ * steps while the request is pending, holds on the last step if the request is slow, and
+ * fast-forwards to the end as soon as the answer arrives.
  *
  * Keep each script between 6 and 9 steps: fewer feels abrupt, more outlasts a normal
  * response and starts to feel like padding.

@@ -1,0 +1,41 @@
+# Test cases for the new-building-check skill.
+# kind: preset  runs offline under EARTH_IMPL=stub (tests/test_skill_library.py); same format as
+#               pond-filling-check/tests.yaml. The stub tells the Hoo Hok Wai story (ponds filled
+#               since 2025: greenness falls, bare ground rises, inside ~5 C warmer than the ring).
+# expect.findings / expect.observed: dotted path -> value or {lt|le|gt|ge|not: value}.
+version: 1
+skill: new-building-check
+cases:
+  - id: hoo_hok_wai_preset
+    kind: preset
+    note: "Default 2022 vs now: new bare ground on most of the area, radar does not show structures."
+    earth_impl: stub
+    area: HOO_HOK_WAI
+    params: {}
+    expect:
+      ok: true
+      findings:
+        before: "2022-09-30"
+        verdict: new bare or built ground
+        built_ha: {gt: 5}
+        radar_used: true
+      observed:
+        bare.delta: {gt: 0.1}
+        bare.local: true
+        greenness.delta: {lt: -0.2}
+        roughness.delta: {lt: 3}
+      blocks: [then_now, highlight, stat]
+      primary: then_now
+
+  - id: tiny_area_limits
+    kind: preset
+    note: "A 15 m circle is under the 10 m pixel floor: one limits block."
+    earth_impl: stub
+    area: {lat: 22.534, lon: 114.09, radius_m: 15}
+    params: {}
+    expect:
+      ok: true
+      findings:
+        limited: true
+        reason: area_too_small
+      blocks: [limits]

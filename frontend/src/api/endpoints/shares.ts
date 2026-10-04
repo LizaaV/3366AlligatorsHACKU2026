@@ -1,50 +1,33 @@
 /**
- * Share links and the PDF report of a finished run.
+ * Public share links (`docs/API.md` §12). No login: anyone with the slug can read the snapshot.
  *
- *   POST /api/runs/{run_id}/share      -> ShareCreated (201). No body: the link always expires on
- *                                         the server's schedule and anyone with it can read the
- *                                         snapshot, so there are no access/expiry options to send.
- *   GET  /api/runs/{run_id}/shares     -> ShareInfo[]
- *   DELETE /api/shares/{slug}          -> 204 (turns the link off; it then answers 410)
- *   GET  /api/runs/{run_id}/report.pdf -> application/pdf (a plain link; see `reportPdfUrl`)
- *
- * No fixtures: a made-up link or file would be worse than an honest error. In fixture mode these
- * calls simply fail with the usual "could not reach the server" message.
+ *   GET /api/shares/{slug}             -> SharedRun (404 unknown, 410 expired or revoked)
+ *   GET /api/shares/{slug}/report.pdf  -> the same snapshot as a PDF
  */
 
-import { request } from '../http';
 import { API_BASE } from '../config';
+import { ApiError, request } from '../http';
+import { usingFixtures } from '../config';
 import type { components } from '../schema';
-import type { PlaceDto } from './places';
 
-type S = components['schemas'];
-
-/** `url` is the public page, `<PUBLIC_BASE_URL>/proof/<slug>`, built by the server. */
-export type ShareCreated = S['ShareCreated'];
-export type ShareInfo = S['ShareInfo'];
-
-const runPath = (runId: string) => `/runs/${encodeURIComponent(runId)}`;
+export type SharedRun = components['schemas']['SharedRun'];
 
 export const sharesApi = {
-  /** POST /api/runs/{run_id}/share — 409 while the run is unfinished. */
-  create: (runId: string, signal?: AbortSignal): Promise<ShareCreated> =>
-    request<ShareCreated>({ method: 'POST', path: `${runPath(runId)}/share`, signal }),
+  /** GET /api/shares/{slug} */
+  get: (slug: string, signal?: AbortSignal): Promise<SharedRun> =>
+    request<SharedRun>({
+      method: 'GET',
+      path: `/shares/${encodeURIComponent(slug)}`,
+      signal,
+      ...(usingFixtures()
+        ? {
+            fixture: (): SharedRun => {
+              throw new ApiError('Share links need the real backend', 'http', 404);
+            },
+          }
+        : {}),
+    }),
 
-  /** GET /api/runs/{run_id}/shares */
-  list: (runId: string, signal?: AbortSignal): Promise<ShareInfo[]> =>
-    request<ShareInfo[]>({ method: 'GET', path: `${runPath(runId)}/shares`, signal }),
-
-  /** DELETE /api/shares/{slug} — 404 for an unknown link or one that is not yours. */
-  revoke: (slug: string, signal?: AbortSignal): Promise<void> =>
-    request<void>({ method: 'DELETE', path: `/shares/${encodeURIComponent(slug)}`, signal }),
-
-  /** URL of the A4 PDF report. Use as a link target: the response is an attachment. */
-  reportPdfUrl: (runId: string): string => `${API_BASE}${runPath(runId)}/report.pdf`,
-
-  /**
-   * The outline of a saved place as returned by GET /api/places/{id} (`geometry` is real
-   * GeoJSON in WGS84). Used for the place's GeoJSON download; the view model keeps only pixels.
-   */
-  placeDto: (placeId: string, signal?: AbortSignal): Promise<PlaceDto> =>
-    request<PlaceDto>({ method: 'GET', path: `/places/${encodeURIComponent(placeId)}`, signal }),
+  /** Public PDF of a shared run; a plain link works, no header needed. */
+  reportUrl: (slug: string): string => `${API_BASE}/shares/${encodeURIComponent(slug)}/report.pdf`,
 };

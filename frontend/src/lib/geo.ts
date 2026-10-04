@@ -143,12 +143,32 @@ export const fitZoom = (pts: Pt[], box: number) =>
 export const fmtC = (lat: number, lon: number) =>
   `${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'} ${Math.abs(lon).toFixed(4)}°${lon >= 0 ? 'E' : 'W'}`;
 
+const arcPt = (r: number, deg: number) => {
+  const a = (deg * Math.PI) / 180;
+  return [(300 + Math.sin(a) * r).toFixed(1), (300 - Math.cos(a) * r).toFixed(1)];
+};
+
+/** Dry-zone arc overlay path, in the 600x600 overlay coordinate space. */
+export const DRY_PATH = (() => {
+  const a0 = 14;
+  const a1 = 100;
+  const o0 = arcPt(206, a0);
+  const o1 = arcPt(206, a1);
+  const i1 = arcPt(132, a1);
+  const i0 = arcPt(132, a0);
+  return `M${o0} A206 206 0 0 1 ${o1} L${i1} A132 132 0 0 0 ${i0} Z`;
+})();
+
 /** Normalised 0..1 series -> SVG polyline points. */
 export const pts2 = (arr: number[], w = 300, h = 100, pad = 90) =>
   arr.map((v, i) => `${((i / (arr.length - 1)) * w).toFixed(1)},${(h - v * pad).toFixed(1)}`).join(' ');
 
-/** Where the map opens before a place is selected: a neutral world view, not a real site. */
-export const DEFAULT_CENTER = { lat: 20, lon: 10 };
+/**
+ * Where the map opens before a place is selected. Presentation default, not domain data —
+ * previously this was `FIELD` in the places fixture, which tied the map's initial view to a
+ * specific demo record.
+ */
+export const DEFAULT_CENTER = { lat: 37.9785, lon: -100.9155 };
 export const DEFAULT_ZOOM = 16;
 
 /**
@@ -169,3 +189,46 @@ export function outerRing(geojson: unknown): [number, number][] | null {
   if (g.type === 'MultiPolygon') return (g.coordinates as [number, number][][][])?.[0]?.[0] ?? null;
   return null;
 }
+
+/**
+ * Coordinates from a pasted location: a Google Maps / OpenStreetMap / WhatsApp link, a
+ * `geo:` URI, or plain "lat, lon". Null when there are none.
+ */
+export function parseLocation(s: string): { lat: number; lon: number } | null {
+  const pats = [
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /[?&](?:q|ll|query|center|mlat)=(-?\d+\.\d+)(?:,|%2C|&mlon=)\s*(-?\d+\.\d+)/,
+    /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/,
+    /^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/,
+    /geo:(-?\d+\.\d+),(-?\d+\.\d+)/,
+    /#map=\d+\/(-?\d+\.\d+)\/(-?\d+\.\d+)/,
+  ];
+  for (const p of pats) {
+    const m = s.match(p);
+    if (!m) continue;
+    const lat = +m[1], lon = +m[2];
+    if (Math.abs(lat) <= 85 && Math.abs(lon) <= 180) return { lat, lon };
+  }
+  return null;
+}
+
+type LatLon = { lat: number; lon: number };
+
+/** Distance in metres between two points (equirectangular; fine at the scale of a field). */
+export const distanceM = (a: LatLon, b: LatLon): number => {
+  const k = Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
+  return Math.hypot((b.lat - a.lat) * 110_574, (b.lon - a.lon) * 111_320 * k);
+};
+
+/** A closed GeoJSON ring ([lon, lat] pairs) for a circle of `radiusM` metres around `c`. */
+export const circleRing = (c: LatLon, radiusM: number, n = 64): Position[] => {
+  const dLat = radiusM / 110_574;
+  const dLon = radiusM / (111_320 * Math.cos((c.lat * Math.PI) / 180));
+  const ring: Position[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * 2 * Math.PI;
+    ring.push([+(c.lon + dLon * Math.cos(t)).toFixed(7), +(c.lat + dLat * Math.sin(t)).toFixed(7)] as Position);
+  }
+  ring.push(ring[0]);
+  return ring;
+};
