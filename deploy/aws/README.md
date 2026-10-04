@@ -4,34 +4,35 @@ The fastest way to get Constellation online with our AWS credits: one EC2 server
 existing Docker stack (`deploy/docker-compose.yml`: nginx + the SPA in front of FastAPI). The
 code goes from a laptop to the server over SSH with `rsync` and is built there. No GitHub step,
 no container registry, no load balancer. About 20 minutes the first time, about a minute for
-each redeploy after that.
+each redeploy after that. The server is in Hong Kong, next to our users.
 
 ```
-laptop ──rsync over SSH──> EC2 (Ubuntu 24.04, Docker)            us-west-2 (Oregon)
+laptop ──rsync over SSH──> EC2 (Ubuntu 24.04, Docker)            ap-east-1 (Hong Kong)
                              ├─ frontend: nginx :80  ── SPA, /api/* proxied ─┐
 browser ──http :80/443────>  │                                              │
                              └─ backend: FastAPI :8000 (internal only) <────┘
                                    └─ volume earth-data: cache, rendered views, runs DB
-                                   └─ reads Sentinel-2 from Earth Search S3 (same region)
+                                   └─ reads Sentinel-2 from Earth Search S3 (us-west-2), cached on disk
 ```
 
 ## Why these choices
 
 | Choice | Why |
 | --- | --- |
-| **Region `us-west-2` (Oregon)** | The Sentinel-2 images we read (Earth Search, `sentinel-2-l2a`) are stored in S3 in us-west-2. Running next to them makes image reads several times faster than from Europe or Asia, and in-region reads have no data transfer fees. That matters most for the 5-year date range and the background caching of places. |
+| **Region `ap-east-1` (Hong Kong)** | Our users are in Hong Kong. Every page load, click and the live answer stream go between them and the server, so being a few ms away instead of about 150 ms (Oregon) is what people feel. The trade-off: the Sentinel-2 images live in us-west-2, so the first look at a place reads them across the Pacific and is slower. The server caches every rendered view and pass list on disk, places are rendered ahead when saved, and `warm.sh` pre-renders the demo places, so repeat views are instant. Reading them costs nothing extra: data coming into EC2 is free. |
 | **One EC2 instance + Docker Compose** | The stack already runs with one command. The backend must be a single process (its locks are in-process), so there's nothing to scale out for a demo. |
 | **`t3.xlarge` (4 vCPU, 16 GB)** | The first image build (Python geo wheels + npm) and rasterio reads want memory. `t3.large` (2 vCPU, 8 GB) also works: the bootstrap adds 4 GB swap. |
 | **Elastic IP** | The address stays the same after a stop/start, so links and `PUBLIC_BASE_URL` stay valid. |
 | **rsync over SSH, build on the server** | Deploys exactly what is on your machine, including uncommitted work, without pushing anywhere. Docker layer cache means a code-only change rebuilds in seconds. |
 
-**Rough cost (on-demand, us-west-2; check the AWS pricing page or Cost Explorer before relying on it):** `t3.xlarge` about $0.17/hour (about $120/month if left on 24/7), `t3.large` about half that; 40 GB gp3 disk about $3/month; the public IPv4 address about $3.60/month. **Stop the instance when not demoing** to save credits: disk and IP are kept, only compute stops.
+**Rough cost (on-demand; Hong Kong prices run somewhat above the US ones, so check the AWS pricing page for ap-east-1 or Cost Explorer before relying on these):** `t3.xlarge` from about $0.17/hour (about $120/month in us-west-2 if left on 24/7, more in Hong Kong), `t3.large` about half that; 40 GB gp3 disk about $3/month; the public IPv4 address about $3.60/month. **Stop the instance when not demoing** to save credits: disk and IP are kept, only compute stops.
 
 ## What you need (once)
 
 - AWS account with the credits applied, and an IAM user (not the root user) with EC2 permissions. Create an access key for it.
 - On your laptop: [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html), `ssh`, `rsync` (macOS/Linux have both; on Windows use WSL).
-- `aws configure`: paste the access key, region `us-west-2`.
+- `aws configure`: paste the access key, region `ap-east-1`.
+- Enable the Hong Kong region once (it is opt-in): `aws account enable-region --region-name ap-east-1`, or console → account menu → Account → AWS Regions → Asia Pacific (Hong Kong) → Enable. It takes a few minutes; `launch.sh` checks it. Prefer not to? `REGION=ap-southeast-1 ./deploy/aws/launch.sh` (Singapore, about 35 ms from Hong Kong, no opt-in).
 - An Anthropic API key for the agent (optional: without it, the scripted preset still works).
 
 ## Steps
@@ -72,7 +73,15 @@ It waits for Docker on the server, rsyncs the repo to `/opt/constellation`, uplo
 - Chat: search a town, pick a pin, switch the date range to 5 yrs, ask a question. The answer's images open on the right.
 - Save a place, wait a minute, then flick through its dates: they come from the cache.
 
-### 5. Redeploy after a change (about 1 min)
+### 5. Warm the demo places (the evening before)
+
+```bash
+SSH_KEY=~/.ssh/constellation.pem ./deploy/aws/warm.sh <ip> <presenter-user-id>
+```
+
+It queues every band of every pass (recent and 5 years) for each of that user's saved places, and the server renders them in the background. The presenter's id is in their browser: DevTools console → `localStorage.getItem('constellation.userId')`. Without an id it warms the shared `demo` user (Hoo Hok Wai).
+
+### 6. Redeploy after a change (about 1 min)
 
 Run the same `ship.sh` command. Only changed files are copied and only changed image layers rebuild. Data (cache, runs, places) is in the `earth-data` volume and survives.
 

@@ -11,7 +11,7 @@
 # Override with env vars, e.g. INSTANCE_TYPE=t3.large ./deploy/aws/launch.sh
 set -euo pipefail
 
-REGION="${REGION:-us-west-2}"            # Sentinel-2 COGs (Earth Search) live in us-west-2: fastest reads
+REGION="${REGION:-ap-east-1}"            # Hong Kong: next to our users. Opt-in region (see below)
 NAME="${NAME:-constellation}"
 INSTANCE_TYPE="${INSTANCE_TYPE:-t3.xlarge}" # 4 vCPU / 16 GB; t3.large (2 vCPU / 8 GB) also works
 DISK_GB="${DISK_GB:-40}"
@@ -22,6 +22,16 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 export AWS_REGION="$REGION" AWS_PAGER=""
 aws sts get-caller-identity --query Account --output text >/dev/null \
   || { echo "AWS CLI is not configured: run 'aws configure' first." >&2; exit 1; }
+
+# Hong Kong (and some other regions) must be switched on once per account.
+OPT_IN="$(aws ec2 describe-regions --all-regions --region us-east-1 \
+  --filters Name=region-name,Values="$REGION" --query 'Regions[0].OptInStatus' --output text)"
+if [ "$OPT_IN" = "not-opted-in" ]; then
+  echo "Region $REGION is not enabled for this account. Enable it (takes a few minutes), then re-run:" >&2
+  echo "  aws account enable-region --region-name $REGION" >&2
+  echo "  (or console: account menu -> Account -> AWS Regions -> Asia Pacific (Hong Kong) -> Enable)" >&2
+  exit 1
+fi
 
 # --- SSH key ---------------------------------------------------------------------------------
 if ! aws ec2 describe-key-pairs --key-names "$KEY_NAME" >/dev/null 2>&1; then
