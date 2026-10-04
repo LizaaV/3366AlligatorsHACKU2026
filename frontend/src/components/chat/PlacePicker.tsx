@@ -1,7 +1,8 @@
 /**
  * The one control for "where is this question about": a chip in the composer that opens a
- * popover with search over the user's saved places and the geocoder, plus No place, Add a
- * place, Draw an area and Go to coordinates.
+ * popover with search over the user's saved places and the geocoder, plus No place. A pasted
+ * map link or "lat, lon" goes straight there. Drawing and uploading an outline live on the
+ * map's own draw button, so they are not repeated here.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -36,7 +37,6 @@ export function PlacePicker({
   onSpot,
   align = 'left',
   drop = 'up',
-  onDraw,
 }: {
   placeId: string | null;
   /** A temporary pinned point, shown in the chip when no saved place is selected. */
@@ -47,15 +47,10 @@ export function PlacePicker({
   align?: 'left' | 'right';
   /** Open above the chip (composer at the bottom) or below it (composer at the top). */
   drop?: 'up' | 'down';
-  /** Start drawing an outline on the map. */
-  onDraw?: () => void;
 }) {
-  const { places, category, open, t } = useStore();
+  const { places, category, t } = useStore();
   const [show, setShow] = useState(false);
   const [q, setQ] = useState('');
-  const [coordsMode, setCoordsMode] = useState(false);
-  const [coord, setCoord] = useState({ lat: '', lon: '' });
-  const [coordErr, setCoordErr] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
 
@@ -64,8 +59,6 @@ export function PlacePicker({
   const close = useCallback(() => {
     setShow(false);
     setQ('');
-    setCoordsMode(false);
-    setCoordErr(false);
   }, []);
 
   useEffect(() => {
@@ -105,13 +98,6 @@ export function PlacePicker({
     close();
   };
 
-  const goCoords = () => {
-    const la = parseFloat(coord.lat);
-    const lo = parseFloat(coord.lon);
-    if (isNaN(la) || isNaN(lo) || Math.abs(la) > 85 || Math.abs(lo) > 180) return setCoordErr(true);
-    onSpot({ name: `${la.toFixed(4)}, ${lo.toFixed(4)}`, lat: la, lon: lo, zoom: 13 });
-    close();
-  };
 
   const label = place ? place.name : spot ? spot.name : t('chat.noPlace');
 
@@ -148,19 +134,7 @@ export function PlacePicker({
           className="menu"
           style={{ ...(drop === 'up' ? { bottom: 'calc(100% + 8px)' } : { top: 'calc(100% + 8px)' }), [align]: 0, width: 340, maxWidth: 'calc(100vw - 32px)', maxHeight: 'min(460px, 60vh)', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}
         >
-          {coordsMode ? (
-            <div className="col" style={{ padding: 14, gap: 10 }}>
-              <div className="row" style={{ justifyContent: 'space-between' }}>
-                <span className="eyebrow">Go to coordinates</span>
-                <button className="btn btn-text btn-sm" onClick={() => setCoordsMode(false)}><Ms n="arrow_back" />Back</button>
-              </div>
-              <label className="field">Latitude<input className="input" inputMode="decimal" value={coord.lat} onChange={(e) => { setCoord({ ...coord, lat: e.target.value }); setCoordErr(false); }} placeholder="48.1374" autoFocus /></label>
-              <label className="field">Longitude<input className="input" inputMode="decimal" value={coord.lon} onChange={(e) => { setCoord({ ...coord, lon: e.target.value }); setCoordErr(false); }} onKeyDown={(e) => e.key === 'Enter' && goCoords()} placeholder="11.5755" /></label>
-              {coordErr && <div className="caption">Enter a latitude between -85 and 85 and a longitude between -180 and 180.</div>}
-              <button className="btn btn-primary" onClick={goCoords}>Go</button>
-            </div>
-          ) : (
-            <>
+          <>
               <div className="row" style={{ gap: 8, margin: 8, padding: '0 12px', height: 40, borderRadius: 8, background: 'var(--glass-fill)', border: '1px solid var(--hair-soft)', flex: 'none' }}>
                 <Ms n="search" size={20} className="muted" />
                 <input
@@ -169,12 +143,12 @@ export function PlacePicker({
                   onChange={(e) => setQ(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter') return;
-                    if (pasted) { onSpot({ name: 'Location from your link', lat: pasted.lat, lon: pasted.lon, zoom: 15 }); close(); return; }
+                    if (pasted) { onSpot({ name: 'Go to this location', lat: pasted.lat, lon: pasted.lon, zoom: 15 }); close(); return; }
                     const first = mine[0];
                     if (first) { onPlace(first.id); close(); }
                     else if (geo.data?.[0]) { const r = geo.data[0]; onSpot({ name: r.name, lat: r.lat, lon: r.lon, zoom: r.zoom }); close(); }
                   }}
-                  placeholder="Search a place, or paste a map link"
+                  placeholder="Search a place, or paste a map link or lat, lon"
                   aria-label="Search a place"
                   style={{ flex: 1, minWidth: 0, height: 38, background: 'transparent', border: 0, outline: 0, color: '#fff', font: '500 14px/1.4 var(--font)' }}
                 />
@@ -188,9 +162,9 @@ export function PlacePicker({
                   </button>
                 )}
                 {pasted && (
-                  <button className="menu-item" onClick={pick(() => onSpot({ name: 'Location from your link', lat: pasted.lat, lon: pasted.lon, zoom: 15 }))}>
+                  <button className="menu-item" onClick={pick(() => onSpot({ name: 'Go to this location', lat: pasted.lat, lon: pasted.lon, zoom: 15 }))}>
                     <Ms n="my_location" />
-                    <span className="col grow"><span>Location from your link</span><span className="tiny">{pasted.lat.toFixed(5)}, {pasted.lon.toFixed(5)}</span></span>
+                    <span className="col grow"><span>Go to this location</span><span className="tiny">{pasted.lat.toFixed(5)}, {pasted.lon.toFixed(5)}</span></span>
                   </button>
                 )}
                 {mine.length > 0 && <div className="menu-label eyebrow">My places</div>}
@@ -209,14 +183,9 @@ export function PlacePicker({
                   </button>
                 ))}
                 {sq.length >= 2 && geo.isFetching && !geo.data?.length && <div className="caption" style={{ padding: '8px 10px' }}>Searching…</div>}
-                {lq && !pasted && !mine.length && !geo.isFetching && !geo.data?.length && <div className="caption" style={{ padding: '8px 10px' }}>No matches. Try coordinates instead.</div>}
-                <div className="divider" style={{ margin: '6px 4px' }} />
-                <button className="menu-item" onClick={pick(() => open({ kind: 'addPlace' }))}><Ms n="add_location_alt" />{t('cta.addPlace')}</button>
-                {onDraw && <button className="menu-item" onClick={pick(onDraw)}><Ms n="polyline" />Draw an area</button>}
-                <button className="menu-item" onClick={() => setCoordsMode(true)}><Ms n="my_location" />Go to coordinates</button>
+                {lq && !pasted && !mine.length && !geo.isFetching && !geo.data?.length && <div className="caption" style={{ padding: '8px 10px' }}>No matches. Try a nearby town, or paste a map link or “lat, lon”.</div>}
               </div>
-            </>
-          )}
+          </>
         </div>
       )}
     </div>

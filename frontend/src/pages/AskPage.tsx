@@ -914,7 +914,6 @@ export function AskPage({ active }: { active: boolean }) {
                     onPlace={(id) => { setSpot(null); setAskPlace(id); }}
                     onSpot={(sp) => lookAt(sp.lat, sp.lon, sp.zoom)}
                     drop="down"
-                    onDraw={() => startDraw('polygon')}
                   />
                 </div>
               }
@@ -1038,8 +1037,9 @@ export function AskPage({ active }: { active: boolean }) {
         )}
       </div>
 
-      {/* TOOLBAR (Google Earth style) */}
-      {!mobile && (
+      {/* TOOLBAR (Google Earth style): drawing tools, only once the map is open on a spot or
+          place, not over the home globe. */}
+      {!mobile && mode === 'map' && (
         <div className="panel row" style={{ position: 'absolute', left: chatW + 36, top: 20, height: 54, gap: 2, padding: '6px 8px', zIndex: 22 }}>
           {/* Searching for a place lives in the chat box's place picker, so there is one place search. */}
           {tools.map((tl, i) =>
