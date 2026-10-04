@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type ThreadSummary } from '../../api';
 import { useResource } from '../../hooks/useResource';
+import { useStore } from '../../state/store';
 import { QuestionText, type SkillName } from '../../ask/QuestionText';
 import { Ms } from '../ui';
 import { useChatFolders } from './useChatFolders';
@@ -54,6 +55,7 @@ export function ChatSidebar({
   // A chat's menu opens upwards when the list has no room for it below (few chats, or the last
   // ones), so it is never cut off by the panel's edge.
   const [menuUp, setMenuUp] = useState(false);
+  const { notify } = useStore();
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const panel = useRef<HTMLDivElement>(null);
@@ -110,14 +112,13 @@ export function ChatSidebar({
   };
   const deleteChat = async (t: ThreadSummary) => {
     setMenu(null);
-    if (!window.confirm(`Delete the chat “${t.title}”? This cannot be undone.`)) return;
     setGone((g) => new Set(g).add(t.thread_id));
     try {
       await api.threads.remove(t.thread_id);
       if (t.thread_id === activeThreadId) onNew(); // the open chat was deleted: start a new one
     } catch {
       setGone((g) => { const n = new Set(g); n.delete(t.thread_id); return n; });
-      window.alert('Could not delete this chat. Try again.');
+      notify('Could not delete this chat. Try again.', undefined, undefined, 'error');
     }
     threads.refetch();
   };
@@ -228,7 +229,7 @@ export function ChatSidebar({
                         <span className="tiny">{inside.length}</span>
                       </button>
                       <button aria-label={`Rename ${f.name}`} title="Rename" onClick={() => startRename(f.id, f.name)} style={{ flex: 'none', width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 0, color: 'var(--muted)' }}><Ms n="edit" size={16} /></button>
-                      <button aria-label={`Delete ${f.name}`} title="Delete project (chats are kept)" onClick={() => { if (window.confirm(`Delete the project “${f.name}”? Its chats are kept and move back to Chats.`)) deleteFolder(f.id); }} style={{ flex: 'none', width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 0, color: 'var(--muted)' }}><Ms n="close" size={16} /></button>
+                      <button aria-label={`Delete ${f.name}`} title="Delete project (chats are kept)" onClick={() => deleteFolder(f.id)} style={{ flex: 'none', width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 0, color: 'var(--muted)' }}><Ms n="close" size={16} /></button>
                     </>
                   )}
                 </div>
