@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services import places as places_svc
 from app.services import views
 
 HHW = {"lat": 22.534, "lon": 114.0906}
@@ -18,6 +19,7 @@ HHW = {"lat": 22.534, "lon": 114.0906}
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     monkeypatch.setenv("EARTH_IMPL", "stub")
     monkeypatch.setenv("EARTH_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(places_svc, "_EXAMPLES", [])  # only the demo place is seeded
     views._scene_cache.clear()
     with TestClient(app) as c:
         yield c
@@ -172,6 +174,34 @@ def test_prefetch_caches_every_band_of_every_pass(
         for band in views.BANDS:
             got = client.get("/api/views", params={**HHW, "band": band, "scene": p["scene"]})
             assert got.status_code == 200, got.text
+
+
+def test_a_long_period_warms_its_pass_list_and_newest_photos_only(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = views.spot(HHW["lat"], HHW["lon"])
+    scenes = views.recent_scenes(target, "2y")
+    assert len(scenes) > views._LONG_WARM
+    drawn: list[tuple[str, str]] = []
+    monkeypatch.setattr(views, "_render_cached", lambda t, b, s: drawn.append((s.id, b)) or {})
+    assert views.prefetch_now(target, "2y") == views._LONG_WARM
+    assert drawn == [(s.id, "photo") for s in scenes[: views._LONG_WARM]]
+    res = client.post("/api/views/prefetch", params={**HHW, "period": "2y"}).json()
+    assert res["passes"] == len(scenes) and res["images"] == views._LONG_WARM
+
+
+def test_a_view_draws_its_neighbours_in_the_same_band_ahead(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = views.spot(HHW["lat"], HHW["lon"])
+    scenes = views.recent_scenes(target, "2y")
+    ahead: list[tuple[str, str]] = []
+    monkeypatch.setattr(views, "impl", lambda: "real")
+    monkeypatch.setattr(views, "_ahead", lambda t, jobs: ahead.extend((s.id, b) for s, b in jobs))
+    views.render_view(target, "water", scenes[3].id, "2y")
+    others = [(scenes[3].id, b) for b in views.BANDS if b != "water"]
+    either_side = [(scenes[i].id, "water") for i in (4, 5, 2, 1)]
+    assert ahead == others + either_side
 
 
 def test_saving_a_place_queues_its_views_with_real_imagery(

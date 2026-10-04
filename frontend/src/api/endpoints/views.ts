@@ -47,7 +47,7 @@ export const viewsApi = {
       ...(usingFixtures() ? { fixture: none } : {}),
     }),
 
-  /** POST /api/views/prefetch — render every band of every pass in the period in the background. */
+  /** POST /api/views/prefetch — warm the period in the background (all bands for 4m; the pass list and newest photos for longer). */
   prefetch: (target: ViewTarget, period: ViewPeriod = '4m', signal?: AbortSignal): Promise<PrefetchResult> =>
     request<PrefetchResult>({
       method: 'POST',

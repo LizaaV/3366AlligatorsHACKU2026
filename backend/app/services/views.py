@@ -18,8 +18,11 @@ Speed (the reads are round-trip bound, far more than size or CPU bound):
   figure first, so a 5-year list reads about 3 cloud masks a month, not every pass;
 - identical work running at the same time is done once (single flight);
 - pass lists are kept on disk too, so a restart or redeploy before a demo keeps them;
-- after a view renders, the other bands of that pass and the photos of the next passes are
-  rendered in the background, so switching band or date is instant.
+- after a view renders, the other bands of that pass and the same band of the passes either
+  side of it are rendered in the background, so switching band or stepping a date is instant;
+- a long period (1 to 5 years, up to 60 monthly passes) is never rendered whole: warming it
+  lists the passes (the slow part) and draws the newest few photos, and the rest render as
+  the person steps through them.
 """
 
 from __future__ import annotations
@@ -55,7 +58,8 @@ _RECENT_MAX = 8  # the default window lists its latest clear passes
 _SCAN_BATCH = 8  # cloud masks read per round for the recent list (newest first)
 _MONTH_CANDIDATES = 3  # passes per month whose cloud mask a long list reads, least cloudy first
 _LONG_SCAN_POOLS = 4  # long lists: batches of cloud masks read side by side
-_AHEAD_PASSES = 2  # after a view, also render the photo of this many next passes
+_AHEAD_PASSES = 2  # after a view, also render this many passes either side, in the same band
+_LONG_WARM = 3  # warming a long period draws the photo of this many newest passes
 _MAX_CLOUD = 30
 _REGION_DEG = 0.25  # catalogue searches cover this grid cell, reused by every pin inside it
 _REGION_TTL_S = 30 * 60
@@ -357,8 +361,9 @@ def render_view(
 ) -> dict:
     """Render (or reuse) one view. Returns url, WGS84 bounds and the pass it came from.
 
-    Then queues what is likely next: the other bands of this pass and the photo of the next
-    passes, so a person flicking through them does not wait."""
+    Then queues what is likely next: the other bands of this pass, then the same band of the
+    passes either side (older first, the usual direction), so a person stepping through them
+    does not wait. Nothing further is drawn until they move."""
     if band not in BANDS:
         raise ValueError(f"Unknown band {band!r}.")
     scenes = recent_scenes(target, period)
@@ -370,9 +375,9 @@ def render_view(
     out = _render_cached(target, band, scene)
     if impl() == "real":
         i = scenes.index(scene)
-        ahead = [(scene, b) for b in BANDS if b != band] + [
-            (s, "photo") for s in scenes[i + 1 : i + 1 + _AHEAD_PASSES]
-        ]
+        older = scenes[i + 1 : i + 1 + _AHEAD_PASSES]
+        newer = scenes[max(0, i - _AHEAD_PASSES) : i][::-1]
+        ahead = [(scene, b) for b in BANDS if b != band] + [(s, band) for s in older + newer]
         _ahead(target, ahead)
     return out
 
@@ -485,20 +490,29 @@ def prefetch_place(place_id: str, geojson: dict, name: str | None = None) -> Non
         log.warning("prefetch: could not queue place %s", place_id, exc_info=True)
 
 
+def prefetch_plan(period: str, passes: int) -> list[tuple[int, Band]]:
+    """What warming a period renders, as (pass index, band): every band of the recent passes
+    (8 at most), but for a long period only the newest few photos. Rendering 5 years whole
+    would be 60 passes x 4 bands, minutes of reads for images nobody may open."""
+    if period == "4m":
+        return [(i, b) for i in range(passes) for b in BANDS]
+    return [(i, "photo") for i in range(min(passes, _LONG_WARM))]
+
+
 def prefetch(target: Target, period: Period = "4m") -> bool:
-    """Queue rendering of all bands for all passes in the period. False if already queued."""
+    """Queue warming the period (see `prefetch_plan`). False if already queued."""
     return _bulk.put(f"{target.key}|{period}", lambda: prefetch_now(target, period))
 
 
 def prefetch_now(target: Target, period: Period = "4m") -> int:
-    """Render all bands for all passes in the period, here and now. Returns how many rendered
-    or were already cached. Used by the worker, and directly by tests."""
+    """List the period's passes and render its plan (see `prefetch_plan`), here and now.
+    Returns how many rendered or were already cached. Used by the worker, and by tests."""
     done = 0
-    for scene in recent_scenes(target, period):
-        for band in BANDS:
-            try:
-                _render_cached(target, band, scene)
-                done += 1
-            except Exception:  # one bad pass must not stop the rest
-                log.warning("prefetch: %s %s %s failed", target.key, scene.id, band, exc_info=True)
+    scenes = recent_scenes(target, period)
+    for i, band in prefetch_plan(period, len(scenes)):
+        try:
+            _render_cached(target, band, scenes[i])
+            done += 1
+        except Exception:  # one bad pass must not stop the rest
+            log.warning("prefetch: %s %s %s failed", target.key, scenes[i].id, band, exc_info=True)
     return done

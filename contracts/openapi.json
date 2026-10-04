@@ -3821,8 +3821,8 @@
         "tags": [
           "views"
         ],
-        "summary": "Render every band of every pass ahead of time",
-        "description": "Queue rendering of photo, greenness, water and bare ground for every clear pass in the\nperiod, so flicking through dates is instant. Returns at once: finding the passes (slow\nfor 5 years) and rendering both run in the background. A place's recent window is already\nqueued when it is saved.",
+        "summary": "Warm a period ahead of time",
+        "description": "Queue warming the period in the background and return at once. For the recent window\n(`4m`) every band of every pass is rendered. For 1 to 5 years only the pass list (slow to\nfind) and the newest 3 photos are: the rest render one at a time as the person steps\nthrough them, with the passes either side drawn ahead. A place's recent window is already\nqueued when it is saved.",
         "operationId": "view_prefetch_api_views_prefetch_post",
         "parameters": [
           {

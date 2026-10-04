@@ -98,13 +98,14 @@ def view_image(
     "/views/prefetch",
     response_model=PrefetchResult,
     status_code=202,
-    summary="Render every band of every pass ahead of time",
+    summary="Warm a period ahead of time",
     responses=_ERRORS,
 )
 def view_prefetch(target: ViewTarget, period: PeriodQ = "4m") -> PrefetchResult:
-    """Queue rendering of photo, greenness, water and bare ground for every clear pass in the
-    period, so flicking through dates is instant. Returns at once: finding the passes (slow
-    for 5 years) and rendering both run in the background. A place's recent window is already
+    """Queue warming the period in the background and return at once. For the recent window
+    (`4m`) every band of every pass is rendered. For 1 to 5 years only the pass list (slow to
+    find) and the newest 3 photos are: the rest render one at a time as the person steps
+    through them, with the passes either side drawn ahead. A place's recent window is already
     queued when it is saved."""
     try:
         found = views.cached_scenes(target, period)
@@ -112,6 +113,5 @@ def view_prefetch(target: ViewTarget, period: PeriodQ = "4m") -> PrefetchResult:
         raise _unavailable(exc) from exc
     queued = views.prefetch(target, period)
     passes = None if found is None else len(found)
-    return PrefetchResult(
-        passes=passes, images=None if passes is None else passes * len(views.BANDS), queued=queued
-    )
+    images = None if passes is None else len(views.prefetch_plan(period, passes))
+    return PrefetchResult(passes=passes, images=images, queued=queued)

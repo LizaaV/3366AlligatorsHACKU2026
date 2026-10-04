@@ -897,10 +897,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Render every band of every pass ahead of time
-         * @description Queue rendering of photo, greenness, water and bare ground for every clear pass in the
-         *     period, so flicking through dates is instant. Returns at once: finding the passes (slow
-         *     for 5 years) and rendering both run in the background. A place's recent window is already
+         * Warm a period ahead of time
+         * @description Queue warming the period in the background and return at once. For the recent window
+         *     (`4m`) every band of every pass is rendered. For 1 to 5 years only the pass list (slow to
+         *     find) and the newest 3 photos are: the rest render one at a time as the person steps
+         *     through them, with the passes either side drawn ahead. A place's recent window is already
          *     queued when it is saved.
          */
         post: operations["view_prefetch_api_views_prefetch_post"];

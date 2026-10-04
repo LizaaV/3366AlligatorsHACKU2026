@@ -180,9 +180,9 @@ export function AskPage({ active }: { active: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusKey, mode, period]);
 
-  // A saved place keeps every band of every pass cached on the server, so flicking through
-  // dates is instant. New places are queued when saved; this covers older places and the
-  // longer periods. The backend ignores a repeat while the same job is running.
+  // Warm the period on the server: for the recent passes every band; for 1 to 5 years only the
+  // pass list and the newest photos. Older months render when stepped to, and each view also
+  // draws the passes either side of it ahead. The backend ignores a repeat while it runs.
   useEffect(() => {
     if (!place || mode !== 'map') return;
     api.views.prefetch({ placeId: place.id }, period).catch(() => undefined);
